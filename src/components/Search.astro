@@ -547,5 +547,23 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 			margin-top: 0;
 			padding: var(--sl-search-result-nested-pad-block) var(--sl-search-result-pad-inline-end);
 		}
+
+		/* CephalonEngine: API-reference search hits carry very long,
+		   break-point-free C# identifiers (`AddBackendForFrontendClientBindings`,
+		   generic signatures, …). Force them to wrap inside the result card.
+		   `min-width: 0` lets the flexbox result layout shrink its children
+		   below their min-content width — without it the longest identifier
+		   sets the card width and the text overflows the modal. */
+		#starlight__search .pagefind-ui__result,
+		#starlight__search .pagefind-ui__result-inner,
+		#starlight__search .pagefind-ui__result-title,
+		#starlight__search .pagefind-ui__result-nested {
+			min-width: 0;
+		}
+		#starlight__search .pagefind-ui__result-title,
+		#starlight__search .pagefind-ui__result-link,
+		#starlight__search .pagefind-ui__result-excerpt {
+			overflow-wrap: anywhere;
+		}
 	}
 </style>

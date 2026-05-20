@@ -13,9 +13,11 @@ import {
   repoRoot,
   versions,
 } from './docs.site.mjs';
+import rehypeBaseLinks from './rehype-base-links.mjs';
 
 const defaultSiteUrl = 'https://cephalon-labs.github.io';
 const defaultBasePath = '';
+const basePath = process.env.DOCS_BASE_PATH ?? defaultBasePath;
 
 /**
  * Sections that live inside a version folder. Visiting their non-versioned
@@ -318,8 +320,17 @@ function buildSidebar() {
 
 export default defineConfig({
   site: process.env.DOCS_SITE_URL ?? defaultSiteUrl,
-  base: process.env.DOCS_BASE_PATH ?? defaultBasePath,
+  base: basePath,
   redirects: buildVersionRedirects(),
+
+  /* Content-link base rewriting. Astro applies `base` to built asset URLs
+     but NOT to `<a href>` / `<img src>` written inside Markdown/MDX content.
+     This site's content uses root-absolute links (`/0-1-0-preview/…`); under
+     a non-empty `base` they would 404. rehypeBaseLinks rewrites them at
+     build time — see ./rehype-base-links.mjs. */
+  markdown: {
+    rehypePlugins: [[rehypeBaseLinks, { base: basePath }]],
+  },
 
   /* Performance — prefetch link targets on hover so subsequent navigations
      feel instant. Astro's `hover` strategy prefetches the next page's HTML

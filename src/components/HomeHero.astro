@@ -1,6 +1,7 @@
 ---
 import { Code } from '@astrojs/starlight/components';
 import { Icon } from 'astro-icon/components';
+import { withBase } from '../lib/version-routing';
 
 export interface Props {
   eyebrow?: string;
@@ -81,12 +82,12 @@ app.Run();`;
     <p class="ce-hero__tagline">{tagline}</p>
 
     <div class="ce-hero__actions">
-      <a class="ce-button ce-button--primary" href={primaryCtaHref}>
+      <a class="ce-button ce-button--primary" href={withBase(primaryCtaHref)}>
         {primaryCtaText}
         <Icon name="bi:arrow-right" size={16} aria-hidden="true" />
       </a>
       {secondaryCtaText && secondaryCtaHref && (
-        <a class="ce-button ce-button--ghost" href={secondaryCtaHref}>
+        <a class="ce-button ce-button--ghost" href={withBase(secondaryCtaHref)}>
           {secondaryCtaText}
         </a>
       )}

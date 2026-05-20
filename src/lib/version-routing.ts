@@ -50,9 +50,21 @@ export type RootSection = (typeof ROOT_SECTIONS)[number];
 
 const baseUrl = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
 
-/** Prepend the configured base URL to a path that starts with `/`. */
+/**
+ * Prepend the configured base URL to a site-internal path.
+ *
+ * Safe to call on ANY href value — external URLs (`https:`, `mailto:` …),
+ * protocol-relative URLs (`//…`) and fragment links (`#…`) are returned
+ * untouched, and a path that already carries the base is not double-prefixed.
+ * That lets components pass user-authored hrefs straight through it.
+ */
 export function withBase(path: string): string {
+  if (!path) return path;
+  // External URLs, protocol-relative URLs, fragments and bare queries: as-is.
+  if (/^([a-z][a-z0-9+.-]*:|\/\/|#|\?)/i.test(path)) return path;
   if (!path.startsWith('/')) path = `/${path}`;
+  // Already carries the base — don't double up.
+  if (baseUrl && (path === baseUrl || path.startsWith(`${baseUrl}/`))) return path;
   return `${baseUrl}${path}`;
 }
 

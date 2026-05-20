@@ -483,6 +483,10 @@ export default defineConfig({
         SocialIcons: './src/components/SocialIcons.astro',
         Sidebar: './src/components/Sidebar.astro',
         Footer: './src/components/Footer.astro',
+        // Overridden to fix Pagefind search breaking under <ClientRouter /> —
+        // stock Starlight mounts the search UI on `DOMContentLoaded`, which
+        // never re-fires on a view-transition navigation. See Search.astro.
+        Search: './src/components/Search.astro',
       },
       /* Expressive Code config lives in `./ec.config.mjs` at the project
          root so Starlight's <Code> component (used in CodeShowcase) can

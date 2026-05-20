@@ -48,8 +48,8 @@ jobs:
         env:
           # Production URL + repo-scoped base path. If you bind a custom
           # domain via a CNAME file, change DOCS_BASE_PATH to '' (empty).
-          DOCS_SITE_URL: https://cephalon-labs.github.io
-          DOCS_BASE_PATH: /CephalonEngine
+          DOCS_SITE_URL: https://cephalon-labs.github.io # set to your custom domain if you have one // and sitemap.xml generation relies on this being correct
+          DOCS_BASE_PATH: /CephalonEngine-Docs # set to '' if using a custom domain
         run: npm run build
 
       - name: Upload Pages artifact

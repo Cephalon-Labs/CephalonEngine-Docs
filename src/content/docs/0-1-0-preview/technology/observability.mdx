@@ -1,0 +1,98 @@
+---
+title: Observability
+description: OTLP-native observability with provider adapters for every major cloud, plus dependency-health probes for 18+ backends.
+sidebar:
+  order: 7
+editUrl: false
+---
+
+CephalonEngine observability is **OpenTelemetry-native**. The base package wires the logging/metrics/tracing pipeline; provider adapters target managed backends; dependency-health probes report per-backend readiness.
+
+## Base package
+
+| Package | Maturity | What it brings |
+| --- | --- | --- |
+| **`Cephalon.Observability`** | `M3` | Logs, metrics, traces. Resource attributes derived from the manifest. Module-aware scopes. Health composition. |
+
+## OTLP exporters
+
+| Package | Maturity | Target |
+| --- | --- | --- |
+| `Cephalon.Observability.OpenTelemetry` | `M2` | Vanilla OTLP exporter. The default. |
+| `Cephalon.Observability.AzureMonitor` | `M2` | Azure Monitor / Application Insights. |
+| `Cephalon.Observability.Serilog` | `M2` | Serilog provider companion. |
+
+## Managed provider companions
+
+| Package | Maturity | Target |
+| --- | --- | --- |
+| `Cephalon.Observability.AlibabaCloud` | `M2` | Alibaba Cloud observability + OTLP. |
+| `Cephalon.Observability.Aws` | `M2` | AWS X-Ray-compatible OTLP. |
+| `Cephalon.Observability.DigitalOcean` | `M2` | DigitalOcean collector-first OTLP. |
+| `Cephalon.Observability.Gcp` | `M2` | GCP managed traces / metrics. |
+| `Cephalon.Observability.GrafanaCloud` | `M2` | Grafana Cloud OTLP gateway + access-policy auth. |
+| `Cephalon.Observability.HuaweiCloud` | `M2` | Huawei Cloud APM. |
+| `Cephalon.Observability.Kubernetes` | `M2` | In-cluster OTLP collector wiring, generic cluster defaults. |
+| `Cephalon.Observability.NewRelic` | `M2` | New Relic OTLP + api-key auth. |
+| `Cephalon.Observability.OpenShift` | `M2` | OpenShift in-cluster collector defaults. |
+| `Cephalon.Observability.OracleCloud` | `M2` | Oracle Cloud APM. |
+| `Cephalon.Observability.Tanzu` | `M2` | Proxy-focused OTLP trace handoff. |
+
+## Dependency-health probes
+
+| Package | Maturity | Target |
+| --- | --- | --- |
+| `Cephalon.Observability.CassandraDependencies` | `M2` | Cassandra readiness. |
+| `Cephalon.Observability.ClickHouseDependencies` | `M2` | ClickHouse analytics readiness. |
+| `Cephalon.Observability.ConsulDependencies` | `M2` | Consul control-plane readiness. |
+| `Cephalon.Observability.ElasticsearchDependencies` | `M2` | Elasticsearch cluster-health. |
+| `Cephalon.Observability.HttpDependencies` | `M2` | Arbitrary HTTP endpoints. |
+| `Cephalon.Observability.KafkaDependencies` | `M2` | Kafka broker metadata. |
+| `Cephalon.Observability.MemcachedDependencies` | `M2` | Memcached cache. |
+| `Cephalon.Observability.MongoDbDependencies` | `M2` | MongoDB. |
+| `Cephalon.Observability.MqttDependencies` | `M2` | MQTT broker. |
+| `Cephalon.Observability.MySqlDependencies` | `M2` | MySQL / MariaDB. |
+| `Cephalon.Observability.NatsDependencies` | `M2` | NATS broker. |
+| `Cephalon.Observability.Neo4jDependencies` | `M2` | Neo4j graph. |
+| `Cephalon.Observability.OpenSearchDependencies` | `M2` | OpenSearch cluster. |
+| `Cephalon.Observability.OracleDependencies` | `M2` | Oracle Database. |
+| `Cephalon.Observability.PostgresDependencies` | `M2` | Postgres. |
+| `Cephalon.Observability.RabbitMqDependencies` | `M2` | RabbitMQ broker. |
+| `Cephalon.Observability.RedisDependencies` | `M2` | Redis. |
+| `Cephalon.Observability.SqlServerDependencies` | `M2` | SQL Server / Azure SQL. |
+
+## How to enable
+
+```csharp title="Program.cs" {4-8}
+builder.Services
+    .AddCephalonAspNetCore()
+    .AddObservability(options =>
+    {
+        options.UseOpenTelemetry(otel => otel.ExporterEndpoint = "http://otel-collector:4317");
+        options.AddPostgresDependency("Products");
+        options.AddRedisDependency("Cache");
+    })
+    .AddModulesFromAssemblies(/* ... */);
+```
+
+## Resource attributes the engine always emits
+
+| Attribute | Source |
+| --- | --- |
+| `cephalon.engine.id` | `Engine:Id` configuration |
+| `cephalon.engine.version` | engine package version |
+| `cephalon.module.name` | module descriptor name |
+| `cephalon.module.version` | module descriptor version |
+| `cephalon.host.kind` | host adapter id |
+| `cephalon.deployment.id` | `Engine:Deployment:Id` if set |
+
+## Source-doc snapshots
+
+- [Cephalon.Observability](/0-1-0-preview/source/components/observability/)
+- Provider adapters live under `components/observability-*` in the versioned source.
+
+## Cross-references
+
+- **[Tutorial → First-app step 6](/0-1-0-preview/tutorials/first-app/06-observability/)** — wiring observability into a single host.
+- **[Tutorial → Observability stack](/0-1-0-preview/tutorials/observability-stack/)** — a complete Grafana + Tempo + Loki + Mimir stack.
+- **[Guide → Operations](/0-1-0-preview/guide/operations/)** — what to watch in production.

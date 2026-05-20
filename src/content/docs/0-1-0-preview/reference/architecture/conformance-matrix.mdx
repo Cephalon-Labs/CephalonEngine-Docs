@@ -1,0 +1,28 @@
+---
+title: Conformance matrix
+description: Per-package status row across every public surface — runtime contract, maturity label, manifest contribution, telemetry attributes.
+sidebar:
+  order: 3
+editUrl: false
+---
+
+The conformance matrix is the canonical cross-reference between every shipped package and the public surfaces it participates in.
+
+## What each column means
+
+| Column | Meaning |
+| --- | --- |
+| **Package** | The NuGet package name. |
+| **Maturity** | Current M0–M4 label. |
+| **Engine contract** | Routes / catalogs / contributors the package implements. |
+| **Manifest contribution** | What the package writes into the runtime manifest. |
+| **Telemetry attributes** | Per-package resource attributes contributed to telemetry. |
+| **Configuration prefix** | The `Engine:<prefix>:*` section the package owns. |
+
+## Source-doc snapshot
+
+The current matrix is maintained in the engine repo and mirrored to:
+
+- [Conformance matrix](/0-1-0-preview/source/conformance-matrix/)
+
+When in doubt, treat the versioned source as authoritative — this curated page is regenerated from it.

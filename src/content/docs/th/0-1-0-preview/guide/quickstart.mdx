@@ -1,0 +1,71 @@
+---
+title: เริ่มต้นด่วน
+description: ติดตั้ง Cephalon.Cli รัน cephalon doctor สเกฟโฟลด์ host และรันมันได้ในห้านาที
+sidebar:
+  order: 1
+  badge:
+    text: 5 นาที
+    variant: tip
+editUrl: false
+---
+
+หน้านี้คือเส้นทางที่เร็วที่สุดจาก "เพิ่งได้ยินชื่อ CephalonEngine" ถึง host ที่ฟัง `http://localhost:5000` เป็นจริง — ไม่อธิบายสถาปัตยกรรมหรือมิติของ app model นั่นเป็นหน้าที่ของ **[แนวคิด](/th/0-1-0-preview/guide/concepts/)**
+
+## 1. ตรวจสอบ .NET 10
+
+```powershell
+dotnet --list-sdks
+dotnet --list-runtimes
+```
+
+คุณควรเห็น SDK ตระกูล `10.x` พร้อม runtime `Microsoft.NETCore.App 10.x` และ `Microsoft.AspNetCore.App 10.x` ถ้ายังไม่มี ให้ติดตั้ง [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+
+## 2. ติดตั้ง CLI
+
+CephalonEngine มาพร้อม CLI ชื่อ `cephalon` ที่ดูแลการ scaffold, doctor check และเวิร์กโฟลว์เกี่ยวกับ reference doc
+
+```powershell
+dotnet tool install -g Cephalon.Cli --prerelease
+```
+
+ถ้าใช้ feed ภายในองค์กร ให้ระบุ `--add-source` ดูตัวอย่างใน **[การติดตั้ง](/th/0-1-0-preview/guide/installation/)**
+
+## 3. รัน cephalon doctor
+
+```powershell
+cephalon doctor
+```
+
+ผลลัพธ์ที่สำเร็จควรแสดง `[ok]` ต่อ SDK/runtime ที่จำเป็น และ `[warn]` ต่อรายการ optional (template pack, trim/AOT/single-file)
+
+## 4. สเกฟโฟลด์ host
+
+```powershell
+cephalon new Acme.Store --output ./Acme.Store
+```
+
+โครงสร้างที่ generate มาจะประกอบด้วย host project, modules folder, test project พร้อม composition smoke test, และโฟลเดอร์ `deploy/` สำหรับทุกเป้าหมาย
+
+## 5. รัน host
+
+```powershell
+dotnet run --project ./Acme.Store/src/Acme.Store.Host
+```
+
+ในเทอร์มินัลอื่น
+
+```powershell
+curl http://localhost:5000/engine/manifest
+curl http://localhost:5000/health
+```
+
+## ขั้นต่อไป
+
+- **สร้างฟีเจอร์** — ไปต่อที่ **[บทเรียนแอปแรก](/th/0-1-0-preview/tutorials/first-app/)**
+- **เลือก deploy target** — อ่าน **[การ Deploy](/th/0-1-0-preview/guide/deployment/)**
+- **ต่อ observability** — ดู **[บทเรียน observability stack](/th/0-1-0-preview/tutorials/observability-stack/)**
+
+<div class="ce-callout ce-callout--success">
+<span class="ce-callout__icon" aria-hidden="true">✅</span>
+<div><strong>เรียบร้อย</strong> host ที่คุณเพิ่ง generate มามีโครงสร้างเดียวกับที่เราใช้กับแอป production จากนี้ทุกอย่างจะเป็นแบบเพิ่มเติม — capability ที่เลือกใช้, transport ที่เลือกใช้, และแพ็กเกจเสริมที่เลือกใช้</div>
+</div>

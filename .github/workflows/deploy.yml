@@ -1,0 +1,70 @@
+name: Deploy to GitHub Pages
+
+# When this workflow runs:
+#   1. A GitHub Release is published (the canonical "ship the docs" trigger).
+#   2. Someone manually clicks "Run workflow" in the Actions tab.
+#
+# The push-to-main trigger is intentionally NOT here so the public site only
+# updates on releases — every merge stays in the repo until you cut a tag,
+# at which point Pages picks it up.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deploy in flight at a time. If a second release lands while
+# the first is still building, the queued one will run after — we never
+# cancel an in-flight deploy to avoid leaving Pages in a partial state.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build static site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          # Fetch the tag's commit, not the default-branch tip.
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build with Astro
+        env:
+          # Production URL + repo-scoped base path. If you bind a custom
+          # domain via a CNAME file, change DOCS_BASE_PATH to '' (empty).
+          DOCS_SITE_URL: https://cephalon-labs.github.io
+          DOCS_BASE_PATH: /CephalonEngine
+        run: npm run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    name: Publish to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,15 @@
+{
+  "currentVersion": "0-1-0-preview",
+  "versions": [
+    {
+      "id": "0-1-0-preview",
+      "label": "0.1.0-preview",
+      "status": "current",
+      "sourceDocsDir": "D:/SaaS/CephalonEngine/docs",
+      "sourceCodeDir": "D:/SaaS/CephalonEngine/src",
+      "sourceRepoUrl": "https://github.com/Cephalon-Labs/CephalonEngine",
+      "sourceRef": "main",
+      "notes": "Initial preview documentation stream for Cephalon Engine."
+    }
+  ]
+}

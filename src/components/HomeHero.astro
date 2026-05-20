@@ -1,0 +1,140 @@
+---
+import { Code } from '@astrojs/starlight/components';
+import { Icon } from 'astro-icon/components';
+
+export interface Props {
+  eyebrow?: string;
+  title: string;
+  tagline: string;
+  primaryCtaText: string;
+  primaryCtaHref: string;
+  secondaryCtaText?: string;
+  secondaryCtaHref?: string;
+  installCommand?: string;
+}
+
+const {
+  eyebrow = 'Cephalon Engine · .NET 10',
+  title,
+  tagline,
+  primaryCtaText,
+  primaryCtaHref,
+  secondaryCtaText,
+  secondaryCtaHref,
+  installCommand = 'dotnet tool install -g Cephalon.Cli',
+} = Astro.props;
+
+const heroCsharp = `// Compose a modular host in 6 lines
+using Cephalon.AspNetCore;
+using Cephalon.Engine;
+
+var builder = WebApplication.CreateBuilder(args);
+
+var app = builder.Services
+    .AddCephalonAspNetCore()
+    .AddModulesFromAssemblies(typeof(Program).Assembly)
+    .AddObservability(options => options.UseOpenTelemetry())
+    .AddData(options => options.UseEntityFramework())
+    .Build(builder);
+
+app.MapCephalon();
+app.MapHealthChecks("/health");
+
+app.Run();`;
+---
+
+<section class="ce-hero" aria-labelledby="ce-hero-title">
+  {/* Animated "goo" blob background — multiple soft circles drifting and
+      merging via the gooey blur+threshold filter. Sits behind the halo
+      and grid for a layered atmospheric backdrop. */}
+  <div class="ce-hero__blobs" aria-hidden="true">
+    <svg viewBox="0 0 600 400" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <filter id="ce-hero-goo">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="22" result="blur" />
+          <feColorMatrix in="blur" mode="matrix" values="
+            1 0 0 0 0
+            0 1 0 0 0
+            0 0 1 0 0
+            0 0 0 16 -7
+          " result="goo" />
+          <feBlend in="SourceGraphic" in2="goo" />
+        </filter>
+      </defs>
+      <g filter="url(#ce-hero-goo)">
+        <circle class="ce-hero__blob ce-hero__blob--1" cx="150" cy="120" r="80" />
+        <circle class="ce-hero__blob ce-hero__blob--2" cx="450" cy="180" r="100" />
+        <circle class="ce-hero__blob ce-hero__blob--3" cx="280" cy="320" r="90" />
+        <circle class="ce-hero__blob ce-hero__blob--4" cx="520" cy="80"  r="60" />
+        <circle class="ce-hero__blob ce-hero__blob--5" cx="80"  cy="300" r="70" />
+      </g>
+    </svg>
+  </div>
+  <div class="ce-hero__halo" aria-hidden="true"></div>
+  <div class="ce-hero__grid" aria-hidden="true"></div>
+  <div class="ce-hero__inner">
+    <p class="ce-hero__eyebrow">
+      <span class="ce-hero__pulse" aria-hidden="true"></span>
+      {eyebrow}
+    </p>
+    <h1 id="ce-hero-title" class="ce-hero__title">{title}</h1>
+    <p class="ce-hero__tagline">{tagline}</p>
+
+    <div class="ce-hero__actions">
+      <a class="ce-button ce-button--primary" href={primaryCtaHref}>
+        {primaryCtaText}
+        <Icon name="bi:arrow-right" size={16} aria-hidden="true" />
+      </a>
+      {secondaryCtaText && secondaryCtaHref && (
+        <a class="ce-button ce-button--ghost" href={secondaryCtaHref}>
+          {secondaryCtaText}
+        </a>
+      )}
+    </div>
+
+    <div class="ce-hero__install">
+      <span class="ce-hero__install-label">Install</span>
+      <code>{installCommand}</code>
+      <button type="button" class="ce-hero__copy" data-copy={installCommand} aria-label="Copy install command">
+        <Icon name="bi:clipboard" size={16} aria-hidden="true" />
+      </button>
+    </div>
+
+    <div class="ce-hero__meta">
+      <span><strong>.NET 10</strong> LTS</span>
+      <span><strong>MIT</strong> licensed</span>
+      <span><strong>10+</strong> hosts</span>
+      <span><strong>40+</strong> companion packages</span>
+    </div>
+  </div>
+
+  <div class="ce-hero__preview" aria-hidden="true">
+    <div class="ce-hero__preview-window">
+      <div class="ce-hero__preview-chrome">
+        <span></span><span></span><span></span>
+        <p>Program.cs</p>
+      </div>
+      {/* Use Starlight's <Code> so the hero gets the same Shiki-based C#
+          syntax highlighting (and theme-aware light/dark colours) as the
+          showcase below. frame="none" strips EC's own window chrome — we
+          render our own macOS-style traffic-light header above.
+          showLineNumbers={false} overrides the C# default (which the
+          showcase keeps) — the hero is a marketing snippet, not reference
+          documentation, so line numbers are visual noise here. */}
+      <div class="ce-hero__preview-code">
+        {/* wrap={true} tells Expressive Code to break long lines instead of
+            triggering a horizontal scrollbar — the hero is a marketing
+            preview where overflow would look broken. */}
+        <Code
+          code={heroCsharp}
+          lang="csharp"
+          frame="none"
+          showLineNumbers={false}
+          wrap={true}
+        />
+      </div>
+    </div>
+  </div>
+</section>
+
+{/* Copy-to-clipboard handler lives in /public/scripts/site-ui.js — see Head.astro */}

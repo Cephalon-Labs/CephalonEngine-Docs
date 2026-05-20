@@ -1,0 +1,44 @@
+---
+title: Release process
+description: How a CephalonEngine version is cut, signed, and announced.
+sidebar:
+  order: 9
+editUrl: false
+---
+
+A CephalonEngine release is the end state of a planned minor — every package built, signed, and published with aligned versions. This page documents the steps the release captain runs.
+
+## Pre-release checklist
+
+- [ ] All `0.x.y` issues closed or moved out.
+- [ ] Maturity audit reviewed; per-package labels confirmed.
+- [ ] Conformance matrix regenerated.
+- [ ] Benchmark baselines green.
+- [ ] Integration matrix passes on the supported backends.
+- [ ] Release notes drafted.
+- [ ] Docs site sync rebuilt.
+
+## Cut
+
+1. Bump version in `Directory.Build.props`.
+2. Run `pwsh ./scripts/publish-package-artifacts.ps1 -Configuration Release`.
+3. Verify the artifact set against `docs/package-publishing.md`.
+4. Tag the commit `v0.<minor>.<patch>`.
+
+## Publish
+
+1. CI's release workflow signs every package.
+2. Workflow pushes to NuGet.org.
+3. Workflow updates the `templates/Cephalon.TemplatePack` version.
+4. Workflow opens the docs-site PR with the new version snapshot.
+
+## Announce
+
+- Release notes on the engine repo.
+- Roadmap update.
+- Twitter / blog post (optional).
+
+## Post-release
+
+- Bump engine package versions in `samples/`.
+- Open the next minor's tracking issue.

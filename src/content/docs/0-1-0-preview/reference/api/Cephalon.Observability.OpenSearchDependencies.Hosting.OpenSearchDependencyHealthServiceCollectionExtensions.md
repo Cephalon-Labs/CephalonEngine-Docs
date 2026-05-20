@@ -1,0 +1,83 @@
+---
+title: Class OpenSearchDependencyHealthServiceCollectionExtensions
+slug: 0-1-0-preview/reference/api/cephalon-observability-opensearchdependencies-hosting-opensearchdependencyhealthservicecollectionextensions
+editUrl: false
+---
+
+Namespace: [Cephalon.Observability.OpenSearchDependencies.Hosting](/0-1-0-preview/reference/api/cephalon-observability-opensearchdependencies-hosting/)  
+Assembly: Cephalon.Observability.OpenSearchDependencies.dll  
+
+Adds OpenSearch dependency-health services to a Cephalon host.
+
+```csharp
+public static class OpenSearchDependencyHealthServiceCollectionExtensions
+```
+
+#### Inheritance
+
+[object](https://learn.microsoft.com/dotnet/api/system.object) ← 
+[OpenSearchDependencyHealthServiceCollectionExtensions](/0-1-0-preview/reference/api/cephalon-observability-opensearchdependencies-hosting-opensearchdependencyhealthservicecollectionextensions/)
+
+#### Inherited Members
+
+[object.Equals\(object?\)](https://learn.microsoft.com/dotnet/api/system.object.equals\#system\-object\-equals\(system\-object\)), 
+[object.Equals\(object?, object?\)](https://learn.microsoft.com/dotnet/api/system.object.equals\#system\-object\-equals\(system\-object\-system\-object\)), 
+[object.GetHashCode\(\)](https://learn.microsoft.com/dotnet/api/system.object.gethashcode), 
+[object.GetType\(\)](https://learn.microsoft.com/dotnet/api/system.object.gettype), 
+[object.MemberwiseClone\(\)](https://learn.microsoft.com/dotnet/api/system.object.memberwiseclone), 
+[object.ReferenceEquals\(object?, object?\)](https://learn.microsoft.com/dotnet/api/system.object.referenceequals), 
+[object.ToString\(\)](https://learn.microsoft.com/dotnet/api/system.object.tostring)
+
+## Methods
+
+### <a id="Cephalon_Observability_OpenSearchDependencies_Hosting_OpenSearchDependencyHealthServiceCollectionExtensions_AddCephalonOpenSearchDependencyHealth_Microsoft_Extensions_DependencyInjection_IServiceCollection_Microsoft_Extensions_Configuration_IConfiguration_System_Action_Cephalon_Observability_OpenSearchDependencies_Configuration_OpenSearchDependencyHealthOptions__"></a> AddCephalonOpenSearchDependencyHealth\(IServiceCollection, IConfiguration, Action<OpenSearchDependencyHealthOptions\>?\)
+
+Adds OpenSearch dependency-health services using configuration as the primary source of probe settings.
+
+```csharp
+public static IServiceCollection AddCephalonOpenSearchDependencyHealth(this IServiceCollection services, IConfiguration configuration, Action<OpenSearchDependencyHealthOptions>? configure = null)
+```
+
+#### Parameters
+
+`services` [IServiceCollection](https://learn.microsoft.com/dotnet/api/microsoft.extensions.dependencyinjection.iservicecollection)
+
+The target service collection.
+
+`configuration` [IConfiguration](https://learn.microsoft.com/dotnet/api/microsoft.extensions.configuration.iconfiguration)
+
+The application configuration root.
+
+`configure` [Action](https://learn.microsoft.com/dotnet/api/system.action\-1)<[OpenSearchDependencyHealthOptions](/0-1-0-preview/reference/api/cephalon-observability-opensearchdependencies-configuration-opensearchdependencyhealthoptions/)\>?
+
+An optional callback that can extend or override the configuration-driven dependency-health setup.
+
+#### Returns
+
+ [IServiceCollection](https://learn.microsoft.com/dotnet/api/microsoft.extensions.dependencyinjection.iservicecollection)
+
+The same service collection for further registration.
+
+### <a id="Cephalon_Observability_OpenSearchDependencies_Hosting_OpenSearchDependencyHealthServiceCollectionExtensions_AddCephalonOpenSearchDependencyHealth_Microsoft_Extensions_DependencyInjection_IServiceCollection_System_Action_Cephalon_Observability_OpenSearchDependencies_Configuration_OpenSearchDependencyHealthOptions__"></a> AddCephalonOpenSearchDependencyHealth\(IServiceCollection, Action<OpenSearchDependencyHealthOptions\>?\)
+
+Adds OpenSearch dependency-health services using code-first configuration.
+
+```csharp
+public static IServiceCollection AddCephalonOpenSearchDependencyHealth(this IServiceCollection services, Action<OpenSearchDependencyHealthOptions>? configure = null)
+```
+
+#### Parameters
+
+`services` [IServiceCollection](https://learn.microsoft.com/dotnet/api/microsoft.extensions.dependencyinjection.iservicecollection)
+
+The target service collection.
+
+`configure` [Action](https://learn.microsoft.com/dotnet/api/system.action\-1)<[OpenSearchDependencyHealthOptions](/0-1-0-preview/reference/api/cephalon-observability-opensearchdependencies-configuration-opensearchdependencyhealthoptions/)\>?
+
+An optional callback that configures dependency-health options.
+
+#### Returns
+
+ [IServiceCollection](https://learn.microsoft.com/dotnet/api/microsoft.extensions.dependencyinjection.iservicecollection)
+
+The same service collection for further registration.

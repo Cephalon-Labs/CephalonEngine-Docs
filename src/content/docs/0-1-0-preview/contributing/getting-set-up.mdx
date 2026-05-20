@@ -1,0 +1,83 @@
+---
+title: Set up the dev environment
+description: Clone, restore, build, test. Local package feed, scripts, and the AGENTS conventions for CephalonEngine itself.
+sidebar:
+  order: 1
+editUrl: false
+---
+
+## Prerequisites
+
+- **.NET 10 SDK** (latest patch).
+- **PowerShell 7+** (`pwsh`) for the helper scripts.
+- **Git** with line endings normalised (`core.autocrlf=input` on Windows is fine).
+- **Docker** if you want to run the integration tests against real backends.
+
+## Clone
+
+```powershell frame="terminal"
+git clone https://github.com/Cephalon-Labs/CephalonEngine.git
+cd CephalonEngine
+```
+
+## Build
+
+The repo ships several solution filters so you don't have to build everything at once:
+
+```powershell frame="terminal" {2-5}
+dotnet restore CephalonEngine.slnx
+dotnet build core.slnf -c Release
+dotnet build aspnetcore.slnf -c Release
+dotnet build data.slnf -c Release
+dotnet build observability.slnf -c Release
+```
+
+## Test
+
+```powershell frame="terminal" {3}
+dotnet test core.slnf -c Release --filter "Category!=Integration"
+dotnet test aspnetcore.slnf -c Release --filter "Category!=Integration"
+dotnet test core.slnf -c Release --filter "Category=Integration"
+```
+
+## Publish a local package feed
+
+To exercise the generated-app flow:
+
+```powershell frame="terminal"
+pwsh ./scripts/publish-package-artifacts.ps1 -Configuration Release -SkipBuild
+```
+
+That produces `./artifacts/packages-release`, which you can point a `cephalon new`-generated app at via `cephalon stage-packages`.
+
+## Run the playground
+
+`playground/Cephalon.Playground` is a minimal host that demonstrates the engine end-to-end:
+
+```powershell frame="terminal"
+dotnet run --project ./playground/Cephalon.Playground
+```
+
+## AGENTS.md
+
+The repo's [AGENTS.md](https://github.com/Cephalon-Labs/CephalonEngine/blob/main/AGENTS.md) documents the conventions any contributor (human or AI) is expected to follow — repo structure, build commands, where docs live, how to ship. Read it once before your first PR.
+
+## Where things live
+
+| Path | What's there |
+| --- | --- |
+| `src/` | Engine + companion packages. One project per shipped NuGet package. |
+| `tests/` | xUnit test projects. One per package. |
+| `benchmarks/Cephalon.Benchmarks/` | BenchmarkDotNet suite. |
+| `samples/` | Adoption-quality sample apps. |
+| `playground/Cephalon.Playground/` | Minimal demonstration host. |
+| `templates/Cephalon.TemplatePack/` | `dotnet new` template pack. |
+| `docs/` | Hand-authored source docs (read by this docs site). |
+| `scripts/` | PowerShell helpers — package publishing, planning sync, …. |
+| `.github/workflows/` | CI pipelines. |
+
+## Editor choice
+
+- **Visual Studio 2026 17.13+** — first-class, including `.slnx`.
+- **Rider 2026.1+** — full support, recommended for cross-platform contributors.
+- **VS Code with C# Dev Kit** — works as long as the workspace points at the right `.slnx` or `.slnf`.

@@ -1,0 +1,171 @@
+---
+title: '7 · Tests'
+description: 'Composition smoke tests, behavior specifications, and integration tests against real Postgres containers.'
+sidebar:
+  order: 7
+editUrl: false
+---
+
+CephalonEngine ships with two opinionated test categories: **composition** (does it wire?) and **behavior** (does the feature work?). This step adds a third: **integration** against real backing services using Testcontainers.
+
+## 7.1 Composition smoke tests
+
+The scaffold already gave you `tests/Acme.Store.Host.Tests/Architecture/CompositionSmokeTests.cs`. Open it and add coverage for the new modules:
+
+```csharp
+[Fact]
+public async Task Host_composes_with_orders_and_products()
+{
+    await using var host = await TestHostFactory.CreateAsync();
+    var manifest = host.Services.GetRequiredService<IRuntimeManifest>();
+
+    manifest.Modules.Select(m => m.Name).Should().Contain(new[]
+    {
+        "Acme.Store.Modules.Health",
+        "Acme.Store.Modules.Products",
+        "Acme.Store.Modules.Orders",
+    });
+
+    manifest.Capabilities.Should().Contain(Capability.Eventing);
+}
+```
+
+This catches:
+
+- modules failing to register.
+- capability providers missing for declared capabilities.
+- conflicting registrations.
+
+Run with:
+
+```powershell
+dotnet test --filter Category=Composition
+```
+
+## 7.2 Behavior specifications
+
+Per-feature specs live under `tests/Acme.Store.Host.Tests/Features/`. The pattern is Given/When/Then with an in-memory or test-double-backed engine.
+
+```csharp
+public sealed class PlaceOrderSpecifications
+{
+    [Fact]
+    public async Task Placing_an_order_publishes_a_product_purchased_event()
+    {
+        await using var host = await TestHostFactory.CreateAsync(
+            configure: services => services.AddMessageSpy<ProductPurchased>());
+
+        var client = host.CreateClient();
+        var spy = host.Services.GetRequiredService<MessageSpy<ProductPurchased>>();
+
+        var response = await client.PostAsJsonAsync("/orders", new
+        {
+            productId = "p-001", quantity = 2, total = 298m
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        spy.Messages.Should().ContainSingle(m => m.ProductId == "p-001" && m.Quantity == 2);
+    }
+}
+```
+
+`MessageSpy<T>` is a test helper that wires a stub handler so you can assert on what was published.
+
+## 7.3 Integration with Testcontainers
+
+For real-world coverage, run the host against a real Postgres container and exercise the full stack. Add Testcontainers to the test project:
+
+```xml
+<PackageReference Include="Testcontainers.PostgreSql" Version="3.10.0" />
+```
+
+Create `tests/Acme.Store.Host.Tests/PostgresFixture.cs`:
+
+```csharp
+using Testcontainers.PostgreSql;
+
+public sealed class PostgresFixture : IAsyncLifetime
+{
+    public string ConnectionString { get; private set; } = string.Empty;
+    private PostgreSqlContainer _container = null!;
+
+    public async Task InitializeAsync()
+    {
+        _container = new PostgreSqlBuilder()
+            .WithImage("postgres:16-alpine")
+            .WithDatabase("acmestore")
+            .WithUsername("postgres")
+            .WithPassword("postgres")
+            .Build();
+        await _container.StartAsync();
+        ConnectionString = _container.GetConnectionString();
+    }
+
+    public Task DisposeAsync() => _container.DisposeAsync().AsTask();
+}
+```
+
+Then in your integration specs:
+
+```csharp
+public sealed class OrdersEndpointIntegrationTests : IClassFixture<PostgresFixture>
+{
+    private readonly PostgresFixture _postgres;
+    public OrdersEndpointIntegrationTests(PostgresFixture postgres) => _postgres = postgres;
+
+    [Fact]
+    public async Task Placing_an_order_persists_it()
+    {
+        await using var host = await TestHostFactory.CreateAsync(
+            overrides: ("ConnectionStrings:Orders", _postgres.ConnectionString));
+
+        var client = host.CreateClient();
+        await client.PostAsJsonAsync("/orders", new { productId = "p-001", quantity = 1, total = 149m });
+
+        await using var scope = host.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<OrdersDbContext>();
+        (await db.Orders.CountAsync()).Should().Be(1);
+    }
+}
+```
+
+## 7.4 Test categories
+
+Decorate tests with categories so CI can run them independently:
+
+```csharp
+[Trait("Category", "Integration")]
+public sealed class OrdersEndpointIntegrationTests { ... }
+```
+
+CI scripts can then:
+
+```powershell
+# fast lane on every PR
+dotnet test --filter "Category=Composition|Category=Behavior"
+
+# nightly / pre-merge
+dotnet test --filter "Category=Integration"
+```
+
+## 7.5 Coverage targets
+
+CephalonEngine apps generally aim for:
+
+- **Composition smoke tests** — 100% of expected modules covered.
+- **Behavior specs** — every public REST/JSON-RPC/gRPC behavior has at least one spec.
+- **Integration tests** — critical-path features only; not every endpoint.
+- **Total line coverage** — 70% is a reasonable floor for an app, 85%+ for the engine itself.
+
+The engine's own coverage policy is documented at **[Contributing → Testing strategy](/0-1-0-preview/contributing/testing-strategy/)**.
+
+## What you should have now
+
+- [x] Composition smoke tests covering both modules.
+- [x] Behavior specs for the place-order flow.
+- [x] Integration tests running against Testcontainers Postgres.
+- [x] Categories that let CI run lanes independently.
+
+## What to do next
+
+**[Step 8 → Deploy](/0-1-0-preview/tutorials/first-app/08-deploy/)**.

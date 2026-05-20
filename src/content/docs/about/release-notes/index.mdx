@@ -1,0 +1,38 @@
+---
+title: Release notes
+description: Every shipped CephalonEngine version, with per-version change summaries and links to migration notes.
+sidebar:
+  order: 0
+  label: Overview
+editUrl: false
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Every shipped CephalonEngine version has its own page below. Versions appear in **reverse-chronological order** — the current release is on top.
+
+<CardGrid>
+  <LinkCard
+    title="0.1.0-preview · current"
+    href="/about/release-notes/0-1-0-preview/"
+    description="The initial preview track. Daily-to-weekly additive releases under 0.1.0-preview.N. Hosts, data, eventing, identity, multi-tenancy, observability — all M3 surface available."
+  />
+  <LinkCard
+    title="0.2.0-preview · planned"
+    href="/about/release-notes/0-2-0-preview/"
+    description="The first managed migration story. Adds dedicated reference/architecture sub-pages (transports, identity, tenancy, design patterns) and the operations sub-tree. Tracked on the roadmap."
+  />
+</CardGrid>
+
+## Versioning policy
+
+- **`0.1.0-preview.N`** — additive within the preview track. New behaviors, new packages, new schema sections land in `N+1` builds without breaking apps on `N`.
+- **`0.2.0-preview` onward** — minor preview bumps signal **breaking schema or breaking API**. A migration page accompanies each one in **[Migration → Version upgrades](/0-1-0-preview/migration/version-upgrades/)**.
+- **`1.0.0`** — the first stable release. Drops the `-preview` suffix. Locked surface: any change after this point follows SemVer (major = breaking, minor = additive, patch = bug-fix).
+
+## Where to go next
+
+- **[Migration → Breaking changes](/0-1-0-preview/migration/breaking-changes/)** — cumulative audit trail of every breaking change across stable releases.
+- **[Migration → Version upgrades](/0-1-0-preview/migration/version-upgrades/)** — step-by-step upgrade guides per minor.
+- **[Roadmap](/about/roadmap/)** — what's planned for `0.2.0-preview` and beyond.
+- **[Backlog](/about/backlog/)** — items being weighed for upcoming releases.

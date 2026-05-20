@@ -1,0 +1,407 @@
+---
+title: 'Engine:Tenancy'
+description: Configure multi-tenancy — tenant resolution (subdomain, header, claim, path), default tenant, sharding, governance.
+sidebar:
+  order: 4
+editUrl: false
+---
+
+`Engine:Tenancy` configures the multi-tenancy capability — how the engine extracts the current tenant from incoming requests and exposes it to modules. **Only consumed when `Engine:Tenancy:Enabled=true`** and at least one module declares `Capability.Tenancy`.
+
+## Full schema
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Tenancy": {
+      "Enabled": true,
+      "DefaultTenant": "default",                   // tenant id when nothing resolves
+      "Resolvers": [                                // tried in order; first match wins
+        "claim",                                    // from JWT claim
+        "header",                                   // from HTTP header
+        "subdomain",                                // from URL subdomain
+        "path"                                      // from URL path segment
+      ],
+      "Claim": {
+        "Name": "tenant_id"                         // which JWT claim carries tenant id
+      },
+      "Header": {
+        "Name": "X-Tenant",
+        "AllowFromUntrustedClient": false           // require trusted-source check
+      },
+      "Subdomain": {
+        "BaseHost": "acme.example",                 // strip this suffix to get tenant
+        "Reserved": [ "www", "api", "admin" ]       // subdomains that aren't tenants
+      },
+      "Path": {
+        "Pattern": "/t/{tenant}/",                  // route template
+        "RewriteToRoot": true                       // rewrite the URL so handlers see /
+      },
+      "Sharding": {
+        "Enabled": false,
+        "ConnectionStringMap": {
+          "default": "ConnectionStrings:DefaultShard",
+          "acme":    "ConnectionStrings:AcmeShard"
+        },
+        "Fallback": "ConnectionStrings:DefaultShard"
+      },
+      "Governance": {
+        "Enabled": false,                           // durable tenant/membership/invitation tables
+        "Provider": "EntityFramework",
+        "InviteLifetime": "7.00:00:00"              // 7 days
+      },
+      "Cache": {
+        "TtlSeconds": 60                            // per-tenant config cache TTL
+      }
+    }
+  }
+}
+```
+
+## Each option in detail
+
+### `Enabled`
+
+| Type | Default |
+| --- | --- |
+| boolean | `false` |
+
+Master switch. When `false`:
+- Modules declaring `Capability.Tenancy` fail composition.
+- `ITenantContext` is not registered.
+- All requests run "tenant-less".
+
+### `DefaultTenant`
+
+| Type | Default |
+| --- | --- |
+| string or null | `"default"` |
+
+Tenant ID used when no resolver matches. Set to `null` to **reject requests without a tenant** (returns 400 Bad Request).
+
+```jsonc
+{ "DefaultTenant": "default" }   // permissive — uses "default" when nothing matches
+{ "DefaultTenant": null }        // strict — 400 if no tenant resolved
+```
+
+**When to use which:**
+- `"default"` for **single-tenant deployments** where multi-tenancy support is precautionary.
+- `null` for **true SaaS** where every request must identify its tenant.
+
+### `Resolvers`
+
+| Type | Default |
+| --- | --- |
+| array of strings | `[]` |
+
+Ordered list of resolvers tried per request. First non-empty match wins. Built-in resolvers:
+
+| Name | Source |
+| --- | --- |
+| `"claim"` | JWT claim configured under `Claim` |
+| `"header"` | HTTP header configured under `Header` |
+| `"subdomain"` | First DNS label of the host |
+| `"path"` | URL path segment matched by `Path:Pattern` |
+| `"query"` | Query-string parameter (less secure; prefer header/claim) |
+
+**Examples:**
+
+```jsonc
+{ "Resolvers": ["claim"] }                            // JWT-only
+{ "Resolvers": ["header", "subdomain"] }              // header preferred, subdomain fallback
+{ "Resolvers": ["claim", "header", "subdomain"] }     // most robust — try all
+```
+
+**Order matters:**
+- Put **most-trusted** resolver first (`claim` if JWT-authenticated, `header` if API-key based).
+- Put **fallback** resolvers last.
+
+**Limits:**
+- Empty list (`[]`) effectively disables tenancy resolution — every request gets `DefaultTenant`.
+- Resolvers run only after authentication. Setting `claim` requires `Engine:Identity:Enabled=true`.
+
+### `Claim.Name`
+
+| Type | Default |
+| --- | --- |
+| string | `"tenant_id"` |
+
+JWT claim that carries the tenant id. Standard mappings:
+
+| IdP | Common claim |
+| --- | --- |
+| Auth0 | `"https://yourapp.example/tenant_id"` (namespaced) |
+| Azure AD | `"tid"` (tenant id) or custom claim |
+| Keycloak / generic | `"tenant_id"` |
+| AWS Cognito | `"custom:tenant_id"` |
+
+```jsonc
+{ "Claim": { "Name": "https://acme.example/tenant_id" } }
+```
+
+### `Header.Name`
+
+| Type | Default |
+| --- | --- |
+| string | `"X-Tenant"` |
+
+HTTP header that carries the tenant id. Common conventions: `X-Tenant`, `X-Tenant-Id`, `Tenant`.
+
+### `Header.AllowFromUntrustedClient`
+
+| Type | Default |
+| --- | --- |
+| boolean | `false` |
+
+**Security-critical.** When `false`, the header is only honored if the request came through a trusted source (configured network, internal service, etc.). When `true`, any caller can set the header — open to spoofing.
+
+**Use `false` unless:**
+- You have a separate API gateway that validates the header before forwarding.
+- You're behind an authenticated proxy (mTLS, IdP-injected header).
+
+```jsonc
+{ "Header": { "Name": "X-Tenant", "AllowFromUntrustedClient": false } }
+```
+
+### `Subdomain.BaseHost`
+
+| Type | Default |
+| --- | --- |
+| string | none |
+
+The DNS suffix to strip from the host header to derive the tenant id. For `acme.example.com` with `BaseHost = "example.com"`, the tenant is `"acme"`.
+
+```jsonc
+{ "Subdomain": { "BaseHost": "acme-saas.example" } }
+// Host: tenant-a.acme-saas.example  →  tenant = "tenant-a"
+```
+
+### `Subdomain.Reserved`
+
+| Type | Default |
+| --- | --- |
+| array of strings | `["www", "api", "admin"]` |
+
+Subdomains that are **not** tenants. Used for marketing pages, admin UI, etc. Resolver skips these and falls through to the next.
+
+```jsonc
+{ "Subdomain": { "Reserved": ["www", "api", "admin", "marketing", "status"] } }
+```
+
+### `Path.Pattern`
+
+| Type | Default |
+| --- | --- |
+| route template | `"/t/{tenant}/"` |
+
+URL path template containing a `{tenant}` placeholder. Useful when you can't use subdomains (e.g. all tenants on one domain).
+
+```jsonc
+{ "Path": { "Pattern": "/{tenant}/api/" } }
+// Request: /acme-corp/api/orders  →  tenant = "acme-corp"
+```
+
+### `Path.RewriteToRoot`
+
+| Type | Default |
+| --- | --- |
+| boolean | `true` |
+
+When `true`, the URL is rewritten internally so handlers see the un-tenanted path. E.g. `/acme-corp/api/orders` becomes `/api/orders` for the matched behavior. Set `false` to keep the original URL.
+
+### `Sharding`
+
+Per-tenant database sharding — different tenants live on different physical databases.
+
+#### `Sharding.Enabled`
+
+| Type | Default |
+| --- | --- |
+| boolean | `false` |
+
+When `true`, `ITenantConnectionResolver.Resolve(tenantId)` returns a per-tenant connection string instead of the default.
+
+#### `Sharding.ConnectionStringMap`
+
+| Type | Default |
+| --- | --- |
+| object | `{}` |
+
+Maps tenant ids to `ConnectionStrings:*` names.
+
+```jsonc
+{
+  "Sharding": {
+    "Enabled": true,
+    "ConnectionStringMap": {
+      "acme-corp":   "ConnectionStrings:AcmeShard",
+      "globex-inc":  "ConnectionStrings:GlobexShard",
+      "default":     "ConnectionStrings:DefaultShard"
+    },
+    "Fallback": "ConnectionStrings:DefaultShard"
+  },
+  "ConnectionStrings": {
+    "AcmeShard":     "Host=shard-1;Database=acme;…",
+    "GlobexShard":   "Host=shard-2;Database=globex;…",
+    "DefaultShard":  "Host=shard-default;Database=multi;…"
+  }
+}
+```
+
+#### `Sharding.Fallback`
+
+| Type | Default |
+| --- | --- |
+| string | none |
+
+Connection-string name used for tenants not in the map. Useful for "small tenants share one shard, big tenants get dedicated".
+
+### `Governance.Enabled`
+
+| Type | Default |
+| --- | --- |
+| boolean | `false` |
+
+Enable durable governance tables (tenant membership, invitations, declared domain ownership, approval/remediation workflows). Provided by `Cephalon.MultiTenancy.Governance`.
+
+When `true`, requires:
+- `Cephalon.MultiTenancy.Governance` package installed.
+- A `DbContext` for governance tables (separate from your domain data).
+- Email delivery configured (for invitations).
+
+### `Governance.Provider`
+
+| Type | Default |
+| --- | --- |
+| enum string | `"EntityFramework"` |
+
+Currently only `"EntityFramework"` is supported.
+
+### `Governance.InviteLifetime`
+
+| Type | Default |
+| --- | --- |
+| TimeSpan string | `"7.00:00:00"` (7 days) |
+
+How long an invitation token is valid before expiring.
+
+### `Cache.TtlSeconds`
+
+| Type | Default |
+| --- | --- |
+| integer | `60` |
+
+Per-tenant config / membership cache TTL. Higher = less DB load, slower governance changes propagate. Lower = opposite.
+
+**Guideline:** 60s for typical apps; bump to 300s+ for read-heavy workloads, drop to 10s for fast-iteration governance flows.
+
+## Common scenarios
+
+### Scenario 1: B2B SaaS with subdomain-per-tenant
+
+```jsonc
+{
+  "Engine": {
+    "Tenancy": {
+      "Enabled": true,
+      "DefaultTenant": null,                          // strict: reject unknown
+      "Resolvers": ["subdomain"],
+      "Subdomain": {
+        "BaseHost": "acme.example",
+        "Reserved": ["www", "api", "admin"]
+      }
+    }
+  }
+}
+```
+
+### Scenario 2: API-first SaaS with JWT-based tenancy
+
+```jsonc
+{
+  "Engine": {
+    "Identity": {
+      "Enabled": true,
+      "Provider": "Bearer",
+      "Authority": "https://login.acme.example/",
+      "ClaimMapping": { "TenantId": "tenant_id" }
+    },
+    "Tenancy": {
+      "Enabled": true,
+      "DefaultTenant": null,
+      "Resolvers": ["claim"],
+      "Claim": { "Name": "tenant_id" }
+    }
+  }
+}
+```
+
+### Scenario 3: legacy app with header-based tenant + path fallback
+
+```jsonc
+{
+  "Engine": {
+    "Tenancy": {
+      "Enabled": true,
+      "DefaultTenant": "shared",
+      "Resolvers": ["header", "path"],
+      "Header": { "Name": "X-Tenant", "AllowFromUntrustedClient": false },
+      "Path":   { "Pattern": "/t/{tenant}/", "RewriteToRoot": true }
+    }
+  }
+}
+```
+
+### Scenario 4: full governance + per-tenant sharding
+
+```jsonc
+{
+  "Engine": {
+    "Tenancy": {
+      "Enabled": true,
+      "Resolvers": ["claim", "subdomain"],
+      "Governance": {
+        "Enabled": true,
+        "Provider": "EntityFramework",
+        "InviteLifetime": "14.00:00:00"
+      },
+      "Sharding": {
+        "Enabled": true,
+        "ConnectionStringMap": {
+          "acme":     "ConnectionStrings:AcmeShard",
+          "globex":   "ConnectionStrings:GlobexShard"
+        },
+        "Fallback": "ConnectionStrings:DefaultShard"
+      }
+    }
+  }
+}
+```
+
+## Environment-variable equivalents
+
+```text
+Engine__Tenancy__Enabled=true
+Engine__Tenancy__DefaultTenant=default
+Engine__Tenancy__Resolvers__0=claim
+Engine__Tenancy__Resolvers__1=subdomain
+Engine__Tenancy__Subdomain__BaseHost=acme.example
+Engine__Tenancy__Header__AllowFromUntrustedClient=false
+Engine__Tenancy__Sharding__Enabled=true
+Engine__Tenancy__Sharding__ConnectionStringMap__acme=ConnectionStrings:AcmeShard
+```
+
+## Limits & gotchas
+
+- **Resolver order is security-relevant.** Putting `header` before `claim` means a client can override its own JWT tenant via header — almost always wrong.
+- **Subdomain resolver requires consistent BaseHost.** `acme.example.com` and `acme.example` (no `com`) are different. Use the form your DNS / ingress actually presents.
+- **`Path.RewriteToRoot=true` breaks `IHttpContextAccessor.HttpContext.Request.Path` callers** that expect the original path. Set `false` if you rely on path inspection.
+- **Sharding requires careful migration story.** Adding a shard mid-flight needs to be paired with a tenant-relocation tool.
+- **Governance tables grow with tenant count + activity.** Index `tenant_id` columns; partition by `tenant_id` for very large fleets.
+- **Empty `Resolvers` list** is permitted but rarely useful — every request gets `DefaultTenant`, which often hides bugs.
+
+## See also
+
+- **[Technology → Multi-tenancy](/0-1-0-preview/technology/multi-tenancy/)** — package catalogue + governance docs.
+- **[Tutorial → Multi-tenant SaaS](/0-1-0-preview/tutorials/multi-tenant-saas/)** — end-to-end walkthrough.
+- **[Reference → Configuration → Identity](/0-1-0-preview/reference/configuration/identity/)** — JWT claim mapping for `Resolvers: ["claim"]`.

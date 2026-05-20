@@ -1,0 +1,90 @@
+---
+title: 0.2.0-preview · planned
+description: Planned release notes for 0.2.0-preview — the first managed migration story plus dedicated architecture sub-pages.
+sidebar:
+  order: 2
+  label: 0.2.0-preview · planned
+editUrl: false
+---
+
+The next preview track. Lands with the **first managed migration story** plus the dedicated reference / architecture sub-pages that are currently mirrored from engine source docs.
+
+**Status:** planned. Tracked on the **[Roadmap](/about/roadmap/)** and **[Backlog](/about/backlog/)**.
+
+## Planned highlights
+
+### Migration tooling
+
+- `cephalon migrate FROM TO` — automated schema / config migration runner. The `FROM` / `TO` placeholders accept any release-track version (e.g. `cephalon migrate 0.1.0-preview.42 0.2.0-preview.0`).
+- Auto-generated migration reports per upgrade.
+- Backwards-compatibility layer for one minor (0.1 → 0.2 stays composable during transition).
+
+### Reference / architecture deep-dives
+
+Currently the **[Reference → Architecture](/0-1-0-preview/reference/architecture/)** index points at source-doc mirrors for these topics. They graduate to dedicated, freshly-written reference pages:
+
+- **Transport surface** — typed contract per transport (REST, JSON-RPC, gRPC, GraphQL, SSE, WebSocket).
+- **Identity contract** — principal model, scope/role decisions, claim contracts.
+- **Tenancy contract** — tenant context, resolution policy, governance model.
+- **CDC capture** — `ICdcCaptureContributor`, freshness / lag / publication status.
+- **Design patterns** — canonical patterns the engine relies on internally.
+- **REST endpoint authoring strategy** — opinionated authoring strategy for REST behaviors.
+- **.NET ecosystem reference** — pinned-version inventory.
+- **Package discovery** — assembly scanning + module-discovery rules.
+
+### Operations sub-tree
+
+`/guide/operations/` graduates from a single page to a sub-tree:
+
+- `/guide/operations/production-readiness/`
+- `/guide/operations/observability/`
+- `/guide/operations/runtime-failure-policy/`
+- `/guide/operations/deployment-mode/`
+
+### Identity tokens tutorial
+
+New **[Tutorial → Identity tokens](/0-1-0-preview/tutorials/microservice-suite/)** — service-to-service auth between Cephalon hosts.
+
+### Error-handling page
+
+New **`/reference/configuration/error-handling/`** documenting the ProblemDetails shape, exception mapping, and validation contract.
+
+### Per-feature templates
+
+`Cephalon.TemplatePack` expands beyond `cephalon-app`:
+
+- `cephalon-module` — scaffold a single module library.
+- `cephalon-behavior` — scaffold a single behavior + test.
+- `cephalon-suite` — scaffold a microservice suite layout.
+
+### .NET 11 graduation
+
+Currently `assessment-only`. `0.2.0-preview` targets either:
+
+- **Multi-target `net10.0;net11.0`** if .NET 11 is GA and stable by then.
+- Or hold at `net10.0` and ship a dedicated `0.2.x-net11` track once .NET 11 LTS lands.
+
+Decision lands once .NET 11 RC2 posture is clear (track in **[Migration → .NET versions](/0-1-0-preview/migration/dotnet-versions/)**).
+
+## Breaking changes (planned)
+
+Tracked individually as they land. As of this writing, the surface targeted for breakage:
+
+| Surface | Breakage | Justification |
+| --- | --- | --- |
+| `Engine:Architecture:Schema` (planned key) | Adding required `Mode` field | Capability negotiation matures from "infer from manifest" to "explicit" |
+| `IModule.Describe()` return shape | Adding `RequiredVersion` field | Migration tooling needs explicit version dependency |
+
+Each item ships a migration recipe in **[Migration → Breaking changes](/0-1-0-preview/migration/breaking-changes/)**.
+
+## How this page evolves
+
+This page is a **planning surface** — items move between *planned*, *in-progress*, *shipped*, *deferred* as the milestone progresses.
+
+**When `0.2.0-preview.0` actually ships**, this page is rewritten to mirror the shape of **[0.1.0-preview](/about/release-notes/0-1-0-preview/)** (highlights + maturity surface + upgrade notes + limits).
+
+## Where to go next
+
+- **[Roadmap](/about/roadmap/)** — broader milestone planning.
+- **[Backlog](/about/backlog/)** — what's being considered for upcoming milestones.
+- **[Migration → Version upgrades](/0-1-0-preview/migration/version-upgrades/)** — upgrade-pattern docs that this version will reference.

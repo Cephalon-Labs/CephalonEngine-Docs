@@ -1,0 +1,42 @@
+---
+title: Architecture reference
+description: Canonical contracts — runtime, transports, capabilities, conformance matrix, and maturity ladder.
+sidebar:
+  order: 0
+editUrl: false
+---
+
+This is the place every Cephalon doc points to when it says "see the canonical contract". The pages here are intentionally dense — they're meant to be the authoritative reference, not a tutorial.
+
+## What lives here
+
+| Page | What it documents |
+| --- | --- |
+| **[Runtime contracts](/0-1-0-preview/reference/architecture/runtime-contracts/)** | Every `/engine/*` route, every `snapshot.*` key, every runtime catalog interface. |
+| **[Conformance matrix](/0-1-0-preview/reference/architecture/conformance-matrix/)** | Per-package status row across every public surface. |
+| **[Maturity audit](/0-1-0-preview/reference/architecture/maturity/)** | The current M0–M4 label for every shipped package. |
+
+### Coming soon (currently mirrored from engine source docs)
+
+The pages below are planned for `0.2.0-preview`. Each currently points at the engine-source-doc mirror that has the canonical material.
+
+| Planned page | Current source-doc mirror |
+| --- | --- |
+| Transport surface (REST / JSON-RPC / gRPC / GraphQL / SSE / WebSocket typed contracts) | **[Technology → Hosts](/0-1-0-preview/technology/hosts/)** |
+| CDC capture (`ICdcCaptureContributor`, freshness/lag/publication status) | **[Source → components / data-debezium](/0-1-0-preview/source/components/data-debezium/)** |
+| Identity contract (principal model, scope/role decisions, claim contracts) | **[Technology → Identity](/0-1-0-preview/technology/identity/)** + **[Configuration → Identity](/0-1-0-preview/reference/configuration/identity/)** |
+| Tenancy contract (tenant context, resolution policy, governance) | **[Technology → Multi-tenancy](/0-1-0-preview/technology/multi-tenancy/)** + **[Configuration → Tenancy](/0-1-0-preview/reference/configuration/tenancy/)** |
+| Design patterns (canonical internal patterns) | **[Source → Architecture patterns research](/0-1-0-preview/source/architecture-patterns-research/)** |
+| REST endpoint authoring strategy | **[Technology → Hosts](/0-1-0-preview/technology/hosts/)** (transport sections) |
+| .NET ecosystem reference (pinned-version inventory) | **[Source → .NET ecosystem reference](/0-1-0-preview/source/dotnet-ecosystem-reference/)** |
+| Package discovery (assembly scanning + module-discovery rules) | **[Contributing → Module authoring](/0-1-0-preview/contributing/module-authoring/)** |
+
+## Source-doc snapshots
+
+Every page here is mirrored to the versioned source so you can compare against the engine release:
+
+- [Runtime contract index](/0-1-0-preview/source/runtime-contract-index/)
+- [Conformance matrix](/0-1-0-preview/source/conformance-matrix/)
+- [Engine surface maturity audit](/0-1-0-preview/source/engine-surface-maturity-audit/)
+- [Architecture review (May 2026)](/0-1-0-preview/source/architecture-review-2026-05/)
+- [Architecture patterns research](/0-1-0-preview/source/architecture-patterns-research/)

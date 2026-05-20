@@ -1,0 +1,102 @@
+---
+title: Observability
+description: Cephalon.Observability + OpenTelemetry + 13 cloud-provider adapters + 18 dependency-health probes.
+sidebar:
+  order: 8
+editUrl: false
+---
+
+The observability domain is the largest by package count — base + OTLP exporter + 13 cloud-provider adapters + 18 dependency-health probes.
+
+Click any package name to jump to its **source-doc**.
+
+## Base + OTLP
+
+| Package | NuGet ID | Maturity | Capability |
+| --- | --- | --- | --- |
+| **[Observability](/0-1-0-preview/source/components/observability/)** *(base)* | `Cephalon.Observability` | `M3` | `Capability.Observability` |
+| **[OpenTelemetry](/0-1-0-preview/source/components/observability-opentelemetry/)** | `Cephalon.Observability.OpenTelemetry` | `M3` | `Capability.Observability` |
+
+`Cephalon.Observability.OpenTelemetry` is the **canonical exporter**. Every cloud-provider adapter below depends on it; if you want OTLP-to-self-hosted-collector, this is the only adapter you need.
+
+## Cloud-provider adapters (13)
+
+These configure OTLP to target a managed observability backend, populate vendor-specific resource attributes, and offer authentication helpers.
+
+| Package | NuGet ID | `Engine:Observability:Provider` | Maturity |
+| --- | --- | --- | --- |
+| **[Alibaba Cloud](/0-1-0-preview/source/components/observability-alibaba-cloud/)** | `Cephalon.Observability.AlibabaCloud` | `"AlibabaCloud"` | `M2` |
+| **[AWS](/0-1-0-preview/source/components/observability-aws/)** | `Cephalon.Observability.Aws` | `"Aws"` | `M3` |
+| **[Azure Monitor](/0-1-0-preview/source/components/observability-azure-monitor/)** | `Cephalon.Observability.AzureMonitor` | `"AzureMonitor"` | `M3` |
+| **[DigitalOcean](/0-1-0-preview/source/components/observability-digitalocean/)** | `Cephalon.Observability.DigitalOcean` | `"DigitalOcean"` | `M2` |
+| **[GCP](/0-1-0-preview/source/components/observability-gcp/)** | `Cephalon.Observability.Gcp` | `"Gcp"` | `M3` |
+| **[Grafana Cloud](/0-1-0-preview/source/components/observability-grafana-cloud/)** | `Cephalon.Observability.GrafanaCloud` | `"GrafanaCloud"` | `M3` |
+| **[Huawei Cloud](/0-1-0-preview/source/components/observability-huawei-cloud/)** | `Cephalon.Observability.HuaweiCloud` | `"HuaweiCloud"` | `M2` |
+| **[Kubernetes](/0-1-0-preview/source/components/observability-kubernetes/)** | `Cephalon.Observability.Kubernetes` | `"Kubernetes"` | `M3` |
+| **[New Relic](/0-1-0-preview/source/components/observability-new-relic/)** | `Cephalon.Observability.NewRelic` | `"NewRelic"` | `M3` |
+| **[OpenShift](/0-1-0-preview/source/components/observability-openshift/)** | `Cephalon.Observability.OpenShift` | `"OpenShift"` | `M2` |
+| **[Oracle Cloud](/0-1-0-preview/source/components/observability-oracle-cloud/)** | `Cephalon.Observability.OracleCloud` | `"OracleCloud"` | `M2` |
+| **[Tanzu](/0-1-0-preview/source/components/observability-tanzu/)** | `Cephalon.Observability.Tanzu` | `"Tanzu"` | `M2` |
+| **[Serilog](/0-1-0-preview/source/components/observability-serilog/)** | `Cephalon.Observability.Serilog` | `"Serilog"` | `M3` |
+
+## Dependency-health probes (18)
+
+Each probe registers an `IHealthCheck` that joins `/health` output. Install only the ones your app depends on.
+
+| Package | NuGet ID | Probes |
+| --- | --- | --- |
+| **[Cassandra](/0-1-0-preview/source/components/observability-cassandra-dependencies/)** | `Cephalon.Observability.CassandraDependencies` | Cassandra cluster |
+| **[ClickHouse](/0-1-0-preview/source/components/observability-clickhouse-dependencies/)** | `Cephalon.Observability.ClickHouseDependencies` | ClickHouse cluster |
+| **[Consul](/0-1-0-preview/source/components/observability-consul-dependencies/)** | `Cephalon.Observability.ConsulDependencies` | HashiCorp Consul |
+| **[Elasticsearch](/0-1-0-preview/source/components/observability-elasticsearch-dependencies/)** | `Cephalon.Observability.ElasticsearchDependencies` | Elasticsearch cluster |
+| **[HTTP](/0-1-0-preview/source/components/observability-http-dependencies/)** | `Cephalon.Observability.HttpDependencies` | Any HTTP endpoint |
+| **[Kafka](/0-1-0-preview/source/components/observability-kafka-dependencies/)** | `Cephalon.Observability.KafkaDependencies` | Kafka brokers |
+| **[Memcached](/0-1-0-preview/source/components/observability-memcached-dependencies/)** | `Cephalon.Observability.MemcachedDependencies` | Memcached |
+| **[MongoDB](/0-1-0-preview/source/components/observability-mongodb-dependencies/)** | `Cephalon.Observability.MongoDbDependencies` | MongoDB replica set |
+| **[MQTT](/0-1-0-preview/source/components/observability-mqtt-dependencies/)** | `Cephalon.Observability.MqttDependencies` | MQTT broker |
+| **[MySQL](/0-1-0-preview/source/components/observability-mysql-dependencies/)** | `Cephalon.Observability.MySqlDependencies` | MySQL server |
+| **[NATS](/0-1-0-preview/source/components/observability-nats-dependencies/)** | `Cephalon.Observability.NatsDependencies` | NATS cluster |
+| **[Neo4j](/0-1-0-preview/source/components/observability-neo4j-dependencies/)** | `Cephalon.Observability.Neo4jDependencies` | Neo4j cluster |
+| **[OpenSearch](/0-1-0-preview/source/components/observability-opensearch-dependencies/)** | `Cephalon.Observability.OpenSearchDependencies` | OpenSearch cluster |
+| **[Oracle](/0-1-0-preview/source/components/observability-oracle-dependencies/)** | `Cephalon.Observability.OracleDependencies` | Oracle DB |
+| **[Postgres](/0-1-0-preview/source/components/observability-postgres-dependencies/)** | `Cephalon.Observability.PostgresDependencies` | Postgres server |
+| **[RabbitMQ](/0-1-0-preview/source/components/observability-rabbitmq-dependencies/)** | `Cephalon.Observability.RabbitMqDependencies` | RabbitMQ broker |
+| **[Redis](/0-1-0-preview/source/components/observability-redis-dependencies/)** | `Cephalon.Observability.RedisDependencies` | Redis (incl. Sentinel/Cluster) |
+| **[SQL Server](/0-1-0-preview/source/components/observability-sqlserver-dependencies/)** | `Cephalon.Observability.SqlServerDependencies` | SQL Server |
+
+All probes are `M3`.
+
+## Install matrix
+
+| Scenario | Packages |
+| --- | --- |
+| Local dev with OTLP collector | `Cephalon.Observability` + `Cephalon.Observability.OpenTelemetry` |
+| Production with Grafana Cloud | + `Cephalon.Observability.GrafanaCloud` |
+| Production with Azure Monitor | + `Cephalon.Observability.AzureMonitor` |
+| App uses Postgres + Redis + RabbitMQ | + `Cephalon.Observability.PostgresDependencies` + `.RedisDependencies` + `.RabbitMqDependencies` |
+
+## Configuration shape
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Observability": {
+      "Provider": "GrafanaCloud",
+      "Endpoint": "https://otlp-gateway-prod-us-east-0.grafana.net/otlp",
+      "Headers": { "Authorization": "Bearer <token>" },
+      "Sampling": { "Strategy": "RatioBased", "Ratio": 0.1 },
+      "Logs":    { "Enabled": true },
+      "Metrics": { "Enabled": true },
+      "Traces":  { "Enabled": true }
+    }
+  }
+}
+```
+
+Full schema + 6 cloud-vendor scenarios: **[Reference → Configuration → Observability](/0-1-0-preview/reference/configuration/observability/)**.
+
+## See also
+
+- **[Technology → Observability](/0-1-0-preview/technology/observability/)** — narrative.
+- **[Reference → Configuration → Observability](/0-1-0-preview/reference/configuration/observability/)** — full schema with 6 scenarios.
+- **[Guide → Operations](/0-1-0-preview/guide/operations/)** — observability defaults + dependency-health checklist.

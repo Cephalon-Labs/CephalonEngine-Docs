@@ -1,0 +1,57 @@
+---
+title: 'Tutorial: Testing strategy'
+description: 'Composition smoke tests, behavior specifications, integration tests against real backing services, and contract tests for transports.'
+sidebar:
+  order: 8
+editUrl: false
+---
+
+CephalonEngine ships with two opinionated test categories: **composition** and **behavior**. Real applications add **integration**, **contract**, and **performance** lanes on top. This tutorial walks through the canonical setup and the CI lanes that make sense for each.
+
+## Lanes
+
+| Lane | What it asserts | When it runs |
+| --- | --- | --- |
+| **Composition** | The host wires successfully and the expected modules show up in the manifest. | Every PR. Sub-second per project. |
+| **Behavior** | A specific REST/gRPC/GraphQL/event behavior works as expected against test doubles. | Every PR. Seconds. |
+| **Integration** | The behavior works against real backing services (Postgres, Redis, Kafka, …) via Testcontainers. | Every PR, in a separate fast lane. |
+| **Contract** | Public transport schemas are unchanged or backwards compatible. | Every PR. |
+| **Performance** | Hot paths stay within the budget tracked by `Cephalon.Benchmarks`. | Nightly. |
+
+## Composition (already covered)
+
+See **[First-app step 7](/0-1-0-preview/tutorials/first-app/07-tests/)**.
+
+## Behavior (already covered)
+
+Same step. The pattern is `TestHostFactory.CreateAsync` + `host.CreateClient()` + `host.Services.GetRequiredService<...>()`.
+
+## Integration
+
+Use Testcontainers for the real backends. The CephalonEngine repo's own integration tests run Postgres, Redis, RabbitMQ, Kafka, ClickHouse, and a few others — see [`tests/Cephalon.IntegrationTests`](https://github.com/Cephalon-Labs/CephalonEngine/tree/main/tests).
+
+## Contract
+
+When you ship a public REST/gRPC/GraphQL surface, a contract test ensures backwards compatibility:
+
+```csharp
+[Fact]
+public async Task The_OpenAPI_document_did_not_break_at_v1()
+{
+    await using var host = await TestHostFactory.CreateAsync();
+    var current = await host.CreateClient().GetStringAsync("/openapi/v1.json");
+    var golden = await File.ReadAllTextAsync("__fixtures/v1.json");
+
+    DiffOpenApi(current, golden).Should().BeBackwardsCompatible();
+}
+```
+
+For gRPC, compare proto descriptors. For GraphQL, compare schema SDL.
+
+## Performance
+
+The engine itself ships `Cephalon.Benchmarks` with BenchmarkDotNet baselines for composition, runtime lifecycle, AspNetCore REST/runtime hot paths, and scaffolding. Adopters typically add a small suite for their critical paths and gate on regressions of more than ~5% in CI.
+
+## Status
+
+The full step-by-step lands in the next docs push. Until then, **[First-app step 7](/0-1-0-preview/tutorials/first-app/07-tests/)** is the canonical reference.

@@ -1,0 +1,57 @@
+---
+title: Core
+description: The packages every CephalonEngine app depends on — Cephalon.Abstractions, Cephalon.Engine, runtime contract types, scaffolding internals.
+sidebar:
+  order: 1
+editUrl: false
+---
+
+The core layer is what every Cephalon app pulls in. It is the smallest, most stable surface — pure contracts and the composition engine.
+
+## Packages
+
+| Package | Maturity | What it ships |
+| --- | --- | --- |
+| **`Cephalon.Abstractions`** | `M4` | Pure interfaces and types modules build against — `IModule`, `ModuleDescriptor`, `Capability`, `ICapabilityRegistry`, app-model types, transport types, technology contributor contracts. |
+| **`Cephalon.Engine`** | `M3` | The composition engine — module discovery, dependency ordering, manifest v2, capability registry, lifecycle execution, integrity verification, cell boundary & CDC capture catalogs. |
+| **`Cephalon.Scaffolding`** | `M3` | Project / folder / package scaffolding that powers `cephalon new`. Apps consume this only at scaffold time. |
+| **`Cephalon.ReferenceDocs`** | `M2` | Optional reference-doc tooling that turns XML comments into Markdown for the docs site. Build-time only. |
+
+## Engine contract at a glance
+
+The engine guarantees, in order:
+
+1. **Validate** the module set (no duplicate descriptors, no conflicting capability providers).
+2. **Order** modules deterministically based on `DependsOn`.
+3. **Register** module services into the DI container.
+4. **Compose** capabilities and language packs from base + project + package contributions.
+5. **Execute** lifecycle hooks (`OnRegister` → `OnStart`; `OnStop` runs in reverse order).
+6. **Expose** the runtime manifest, runtime catalogs, and health aggregation.
+
+The full ordered contract lives in **[Reference → Architecture → Runtime contracts](/0-1-0-preview/reference/architecture/runtime-contracts/)**.
+
+## What `AddCephalonAspNetCore()` does
+
+The AspNetCore host adapter wires the engine into ASP.NET Core's `WebApplicationBuilder`. It:
+
+- registers the engine builder as a singleton.
+- registers `IRuntimeManifest` for DI consumers.
+- maps `/engine/manifest`, `/engine/runtime`, `/engine/snapshot` HTTP routes.
+- maps the REST behavior pipeline.
+- wires OpenAPI + Scalar for documenting the behaviors.
+- exposes `app.MapCephalon()` which finalises the route registrations.
+
+See **[Hosts](/0-1-0-preview/technology/hosts/)** for the equivalent on `Cephalon.Worker` and other adapters.
+
+## Source-doc snapshots
+
+- [Cephalon.Abstractions](/0-1-0-preview/source/components/abstractions/)
+- [Cephalon.Engine](/0-1-0-preview/source/components/engine/)
+- [Cephalon.Scaffolding](/0-1-0-preview/source/components/scaffolding/)
+
+## Cross-references
+
+- **[Concepts](/0-1-0-preview/guide/concepts/)** — the smallest mental model.
+- **[Architecture](/0-1-0-preview/guide/architecture/)** — the layered view.
+- **[Module authoring](/0-1-0-preview/contributing/module-authoring/)** — how to build on top.
+- **[Reference → API](/0-1-0-preview/reference/api/)** — the generated API reference for the current version.

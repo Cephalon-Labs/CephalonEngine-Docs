@@ -1,0 +1,239 @@
+---
+title: CephalonEngine
+description: เฟรมเวิร์ก .NET 10 แบบโมดูลาร์ สำหรับสร้างแอปพลิเคชันระดับโปรดักชัน — โมดูลาร์โมโนลิธ, ไมโครเซอร์วิส, และระบบขับเคลื่อนด้วยอีเวนต์ — ด้วยเอ็นจินเดียวที่ประกอบได้ยืดหยุ่น
+template: splash
+editUrl: false
+tableOfContents: false
+banner:
+  content: 'CephalonEngine 0.1.0-preview เปิดให้ใช้รายสัปดาห์ — ติดตาม <a href="/th/about/roadmap">โรดแมป</a> เพื่อดูสิ่งที่กำลังจะมา'
+head:
+  - tag: meta
+    attrs:
+      name: keywords
+      content: CephalonEngine, .NET 10, เฟรมเวิร์ก, โมดูลาร์, โมโนลิธ, ไมโครเซอร์วิส, ASP.NET Core, observability
+---
+
+import HomeHero from '../../../components/HomeHero.astro';
+import FeatureGrid from '../../../components/FeatureGrid.astro';
+import PathCards from '../../../components/PathCards.astro';
+import StatStrip from '../../../components/StatStrip.astro';
+import CodeShowcase from '../../../components/CodeShowcase.astro';
+
+<HomeHero
+  eyebrow="Cephalon Engine · .NET 10 LTS"
+  title="เอ็นจินเดียว ครอบคลุมแอป .NET ทุกรูปแบบ"
+  tagline="สร้างโมดูลาร์โมโนลิธ ไมโครเซอร์วิส ระบบขับเคลื่อนด้วยอีเวนต์ และ edge runtime จากเอ็นจินเดียวกัน — บน .NET 10 ออกแบบสำหรับทีมที่ต้องการความเข้มงวดระดับโปรดักชันโดยไม่ยอมเสียความเร็ว"
+  primaryCtaText="เริ่มต้นใน 5 นาที"
+  primaryCtaHref="/th/guide/quickstart/"
+  secondaryCtaText="อ่านสถาปัตยกรรม"
+  secondaryCtaHref="/th/guide/concepts/"
+  installCommand="dotnet tool install -g Cephalon.Cli --prerelease"
+/>
+
+<StatStrip
+  stats={[
+    { value: '.NET 10', label: 'พื้นฐาน LTS' },
+    { value: '40+', label: 'แพ็กเกจเสริม' },
+    { value: '7', label: 'รูปแบบโฮสต์' },
+    { value: 'M0–M4', label: 'ระดับความพร้อมที่ชัดเจน' },
+  ]}
+/>
+
+<span class="ce-section-kicker">ทำไมต้อง CephalonEngine</span>
+<h2 class="ce-section-title">เฟรมเวิร์กที่เติบโตไปพร้อมโค้ดเบส</h2>
+<p class="ce-lead">
+  Cephalon สร้างขึ้นรอบเอ็นจินขนาดเล็กที่เสถียร พร้อมแคตตาล็อกแพ็กเกจเสริมจำนวนมากที่เลือกใช้ได้ — เริ่มจากโฮสต์เดียวบนเครื่องโน้ตบุ๊ก ขยายไปยังกลุ่มไมโครเซอร์วิส โดยไม่ต้องสร้างพื้นฐานใหม่
+</p>
+
+<FeatureGrid
+  features={[
+    {
+      icon: '🧩',
+      title: 'การประกอบแบบเน้นโมดูล',
+      description: 'โมดูลประกาศความสามารถ บริการ ฮุก lifecycle และ transport surface เอ็นจินจะแก้ไขลำดับการประกอบให้อย่างเป็นระบบ',
+      href: '/th/guide/concepts/',
+    },
+    {
+      icon: '🏗️',
+      title: 'แอปหลายรูปแบบ',
+      description: 'เลือก composition, deployment topology, feature organization, และ transport ต่อแอป — ไม่ต้องเขียนใหม่เมื่อรูปทรงเปลี่ยน',
+      href: '/th/guide/concepts/',
+    },
+    {
+      icon: '🚦',
+      title: 'ระดับความพร้อมที่ตรงไปตรงมา',
+      description: 'ทุกแพ็กเกจมีป้าย M0–M4 ที่ชัดเจน เพื่อให้ผู้นำมาใช้รู้ว่าอะไรพร้อมใช้งานจริง',
+      href: '/th/reference/architecture/maturity/',
+    },
+    {
+      icon: '📡',
+      title: 'Transport มาให้ครบ',
+      description: 'REST, JSON-RPC, gRPC, GraphQL, SSE, WebSocket — โมดูลตัดสินใจว่าจะเปิดเผยอะไร เอ็นจินจะแม็พให้',
+      href: '/th/technology/hosts/',
+    },
+    {
+      icon: '🔭',
+      title: 'Observability ตามมาตรฐาน OpenTelemetry',
+      description: 'Log, metric, trace, dependency-health probe — เป็นแพ็กเกจหลักพร้อมอะแดปเตอร์สำหรับคลาวด์ใหญ่ทุกเจ้า',
+      href: '/th/technology/observability/',
+    },
+    {
+      icon: '🏛️',
+      title: 'Data, identity, multi-tenancy',
+      description: 'แพ็กเกจเสริมสำหรับ EF Core, identity, multi-tenancy governance, audit, Sfid — ไม่ผูกกับ runtime ใดเป็นพิเศษ',
+      href: '/th/technology/data/',
+    },
+    {
+      icon: '🎯',
+      title: 'Eventing ระดับเฟิร์สคลาส',
+      description: 'Wolverine adapter เป็นเส้นทาง dispatch หลักในปัจจุบัน — broker, scheduled delivery, DLQ replay, process manager ครบในแพ็กเกจหลัก',
+      href: '/th/technology/eventing/',
+    },
+    {
+      icon: '🚀',
+      title: 'ดีพลอยที่ไหนก็ได้',
+      description: 'แอปที่ generate มาพร้อม Windows Service, IIS, Azure App Service, Azure Container Apps, Kubernetes, Linux systemd และ Docker script ตั้งแต่วันแรก',
+      href: '/th/guide/deployment/',
+    },
+    {
+      icon: '🧪',
+      title: 'มี scaffolding สำหรับเทสต์ให้',
+      description: 'โปรเจกต์ test ที่ generate มามี composition smoke test และ behavior specification ต่อฟีเจอร์ ให้ข้ามขั้นตอนสร้างพื้นฐานได้เลย',
+      href: '/th/tutorials/testing-strategy/',
+    },
+  ]}
+/>
+
+<span class="ce-section-kicker">เส้นทางลัด</span>
+<h2 class="ce-section-title">เลือกเส้นทางที่ตรงกับการตัดสินใจวันแรก</h2>
+
+<PathCards
+  paths={[
+    {
+      badge: 'ฉันยังใหม่',
+      title: 'เริ่มต้นด่วน',
+      description: 'ติดตั้ง CLI สเกฟโฟลด์แอป และรัน host ที่ generate มาได้ภายในห้านาที',
+      href: '/th/guide/quickstart/',
+      cta: 'เริ่ม Quickstart',
+    },
+    {
+      badge: 'ฉันกำลังประเมิน',
+      title: 'แนวคิดและสถาปัตยกรรม',
+      description: 'อ่านโมเดลแบบ layered, มิติของ app model, และกฎการประกอบเอ็นจินก่อนนำมาใช้',
+      href: '/th/guide/concepts/',
+      cta: 'อ่านแนวคิด',
+    },
+    {
+      badge: 'ฉันกำลังสร้าง',
+      title: 'คลังบทเรียน',
+      description: 'บทเรียนแบบ end-to-end สำหรับโมดูลาร์โมโนลิธ, ไมโครเซอร์วิส, multi-tenant SaaS, gRPC, GraphQL และ observability stack',
+      href: '/th/tutorials/',
+      cta: 'ดูบทเรียน',
+    },
+    {
+      badge: 'ฉันกำลังย้ายระบบ',
+      title: 'คู่มือ Migration',
+      description: 'ย้ายจาก ASP.NET Core ธรรมดา หรือแยกโมโนลิธเก่า — แต่ละเส้นทางมี diff เป็นขั้นตอนพร้อมจุดเสี่ยง',
+      href: '/th/migration/',
+      cta: 'เปิดคู่มือ',
+    },
+    {
+      badge: 'ฉันดูแล production',
+      title: 'Operations และการ harden',
+      description: 'นโยบาย runtime failure, มาตรฐาน observability, dependency health, benchmark และ runbook สำหรับการ deploy',
+      href: '/th/guide/operations/',
+      cta: 'เปิดส่วน Operations',
+    },
+    {
+      badge: 'ฉันจะ contribute',
+      title: 'คู่มือผู้ร่วมพัฒนา',
+      description: 'มาตรฐานวิศวกรรม กฎการเขียนโมดูล วงจรชีวิตของแพ็กเกจ และกระบวนการ release',
+      href: '/th/contributing/',
+      cta: 'อ่านคู่มือ',
+    },
+  ]}
+/>
+
+<CodeShowcase
+  title="การประกอบที่อ่านจบในหน้าจอเดียว"
+  description="Cephalon host มีแค่ builder ชุดของโมดูล และ runtime เดียวกันที่จัดการ REST, gRPC, GraphQL, eventing, observability, data — ขับเคลื่อนด้วยคอนฟิก ไม่ใช่ Program.cs ที่บวมเฟ้อ"
+  tabs={[
+    {
+      label: 'ASP.NET Core host',
+      filename: 'Program.cs',
+      language: 'csharp',
+      code: `using Cephalon.AspNetCore;
+using Cephalon.Engine;
+
+var builder = WebApplication.CreateBuilder(args);
+
+var app = builder.Services
+    .AddCephalonAspNetCore()
+    .AddModulesFromAssemblies(typeof(Program).Assembly)
+    .AddObservability(options => options.UseOpenTelemetry())
+    .AddData(options => options.UseEntityFramework())
+    .Build(builder);
+
+app.MapCephalon();
+app.MapHealthChecks("/health");
+
+app.Run();`,
+    },
+    {
+      label: 'Generic-host worker',
+      filename: 'Program.cs',
+      language: 'csharp',
+      code: `using Cephalon.Engine;
+using Cephalon.Worker;
+using Microsoft.Extensions.Hosting;
+
+var builder = Host.CreateApplicationBuilder(args);
+
+var runtime = builder.Services
+    .AddCephalonWorker()
+    .AddModulesFromAssemblies(typeof(Program).Assembly)
+    .AddEventing(options => options.UseWolverine())
+    .Build(builder);
+
+await runtime.RunAsync();`,
+    },
+    {
+      label: 'การประกาศโมดูล',
+      filename: 'OrdersModule.cs',
+      language: 'csharp',
+      code: `using Cephalon.Abstractions.Modules;
+using Cephalon.AspNetCore.Behaviors;
+
+public sealed class OrdersModule : RestBehaviorModuleBase
+{
+    public override ModuleDescriptor Describe() => new(
+        name: "Orders",
+        version: "1.0.0",
+        capabilities: [Capability.Data, Capability.Eventing]);
+
+    protected override void ConfigureRestBehaviors(IRestBehaviorBuilder builder)
+    {
+        builder.MapProfile<CreateOrderBehavior>();
+        builder.MapProfile<ListOrdersBehavior>();
+    }
+}`,
+    },
+  ]}
+/>
+
+<div class="ce-callout ce-callout--key">
+  <span class="ce-callout__icon" aria-hidden="true">💡</span>
+  <div>
+    <strong>สถานะ Preview.</strong> ปัจจุบัน CephalonEngine อยู่ในเทรค <code>0.1.0-preview</code> แพ็กเกจที่ระดับต่ำกว่า <code>M4</code> อาจมีการปรับแบบเพิ่มเติมระหว่างที่เราพัฒนาส่วนสาธารณะให้พร้อมใช้งานจริง การรับประกันความเสถียรติดตามได้ใน <a href="/th/reference/architecture/maturity/">เอกสารระดับความพร้อม</a> และ <a href="/th/about/roadmap/">โรดแมป</a>
+  </div>
+</div>
+
+## เริ่มจากจุดที่คุณอยู่
+
+- <a href="/th/guide/quickstart/">**เริ่มต้นด่วน**</a> — ติดตั้ง CLI, รัน `cephalon doctor`, สเกฟโฟลด์, ดีพลอย
+- <a href="/th/tutorials/">**บทเรียน**</a> — การสร้าง end-to-end ทั้งโมโนลิธ ไมโครเซอร์วิส และ multi-tenant SaaS
+- <a href="/th/technology/">**Technology**</a> — สำรวจแคตตาล็อกแพ็กเกจเสริมตามหมวด
+- <a href="/th/migration/">**Migration**</a> — คู่มือสำหรับย้ายมา CephalonEngine หรืออัปเกรดระหว่างเวอร์ชัน
+- <a href="/th/reference/">**Reference**</a> — runtime contract, configuration schema, CLI surface, และ API reference ตามเวอร์ชัน
+- <a href="/th/contributing/">**Contributing**</a> — มาตรฐานวิศวกรรม, วงจรชีวิตของแพ็กเกจ, กระบวนการ release
+- <a href="/th/about/">**About**</a> — โรดแมป, release notes, governance, FAQ, license

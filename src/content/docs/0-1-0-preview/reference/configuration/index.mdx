@@ -1,0 +1,384 @@
+---
+title: Configuration
+description: Complete Engine:* configuration schema, environment-variable mapping, safe defaults, secret-management strategies, error-handling shapes, and per-capability options.
+sidebar:
+  order: 0
+editUrl: false
+---
+
+Every CephalonEngine app reads configuration through the standard ASP.NET Core `IConfiguration` chain. **The conventions documented here apply equally to:**
+
+- `appsettings.json` / `appsettings.<Environment>.json`
+- Environment variables (using the `__` separator)
+- Azure Key Vault, AWS Parameter Store, GCP Secret Manager
+- `dotnet user-secrets` (development)
+- Any custom `IConfigurationProvider`
+
+The `Engine:*` namespace is the **only key prefix CephalonEngine reads**. Everything outside it is yours.
+
+## Top-level shape
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Id": "acme-store",                                  // required — unique identifier emitted in logs + manifest
+    "Deployment": {
+      "Id": "prod-eu-west",                              // optional — labels traces with deployment instance
+      "Topology": "SingleHost"                           // SingleHost | Microservice | MicroserviceSuite
+    },
+    "Composition": { "Model": "Modular" },               // Modular (only option currently)
+    "FeatureOrganization": "ModuleFirst",                // ModuleFirst | VerticalSlice
+    "Transports": [ "RestApi" ],                         // RestApi | JsonRpc | Grpc | GraphQL | ServerSentEvents | WebSocket
+    "Data": {
+      "IdStrategy": "Sfid",                              // Sfid (default) | Guid | Long
+      "Provider": null,                                  // null | "EntityFramework" | "Direct"
+      "ReadModel": { },                                  // optional — separate provider for read side
+      "WriteModel": { }                                  // optional — separate provider for write side
+    },
+    "Identity": {
+      "Enabled": false,                                  // capability gate
+      "Provider": null,                                  // null | "Bearer" | "Cookie" | custom
+      "Authority": null,                                 // for Bearer: IdP authority URL
+      "Audience": null                                   // for Bearer: expected audience claim
+    },
+    "Tenancy": {
+      "Enabled": false,                                  // capability gate
+      "Resolvers": []                                    // ["subdomain", "header", "claim", "path"]
+    },
+    "Audit": {
+      "Enabled": true,                                   // default-on capability
+      "Provider": "EntityFramework"                      // null | "EntityFramework" | "InMemory"
+    },
+    "Messaging": {
+      "Enabled": false,                                  // capability gate
+      "Provider": null,                                  // null | "Wolverine"
+      "Wolverine": { /* provider-specific options */ }
+    },
+    "Observability": {
+      "Provider": "OpenTelemetry",                       // null | "OpenTelemetry" | "AzureMonitor" | "Serilog" | …
+      "Endpoint": "http://localhost:4317",               // OTLP collector endpoint
+      "Headers": null,                                   // OTLP headers (auth)
+      "Sampling": { "Ratio": 1.0 }                       // 0.0 - 1.0 trace sampling
+    }
+  },
+  "ConnectionStrings": {
+    "Default": "Host=…;Port=5432;Database=…;Username=…;Password=…"
+  },
+  "Logging": {
+    "LogLevel": { "Default": "Information", "Cephalon.Engine": "Information" }
+  }
+}
+```
+
+## Required keys
+
+| Key | Why required | What happens if missing |
+| --- | --- | --- |
+| `Engine:Id` | Emits in every log entry, manifest, and OTLP resource attribute. Without it operators can't correlate signals across replicas. | Composition fails with `EngineIdMissingException`. |
+
+Everything else has a safe default — see each section below.
+
+## Per-environment configuration
+
+The standard ASP.NET Core override chain applies:
+
+```text
+appsettings.json
+    ↓ overridden by
+appsettings.<ASPNETCORE_ENVIRONMENT>.json
+    ↓ overridden by
+User secrets (Development only)
+    ↓ overridden by
+Environment variables
+    ↓ overridden by
+Command-line args
+```
+
+**Example pattern** — connection strings:
+
+```jsonc title="appsettings.json"
+{
+  "ConnectionStrings": {
+    "Products": ""                          // placeholder; never commit a real connection string
+  }
+}
+```
+
+```jsonc title="appsettings.Development.json"
+{
+  "ConnectionStrings": {
+    "Products": "Host=localhost;Port=5432;Database=products_dev;Username=postgres;Password=postgres"
+  }
+}
+```
+
+```text title="production environment variables"
+ASPNETCORE_ENVIRONMENT=Production
+ConnectionStrings__Products=Host=prod-db;Port=5432;Database=products;Username=svc;Password=<from-vault>
+```
+
+## Environment-variable mapping
+
+ASP.NET Core's `__` separator converts the nested JSON shape into env-var names. Pattern: `Engine__<Section>__<Key>`.
+
+| Configuration key | Environment variable |
+| --- | --- |
+| `Engine:Id` | `Engine__Id` |
+| `Engine:Deployment:Topology` | `Engine__Deployment__Topology` |
+| `Engine:Data:Provider` | `Engine__Data__Provider` |
+| `Engine:Tenancy:Enabled` | `Engine__Tenancy__Enabled` |
+| `Engine:Messaging:Wolverine:Transport` | `Engine__Messaging__Wolverine__Transport` |
+| `ConnectionStrings:Default` | `ConnectionStrings__Default` |
+| `Logging:LogLevel:Default` | `Logging__LogLevel__Default` |
+
+Array values use indices:
+
+```text
+Engine__Transports__0=RestApi
+Engine__Transports__1=Grpc
+```
+
+<div class="ce-callout ce-callout--key">
+<span class="ce-callout__icon" aria-hidden="true">🔑</span>
+<div>**Linux/macOS shells use the same syntax** — just <code>export</code> instead of <code>$env:</code>. Docker Compose and Kubernetes ConfigMaps/Secrets work the same way. The <code>__</code> separator is portable.</div>
+</div>
+
+## Secret management
+
+Connection strings, API keys, and IdP credentials should **never** be in `appsettings.json`. Use one of:
+
+### Local development — `dotnet user-secrets`
+
+```powershell frame="terminal"
+cd src/Acme.Store.Host
+dotnet user-secrets init
+dotnet user-secrets set "ConnectionStrings:Products" "Host=…"
+```
+
+Secrets are stored at `%APPDATA%\Microsoft\UserSecrets\<id>\secrets.json` (Windows) or `~/.microsoft/usersecrets/<id>/secrets.json` (Linux/macOS). Not in your repo.
+
+### Azure Key Vault
+
+```csharp title="Program.cs"
+builder.Configuration.AddAzureKeyVault(
+    new Uri($"https://{builder.Configuration["KeyVault:Name"]}.vault.azure.net/"),
+    new DefaultAzureCredential());
+```
+
+Key Vault secrets named `Engine--Data--Provider` map to `Engine:Data:Provider` (Key Vault uses `--` because `:` isn't allowed in names).
+
+### AWS Parameter Store
+
+Use the `Amazon.Extensions.Configuration.SystemsManager` package; parameter names map the same way (`/Engine/Data/Provider`).
+
+### Kubernetes Secrets
+
+Mount as env vars in the pod spec:
+
+```yaml title="deployment.yaml"
+env:
+  - name: ConnectionStrings__Products
+    valueFrom:
+      secretKeyRef:
+        name: acme-store-secrets
+        key: products-connection
+```
+
+## Section reference
+
+The sub-pages below document each `Engine:*` section in full. The most-used keys for adopters:
+
+| Section | Purpose | Required for |
+| --- | --- | --- |
+| **Engine:Id and deployment identity** *(covered inline above)* | Engine ID, deployment ID, topology | Always |
+| **[Engine:Data](/0-1-0-preview/reference/configuration/data/)** | Id strategy, provider selection, read/write split | Any data-using module |
+| **[Engine:Identity](/0-1-0-preview/reference/configuration/identity/)** | Bearer/Cookie auth, JWT validation, claim mapping, scope enforcement | Identity-aware apps |
+| **[Engine:Tenancy](/0-1-0-preview/reference/configuration/tenancy/)** | Resolvers (subdomain/header/claim/path), sharding, governance | Multi-tenant apps |
+| **Engine:Audit** *(coming soon)* | Audit storage and policy | Audit-tracked apps |
+| **[Engine:Messaging](/0-1-0-preview/reference/configuration/messaging/)** | Wolverine + transport (in-memory/RabbitMQ/Azure SB/SQS/Kafka), routing, DLQ | Event-driven apps |
+| **Engine:Transports** *(covered inline above)* | Enabling transports per host (`RestApi`, `Grpc`, `JsonRpc`, …) | All HTTP/gRPC apps |
+| **[Engine:Observability](/0-1-0-preview/reference/configuration/observability/)** | OTel provider, endpoint, sampling, logs/metrics/traces, 14 cloud adapters | All production apps |
+| **Error handling** *(coming soon)* | ProblemDetails shape, exception mapping, validation contract | All apps |
+
+## Common patterns
+
+### Pattern: feature-flagged capability via configuration
+
+You want to roll out a new capability per environment without code changes.
+
+```jsonc title="appsettings.json (default off)"
+{ "Engine": { "Messaging": { "Enabled": false } } }
+```
+
+```jsonc title="appsettings.Production.json (on in prod)"
+{ "Engine": { "Messaging": { "Enabled": true, "Provider": "Wolverine" } } }
+```
+
+In code, the module declares the capability conditionally:
+
+```csharp
+public override ModuleDescriptor Describe() => new(
+    name: "Acme.Orders",
+    version: "1.0.0",
+    capabilities: messagingEnabled
+        ? [Capability.Data, Capability.Eventing]
+        : [Capability.Data]);
+```
+
+### Pattern: per-tenant data sharding via configuration
+
+Some tenants live on a dedicated database. Configure via a connection-string map:
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Tenancy": {
+      "Enabled": true,
+      "Resolvers": ["subdomain"],
+      "Sharding": {
+        "default": "ConnectionStrings:DefaultShard",
+        "acme":    "ConnectionStrings:AcmeShard",
+        "globex":  "ConnectionStrings:GlobexShard"
+      }
+    }
+  }
+}
+```
+
+In the data module, resolve the connection based on the current tenant:
+
+```csharp
+services.AddCephalonEntityFramework<AppDb>((sp, opts) =>
+{
+    var tenant = sp.GetRequiredService<ITenantContext>();
+    var key    = sp.GetRequiredService<IConfiguration>()
+                  .GetSection($"Engine:Tenancy:Sharding:{tenant.Id}")
+                  .Value ?? "ConnectionStrings:DefaultShard";
+    var conn   = sp.GetRequiredService<IConfiguration>()[key];
+    opts.UseNpgsql(conn);
+});
+```
+
+### Pattern: configuration validation at startup
+
+Use the standard `IOptions<T>` + `OptionsValidator` pattern:
+
+```csharp
+public sealed class ProductsOptions
+{
+    [Required]
+    public string ConnectionString { get; init; } = string.Empty;
+
+    [Range(1, 100)]
+    public int PageSize { get; init; } = 25;
+}
+
+services.AddOptions<ProductsOptions>()
+    .Bind(configuration.GetSection("Engine:Products"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();   // fail composition if invalid
+```
+
+### Pattern: hot-reload on config change
+
+```csharp
+services.Configure<ProductsOptions>(configuration.GetSection("Engine:Products"));
+// Inject IOptionsMonitor<ProductsOptions> — re-fires when appsettings.json changes
+```
+
+<div class="ce-callout ce-callout--warn">
+<span class="ce-callout__icon" aria-hidden="true">⚠️</span>
+<div>**Don't hot-reload across capability boundaries.** Turning <code>Engine:Messaging:Enabled</code> from <code>false</code> → <code>true</code> at runtime won't register the Wolverine provider mid-process — composition is one-shot. Restart for capability changes; only "tunable" options should be hot-reloaded.</div>
+</div>
+
+## Configuration validation in `cephalon doctor`
+
+`cephalon doctor --config ./appsettings.json` (planned for the `0.2.0-preview` release) will pre-validate the `Engine:*` schema before you run the host. Today, the same validation runs during composition — composition fails fast with a clear error.
+
+## Limits
+
+- **Connection strings live under `ConnectionStrings:*`**, not `Engine:Data:ConnectionString`. This follows the ASP.NET Core convention; many libraries (EF Core, dependency-health probes) look at `ConnectionStrings:*` automatically.
+- **The `Engine:*` schema is versioned with the engine.** Adding new options is additive within a preview minor; renames or removals require a major bump. See **[Migration → Breaking changes](/0-1-0-preview/migration/breaking-changes/)**.
+- **Configuration is one-shot for capabilities.** Flipping `Enabled: true → false` for `Identity`, `Tenancy`, `Messaging`, etc. requires a host restart (the capability registry is built during composition).
+- **Per-module configuration uses `Engine:<ModuleName>:*` by convention** so the runtime can introspect per-module settings. Modules that read from arbitrary `IConfiguration` paths work but won't show up in module-introspection tooling.
+
+## Tips & tricks
+
+Practical guidance for keeping `Engine:*` configuration sane across environments.
+
+### Layering & overrides
+
+- **Use `appsettings.<Env>.json` for environment-specific defaults**, not absolute values. Don't repeat what's already in `appsettings.json`.
+- **Use environment variables for secrets + ops toggles only.** Code-level defaults stay in JSON so a developer can read them.
+- **Never commit `appsettings.Production.json` with real values.** It exists to document the shape and provide placeholders; production fills in via env vars / Key Vault.
+
+### Schema discipline
+
+- **Treat `Engine:*` as read-only after composition.** Anything tunable at runtime should live under its own `Engine:<Feature>:*` subsection so it's clear what's safe to change.
+- **Validate at startup, not on first request.** `IOptions<T>` with `.ValidateOnStart()` makes config errors crash the host visibly, instead of throwing 500s once traffic arrives.
+- **Use `IOptionsMonitor<T>` only for genuinely tunable values** (timeouts, page sizes, feature flags). Boot-time options should be `IOptions<T>` so changes only take effect on restart — clearer mental model.
+
+### Secrets
+
+- **Never echo a connection string in logs**, even at `Debug` level. Use `[Sensitive]` attributes if you bind config to POCOs you ever serialise.
+- **Treat env vars as plaintext.** They live in `/proc/*/environ` and process listings. Use Key Vault / Parameter Store for the actual secret; env vars carry the *reference*, not the value.
+- **Rotate connection strings as a deploy event**, not a config-reload event. Hot-reloading a connection string mid-request can corrupt connection pools.
+
+### Naming conventions
+
+| Thing | Convention | Example |
+| --- | --- | --- |
+| Connection-string key | `ConnectionStrings:<Module>` (PascalCase) | `ConnectionStrings:Products` |
+| Engine ID | `<product>-<role>` (kebab, no env) | `acme-store` |
+| Deployment ID | `<env>-<region>` (kebab) | `prod-eu-west-1` |
+| Custom config section | `Engine:<ModuleName>:*` | `Engine:Products:CatalogTtl` |
+| OTLP endpoint | full URL incl. scheme | `https://otlp.example/v1/traces` |
+
+### Common pitfalls
+
+- **Env var case matters on Linux.** `Engine__Id` is not the same as `engine__id`. Match the JSON path exactly.
+- **`__` separator only, not `:` in env vars.** `:` isn't a legal env-var character on many shells.
+- **Arrays via env vars need indices.** `Engine__Transports__0=RestApi` then `Engine__Transports__1=Grpc` — not `Engine__Transports=RestApi,Grpc`.
+- **Empty string ≠ unset.** `Engine__Identity__Authority=` (empty) is treated as "value is empty string", not "missing". Configure validators accordingly.
+
+### Per-environment patterns
+
+```text
+appsettings.json                         ← shape + safe defaults (committed)
+appsettings.Development.json             ← dev-loop convenience (committed)
+appsettings.<Env>.json                   ← env-specific config (committed, no secrets)
+secrets via env vars / Key Vault         ← per-deploy
+```
+
+### Debugging config
+
+- **`/engine/snapshot`** returns the resolved configuration as the engine sees it. Useful for "is my env var being read?".
+- **`dotnet user-secrets list`** in dev shows what your local user-secrets actually contain.
+- **In Azure App Service / Container Apps**, the portal shows env vars as Application Settings. Match them against `/engine/snapshot` to verify wiring.
+
+### Anti-patterns
+
+| Don't | Do |
+| --- | --- |
+| Commit `appsettings.Production.json` with real connection strings | Use env vars or Key Vault references; `appsettings.Production.json` has placeholders |
+| Read `IConfiguration` directly inside handlers | Bind to a strongly-typed POCO and inject `IOptions<T>` |
+| Have `Engine:*` keys outside the documented schema | Use a custom namespace (`Acme:*` or `Engine:<ModuleName>:*`); engine-blessed keys stay typed |
+| Toggle capabilities at runtime via hot-reload | Restart the host — capability registration is one-shot |
+| Treat `appsettings.json` as the source of truth in CI tests | Pass overrides via env vars in CI so tests reflect production wiring |
+
+## Where to go next
+
+### Drill into a specific `Engine:*` section
+
+- **[Engine:Data](/0-1-0-preview/reference/configuration/data/)** — every `Id`, `Provider`, `Outbox`, `Inbox`, `Migrations`, and `Sfid` option, with 4 end-to-end scenarios.
+- **[Engine:Identity](/0-1-0-preview/reference/configuration/identity/)** — Bearer + Cookie schemes, JWT validation, claim mapping, scope policy.
+- **[Engine:Tenancy](/0-1-0-preview/reference/configuration/tenancy/)** — resolver pipeline, sharding strategy, per-tenant data isolation.
+- **[Engine:Messaging](/0-1-0-preview/reference/configuration/messaging/)** — Wolverine transports, routing, retries, dead-letter, scheduled delivery.
+- **[Engine:Observability](/0-1-0-preview/reference/configuration/observability/)** — OTel collector targets, sampling, logs/metrics/traces, 14 cloud-vendor presets.
+
+### Related reading
+
+- **[Concepts](/0-1-0-preview/guide/concepts/)** — the model behind the config schema.
+- **[Reference → Runtime contracts](/0-1-0-preview/reference/architecture/runtime-contracts/)** — the runtime side of the contract.
+- **[Reference → CLI](/0-1-0-preview/reference/cli/)** — `cephalon doctor` and `cephalon new` flags.
+- **[Operations → Production readiness](/0-1-0-preview/guide/operations/)** — the configuration checks to verify before going live.

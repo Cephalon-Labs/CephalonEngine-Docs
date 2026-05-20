@@ -1,0 +1,190 @@
+---
+title: '4 · REST API + Scalar'
+description: 'Polish the REST surface with full CRUD, OpenAPI customization, and a tailored Scalar docs experience.'
+sidebar:
+  order: 4
+editUrl: false
+---
+
+You already have GET / POST. In this step you add the missing verbs, customise the OpenAPI document, and dial in the Scalar UI so the API explorer feels production-ready.
+
+## 4.1 Add `Update` and `Delete` behaviors
+
+Create `src/Acme.Store.Modules.Products/Behaviors/UpdateProductBehavior.cs`:
+
+```csharp
+using Acme.Store.Modules.Products.Domain;
+using Cephalon.AspNetCore.Behaviors;
+using Cephalon.Ids.Sfid;
+using Microsoft.AspNetCore.Http;
+
+namespace Acme.Store.Modules.Products.Behaviors;
+
+public sealed record UpdateProductPayload(string Name, string Sku, decimal Price);
+
+public sealed class UpdateProductBehavior : IRestBehavior
+{
+    public RestRoute Route => RestRoute.Put("/products/{id}");
+
+    public async Task<IResult> Handle(Sfid id, UpdateProductPayload payload, IProductCatalog catalog, CancellationToken ct)
+    {
+        var product = await catalog.FindAsync(id, ct);
+        if (product is null) return Results.NotFound();
+
+        product.Name = payload.Name;
+        product.Sku = payload.Sku;
+        product.Price = payload.Price;
+
+        await catalog.UpdateAsync(product, ct);
+        return Results.NoContent();
+    }
+}
+```
+
+Create `src/Acme.Store.Modules.Products/Behaviors/DeleteProductBehavior.cs`:
+
+```csharp
+using Acme.Store.Modules.Products.Domain;
+using Cephalon.AspNetCore.Behaviors;
+using Cephalon.Ids.Sfid;
+using Microsoft.AspNetCore.Http;
+
+namespace Acme.Store.Modules.Products.Behaviors;
+
+public sealed class DeleteProductBehavior : IRestBehavior
+{
+    public RestRoute Route => RestRoute.Delete("/products/{id}");
+
+    public async Task<IResult> Handle(Sfid id, IProductCatalog catalog, CancellationToken ct)
+    {
+        var removed = await catalog.DeleteAsync(id, ct);
+        return removed ? Results.NoContent() : Results.NotFound();
+    }
+}
+```
+
+Extend `IProductCatalog` and `EfProductCatalog` with `UpdateAsync` and `DeleteAsync`. Then register the new behaviors in `ProductsModule.cs`:
+
+```csharp
+protected override void ConfigureRestBehaviors(IRestBehaviorBuilder builder)
+{
+    builder.MapProfile<ListProductsBehavior>();
+    builder.MapProfile<GetProductBehavior>();
+    builder.MapProfile<CreateProductBehavior>();
+    builder.MapProfile<UpdateProductBehavior>();
+    builder.MapProfile<DeleteProductBehavior>();
+}
+```
+
+## 4.2 OpenAPI metadata
+
+Each behavior can publish metadata that Scalar picks up. Update `ListProductsBehavior` to demonstrate:
+
+```csharp
+public sealed class ListProductsBehavior : IRestBehavior
+{
+    public RestRoute Route => RestRoute.Get("/products")
+        .WithSummary("List products")
+        .WithDescription("Returns the full product catalog in creation order.")
+        .WithTags("Catalog")
+        .Produces<IReadOnlyList<Product>>(200);
+
+    public Task<IResult> Handle(IProductCatalog catalog, CancellationToken ct) =>
+        catalog.ListAsync(ct).ContinueWith<IResult>(t => Results.Ok(t.Result));
+}
+```
+
+The same `WithSummary`/`WithDescription`/`WithTags` calls apply to the rest. Set them now — Scalar will group endpoints by tag and show the descriptions inline.
+
+## 4.3 Customise the OpenAPI document
+
+In `src/Acme.Store.Host/Program.cs`, configure the OpenAPI document and Scalar UI:
+
+```csharp
+var app = builder.Services
+    .AddCephalonAspNetCore(options =>
+    {
+        options.OpenApi.Title = "Acme.Store API";
+        options.OpenApi.Version = "v1";
+        options.OpenApi.Description = "Public REST API for the Acme Store backend.";
+        options.OpenApi.Contact = new() { Name = "Acme Platform Team", Email = "platform@acme.example" };
+        options.OpenApi.License = new() { Name = "Proprietary" };
+        options.Scalar.Theme = ScalarTheme.Default;
+        options.Scalar.Layout = ScalarLayout.Modern;
+    })
+    .AddModulesFromAssemblies(/* ... */)
+    .Build(builder);
+```
+
+Restart and open `http://localhost:5000/scalar/v1`. The new title, description, and contact info should appear in the header. Tags group the endpoints.
+
+## 4.4 Versioned routes
+
+When you start versioning your API surface, declare it on the route:
+
+```csharp
+public RestRoute Route => RestRoute.Get("/v1/products")
+    .WithApiVersion("1.0");
+```
+
+The host adapter picks the version up automatically and wires `Asp.Versioning` headers. Behaviors that omit the version map to the default.
+
+## 4.5 Response models
+
+By default the host serialises domain types directly. For a stable public contract, define explicit response models:
+
+```csharp
+public sealed record ProductResponse(string Id, string Name, string Sku, decimal Price, DateTimeOffset CreatedAt);
+```
+
+Map in the behavior:
+
+```csharp
+public Task<IResult> Handle(IProductCatalog catalog, CancellationToken ct) =>
+    catalog.ListAsync(ct).ContinueWith<IResult>(t =>
+        Results.Ok(t.Result.Select(p => new ProductResponse(p.Id.ToString(), p.Name, p.Sku, p.Price, p.CreatedAt))));
+```
+
+The OpenAPI schema now reflects the response shape exactly.
+
+## 4.6 Error contracts
+
+The host adapter ships with `ProblemDetails` defaults. To shape errors consistently, throw typed exceptions and let the configured handler map them:
+
+```csharp
+throw new ValidationException("price must be non-negative");
+```
+
+The mapper produces:
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7807",
+  "title": "Validation failed",
+  "status": 400,
+  "detail": "price must be non-negative",
+  "traceId": "00-abc...-01"
+}
+```
+
+A complete error contract is part of the **[Reference → Configuration](/0-1-0-preview/reference/configuration/)** overview — the dedicated *Error handling* page is planned for `0.2.0-preview`.
+
+## 4.7 Verify
+
+```powershell
+curl -X PUT http://localhost:5000/products/<id> -H "Content-Type: application/json" -d '{"name":"USB-C Hub V2","sku":"HB-USBC","price":69}'
+curl -X DELETE http://localhost:5000/products/<id>
+```
+
+Both should return `204 No Content` on success and `404 Not Found` for an unknown id. Open Scalar again and confirm the documentation reflects the new endpoints.
+
+## What you should have now
+
+- [x] Full CRUD over `/products`.
+- [x] OpenAPI metadata grouped by tag.
+- [x] Scalar UI with custom title, description, and contact info.
+- [x] Explicit response models for public contract stability.
+
+## What to do next
+
+**[Step 5 → Eventing](/0-1-0-preview/tutorials/first-app/05-eventing/)**.

@@ -1,0 +1,37 @@
+---
+title: โรดแมป
+description: หลายมินอร์ถัดไปของ CephalonEngine ทิศทางระยะยาว และเลน readiness ของ .NET 11
+sidebar:
+  order: 1
+editUrl: false
+---
+
+โรดแมปแบ่งเป็นสาม horizon
+
+## ตอนนี้ (`0.1.0-preview`)
+
+- Ship แบบต่อเนื่องและเพิ่มเติมภายใน preview minor
+- Eventing track: broker topology, partition behaviour, scheduled delivery, DLQ replay, process manager state
+- Data track: ดัน adapter ที่ใช้บ่อยที่สุดจาก `M2 → M3`
+- Observability track: เพิ่ม provider companion ที่เหลือ และดัน dependency-health probe ไปที่ `M3`
+- Multi-tenancy track: durable governance + email-delivery adapter ที่ `M3`
+
+## ถัดไป (`0.2.0-preview`)
+
+- มินอร์แรกที่มีเรื่อง migration เป็นทางการ
+- ดันเอ็นจินหลัก + AspNetCore host + Worker ไป `M4`
+- รีวิว manifest schema ขยับเป็น `v3` ถ้าจำเป็น
+- Identity, audit, tenancy ขยับเป็น `M3`
+- ปล่อยเครื่องมือ `Cephalon.MigrationAssistant`
+
+## ระยะไกล (1.0)
+
+- ปล่อย stable `1.0.0`
+- Freeze runtime contract
+- เอกสารหลายเวอร์ชันพร้อม version switcher
+- Plugin-ready modular composition model
+- .NET 11 readiness lane ขึ้นเป็น supported ถ้าผลการ audit ผ่าน
+
+## .NET 11 readiness lane
+
+ติดตามได้ที่ **[.NET 11 readiness](/0-1-0-preview/source/dotnet11-readiness/)** สถานะปัจจุบัน `assessment-only`

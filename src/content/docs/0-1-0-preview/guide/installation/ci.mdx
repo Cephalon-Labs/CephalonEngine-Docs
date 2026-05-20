@@ -1,0 +1,321 @@
+---
+title: CI / build agents
+description: Pipeline shapes for GitHub Actions, Azure Pipelines, GitLab CI, and Docker. Tool-manifest restore, cache strategy, composition smoke tests, deployment-mode gating.
+sidebar:
+  order: 4
+  label: ④ CI / build agents
+editUrl: false
+---
+
+CephalonEngine builds with **standard `dotnet build`** — there's nothing engine-specific to wire into your pipeline. This page collects the **practical patterns** that make engine apps shippable from CI: tool-manifest restore, smoke-test gating, deployment-mode posture, and container builds.
+
+## Minimum pipeline shape
+
+Every CephalonEngine CI run boils down to:
+
+```text
+1. checkout
+2. setup .NET 10 SDK
+3. dotnet tool restore             ← restores Cephalon.Cli from local manifest
+4. dotnet restore                  ← restores Cephalon.* packages
+5. dotnet build --no-restore
+6. dotnet test  --no-build
+7. cephalon doctor --json          ← (optional) hard-fail on toolchain drift
+```
+
+Skip step 3 if you don't use a local tool manifest. Skip step 7 if you'd rather not block on `cephalon doctor` warnings.
+
+## GitHub Actions
+
+```yaml title=".github/workflows/build.yml"
+name: build
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            ~/.dotnet/tools
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/Directory.Packages.props', '**/*.csproj', '.config/dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - run: dotnet tool restore               # restores Cephalon.Cli from manifest
+      - run: dotnet restore
+      - run: dotnet build --no-restore -c Release
+      - run: dotnet test  --no-build  -c Release --filter "Category!=Integration"
+
+      - name: cephalon doctor
+        run: dotnet tool run cephalon doctor --json | tee doctor.json
+        continue-on-error: true                # warn but don't fail on first iteration
+
+      - name: Upload doctor report
+        uses: actions/upload-artifact@v4
+        with:
+          name: doctor-report
+          path: doctor.json
+```
+
+### Hardening: fail on `cephalon doctor` regressions
+
+Once you have a green baseline, swap the soft `continue-on-error: true` for a hard fail:
+
+```yaml
+- name: cephalon doctor (hard fail)
+  run: |
+    dotnet tool run cephalon doctor --json > doctor.json
+    jq -e '.result == "ok"' doctor.json
+```
+
+This blocks merges if the SDK / runtime drifts from the supported band.
+
+## Azure Pipelines
+
+```yaml title="azure-pipelines.yml"
+trigger: [main]
+pool: { vmImage: 'ubuntu-latest' }
+
+variables:
+  buildConfiguration: 'Release'
+
+steps:
+  - task: UseDotNet@2
+    displayName: 'Install .NET 10 SDK'
+    inputs: { version: '10.x' }
+
+  - task: Cache@2
+    inputs:
+      key: 'nuget | "$(Agent.OS)" | **/Directory.Packages.props,**/*.csproj,.config/dotnet-tools.json'
+      path: $(NUGET_PACKAGES)
+    displayName: 'Cache NuGet packages'
+
+  - script: dotnet tool restore
+    displayName: 'Restore tools'
+
+  - script: dotnet restore
+    displayName: 'Restore packages'
+
+  - script: dotnet build --no-restore -c $(buildConfiguration)
+    displayName: 'Build'
+
+  - script: dotnet test  --no-build  -c $(buildConfiguration) --logger trx --results-directory $(Agent.TempDirectory)
+    displayName: 'Test'
+
+  - task: PublishTestResults@2
+    condition: succeededOrFailed()
+    inputs:
+      testRunner: VSTest
+      testResultsFiles: '$(Agent.TempDirectory)/**/*.trx'
+```
+
+### Behind Azure Artifacts
+
+If your `Cephalon.*` packages live in a private Azure Artifacts feed, configure the credential provider:
+
+```yaml
+  - task: NuGetAuthenticate@1
+    displayName: 'Authenticate Azure Artifacts'
+```
+
+Run this **before** `dotnet restore`. It populates the credential provider so `dotnet restore` can pull from the authenticated feed without prompting.
+
+## GitLab CI
+
+```yaml title=".gitlab-ci.yml"
+image: mcr.microsoft.com/dotnet/sdk:10.0
+
+stages:
+  - build
+  - test
+
+variables:
+  NUGET_PACKAGES: $CI_PROJECT_DIR/.nuget/packages
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+cache:
+  key:
+    files:
+      - Directory.Packages.props
+      - .config/dotnet-tools.json
+  paths:
+    - .nuget/packages/
+    - .dotnet/tools/
+
+build:
+  stage: build
+  script:
+    - dotnet tool restore
+    - dotnet restore
+    - dotnet build --no-restore -c Release
+  artifacts:
+    paths:
+      - "src/*/bin/Release/"
+    expire_in: 1 hour
+
+test:
+  stage: test
+  needs: [build]
+  script:
+    - dotnet test --no-build -c Release --logger "junit"
+  artifacts:
+    when: always
+    reports:
+      junit: "**/test-results.xml"
+```
+
+## Local Docker build
+
+For environments without a hosted CI, or to validate locally:
+
+```bash frame="terminal"
+docker build -t acmestore:dev .
+docker run --rm -p 8080:8080 acmestore:dev
+```
+
+The generated `Dockerfile` uses `mcr.microsoft.com/dotnet/sdk:10.0` for the build stage and `mcr.microsoft.com/dotnet/aspnet:10.0` for runtime.
+
+### Alpine base images (smaller)
+
+```dockerfile title="Dockerfile (Alpine variant)"
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+WORKDIR /src
+COPY . .
+RUN dotnet publish src/Acme.Store.Host/Acme.Store.Host.csproj -c Release -o /out
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
+WORKDIR /app
+COPY --from=build /out .
+ENTRYPOINT ["dotnet", "Acme.Store.Host.dll"]
+```
+
+Alpine images are ~60% smaller than the default Debian-based images. Trade-off: some native dependencies need explicit `apk add` (most engine apps don't).
+
+### Multi-arch builds
+
+```bash frame="terminal"
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t acmestore:latest \
+  --push \
+  .
+```
+
+ARM64 image runs on Apple Silicon, AWS Graviton, Azure Arm-based App Service. CephalonEngine has no native dependencies that block ARM64.
+
+## Composition smoke tests
+
+The CLI-generated test project includes `CompositionSmokeTests.cs` — a fast (`<1s`) test that proves your modules compose without runtime errors. **Run it in CI** before any integration tests.
+
+```csharp title="tests/Acme.Store.Tests/Composition/CompositionSmokeTests.cs"
+public sealed class CompositionSmokeTests
+{
+    [Fact]
+    public void Modules_Compose_Without_Errors()
+    {
+        using var host = TestHostFactory.Create();   // boots full engine
+        var manifest = host.Services.GetRequiredService<IEngineManifest>();
+        Assert.NotEmpty(manifest.Modules);
+    }
+}
+```
+
+In CI:
+
+```yaml
+- run: dotnet test tests/Acme.Store.Tests --filter "FullyQualifiedName~Composition" --no-build -c Release
+```
+
+If composition fails — missing capability, unresolved dependency, conflicting registrations — this test catches it before integration tests waste CI minutes spinning up databases.
+
+## Deployment-mode gating
+
+CephalonEngine apps can target multiple deployment modes (Self-contained, Trimmed, AOT, SingleFile). Each mode has its own constraints. **Gate releases on the deployment-mode check:**
+
+```yaml
+- name: Verify deployment-mode posture
+  run: |
+    dotnet tool run cephalon doctor --json --deployment-mode SingleFile > posture.json
+    jq -e '.deploymentMode.posture == "ok"' posture.json
+```
+
+The `--deployment-mode <mode>` flag tells `cephalon doctor` to validate against the constraints of that specific mode. Available: `Default`, `SelfContained`, `Trimmed`, `Aot`, `SingleFile`. See **[Reference → CLI → doctor](/0-1-0-preview/reference/cli/#doctor)**.
+
+## Behind a corporate CI runner
+
+If your CI runs on self-hosted agents inside a corporate network, the same proxy / air-gap rules as workstations apply:
+
+```yaml
+env:
+  HTTP_PROXY: http://proxy.corp.acme:8080
+  HTTPS_PROXY: http://proxy.corp.acme:8080
+  NO_PROXY: localhost,127.0.0.1,nuget.acme.example
+```
+
+If your CI runner has no internet access, configure NuGet to read from an internal mirror:
+
+```yaml
+- run: dotnet nuget add source $INTERNAL_NUGET_URL --name internal-mirror
+- run: dotnet restore --source internal-mirror
+```
+
+See **[CLI install → Air-gapped install](/0-1-0-preview/guide/installation/cli/#air-gapped-install)** for the full air-gap workflow.
+
+## Tips & tricks
+
+### Cache strategy
+
+- **Cache `~/.nuget/packages` + `~/.dotnet/tools`.** Cache key on `Directory.Packages.props` + `*.csproj` + `.config/dotnet-tools.json` — invalidates only when versions change.
+- **Don't cache `bin/` and `obj/`.** They're per-checkout and small enough that rebuild is faster than restore-from-cache.
+- **Separate caches per OS.** `nuget-linux-...` and `nuget-windows-...` keys. CI providers cache per-runner-OS already, but explicit prefixes help debugging.
+
+### Parallelism
+
+- **Run `dotnet test` with `--parallel`** when your tests are isolated. Composition smoke tests are isolated (each test creates its own `TestHost`).
+- **Use job matrices for cross-platform.** Build on `ubuntu-latest` for fast feedback; run the same suite on `windows-latest` weekly to catch line-ending / path issues.
+
+### Speed tips
+
+- **Pre-bake the .NET 10 SDK into your base CI image** if you have one. Faster than `actions/setup-dotnet` on every build.
+- **Use `--no-restore` and `--no-build`** in subsequent steps. Saves 20-40 seconds per build.
+- **Run `dotnet build /m:1`** in CI if you hit memory pressure. Parallel build is faster but uses N× the RAM.
+- **`dotnet build /p:UseSharedCompilation=false`** in restricted CI environments — VBCSCompiler can hang on locked-down agents.
+
+### Failure-mode patterns
+
+- **Always upload `doctor.json` as a build artifact.** Comparing across runs surfaces toolchain drift.
+- **Always run composition smoke tests before integration tests.** A 1-second composition failure beats a 5-minute integration failure.
+- **Set `--logger trx` (Azure DevOps) or `--logger junit` (GitLab/Jenkins)** so test results render natively in the UI.
+- **`continue-on-error: true` for `cephalon doctor`** during initial onboarding — let the team see warnings before they fail merges.
+
+### Common pitfalls
+
+| Don't | Do |
+| --- | --- |
+| Skip `dotnet tool restore` because "we use the global CLI" | CI should be reproducible — local-manifest restore is required for that. |
+| `dotnet build` in every step (rebuilding from scratch) | Use `--no-restore --no-build` for downstream steps. |
+| Cache `bin/` and `obj/` | They're per-build artifacts, not deps. Don't waste cache size on them. |
+| Hardcode the SDK version in every workflow | Pin once in `global.json` + use `dotnet-version: 10.x` in setup-dotnet — read from `global.json` automatically. |
+| Run integration tests on every PR | Use a `--filter "Category!=Integration"` lane for fast PR builds; run integration on `main` post-merge. |
+
+## Where to go next
+
+- **[① CLI install](/0-1-0-preview/guide/installation/cli/)** — the CLI your CI is restoring.
+- **[② Manual install](/0-1-0-preview/guide/installation/manual/)** — what your CI is building.
+- **[Operations → Production readiness](/0-1-0-preview/guide/operations/)** — what to gate on before going live.
+- **[Reference → CLI → doctor](/0-1-0-preview/reference/cli/#doctor)** — `cephalon doctor` flag reference.
+- **[Tutorial → CI/CD pipeline](/0-1-0-preview/tutorials/ci-cd-pipeline/)** — end-to-end pipeline walkthrough.

@@ -1,0 +1,278 @@
+---
+title: '2 · Add a domain module'
+description: 'Author the Products module — descriptor, services, REST behaviors, and OpenAPI surface.'
+sidebar:
+  order: 2
+editUrl: false
+---
+
+In step 1 the host had a single starter module. Now you'll author **Acme.Store.Modules.Products** from scratch and watch the engine discover it automatically.
+
+## 2.1 Create the project
+
+From the repo root:
+
+```powershell
+dotnet new classlib -n Acme.Store.Modules.Products -o ./src/Acme.Store.Modules.Products
+dotnet sln Acme.Store.slnx add ./src/Acme.Store.Modules.Products/Acme.Store.Modules.Products.csproj
+```
+
+Add the references in the new `.csproj`:
+
+```xml title="src/Acme.Store.Modules.Products/Acme.Store.Modules.Products.csproj" {7-10}
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Cephalon.Abstractions" />
+    <PackageReference Include="Cephalon.AspNetCore" />
+  </ItemGroup>
+
+</Project>
+```
+
+> The `<PackageReference>` lines have no `Version=` — centralised package management resolves them through `Directory.Packages.props`. Add the version there if it's not already pinned.
+
+Reference the new project from the host:
+
+```powershell
+dotnet add ./src/Acme.Store.Host/Acme.Store.Host.csproj reference ./src/Acme.Store.Modules.Products/Acme.Store.Modules.Products.csproj
+```
+
+## 2.2 Author the module class
+
+Create the module class:
+
+```csharp title="src/Acme.Store.Modules.Products/ProductsModule.cs" {9,11-14,21-25}
+using Cephalon.Abstractions.Modules;
+using Cephalon.AspNetCore.Behaviors;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Acme.Store.Modules.Products;
+
+public sealed class ProductsModule : RestBehaviorModuleBase
+{
+    public override ModuleDescriptor Describe() => new(
+        name: "Acme.Store.Modules.Products",
+        version: "1.0.0",
+        capabilities: [Capability.Data, Capability.Audit]);
+
+    public override void RegisterServices(IServiceCollection services)
+    {
+        services.AddSingleton<IProductCatalog, InMemoryProductCatalog>();
+    }
+
+    protected override void ConfigureRestBehaviors(IRestBehaviorBuilder builder)
+    {
+        builder.MapProfile<ListProductsBehavior>();
+        builder.MapProfile<GetProductBehavior>();
+    }
+}
+```
+
+### Why this works
+
+- **`RestBehaviorModuleBase`** is a convenience base that turns the module into a participant in the REST behavior pipeline. The host adapter scans for it during composition.
+- **`Describe()`** returns the descriptor that flows into the runtime manifest. `capabilities` is what the engine validates providers for.
+- **`RegisterServices`** is where DI registrations live. Use the standard `IServiceCollection` API.
+- **`ConfigureRestBehaviors`** declares the REST surface using `MapProfile<TBehavior>()`. Each behavior is its own type, which keeps the module class readable.
+
+## 2.3 Author the domain
+
+Create the domain types:
+
+```csharp title="src/Acme.Store.Modules.Products/Domain/Product.cs"
+namespace Acme.Store.Modules.Products.Domain;
+
+public sealed record Product(string Id, string Name, string Sku, decimal Price);
+```
+
+```csharp title="src/Acme.Store.Modules.Products/Domain/IProductCatalog.cs"
+namespace Acme.Store.Modules.Products.Domain;
+
+public interface IProductCatalog
+{
+    IReadOnlyList<Product> List();
+    Product? Find(string id);
+}
+```
+
+```csharp title="src/Acme.Store.Modules.Products/Domain/InMemoryProductCatalog.cs" collapse={7-12}
+namespace Acme.Store.Modules.Products.Domain;
+
+public sealed class InMemoryProductCatalog : IProductCatalog
+{
+    private readonly List<Product> _products =
+    [
+        new("p-001", "Mechanical Keyboard", "KB-MX01", 149.00m),
+        new("p-002", "27\" 4K Monitor",      "MN-4K27", 489.00m),
+        new("p-003", "USB-C Hub",            "HB-USBC", 59.00m),
+    ];
+
+    public IReadOnlyList<Product> List() => _products;
+
+    public Product? Find(string id) => _products.FirstOrDefault(p => p.Id == id);
+}
+```
+
+We'll replace this with EF Core in step 3. For now it's a stand-in.
+
+## 2.4 Author the REST behaviors
+
+Add the REST behaviors:
+
+```csharp title="src/Acme.Store.Modules.Products/Behaviors/ListProductsBehavior.cs" {9,11-12}
+using Acme.Store.Modules.Products.Domain;
+using Cephalon.AspNetCore.Behaviors;
+using Microsoft.AspNetCore.Http;
+
+namespace Acme.Store.Modules.Products.Behaviors;
+
+public sealed class ListProductsBehavior : IRestBehavior
+{
+    public RestRoute Route => RestRoute.Get("/products");
+
+    public IResult Handle(IProductCatalog catalog) =>
+        Results.Ok(catalog.List());
+}
+```
+
+```csharp title="src/Acme.Store.Modules.Products/Behaviors/GetProductBehavior.cs" {9,11-15}
+using Acme.Store.Modules.Products.Domain;
+using Cephalon.AspNetCore.Behaviors;
+using Microsoft.AspNetCore.Http;
+
+namespace Acme.Store.Modules.Products.Behaviors;
+
+public sealed class GetProductBehavior : IRestBehavior
+{
+    public RestRoute Route => RestRoute.Get("/products/{id}");
+
+    public IResult Handle(string id, IProductCatalog catalog)
+    {
+        var product = catalog.Find(id);
+        return product is null ? Results.NotFound() : Results.Ok(product);
+    }
+}
+```
+
+### Why behaviors instead of endpoints?
+
+A *behavior* is a typed unit the engine knows how to compose. Compared with `app.MapGet(...)` calls:
+
+- Each behavior is independently testable.
+- The route, the handler, and the dependencies live in one place.
+- The engine can apply cross-cutting decorators (audit, metrics, auth) deterministically.
+- The OpenAPI document and the Scalar UI pick up the behavior automatically.
+
+## 2.5 Update `Program.cs`
+
+In step 1, `AddModulesFromAssemblies(typeof(Program).Assembly)` only scanned the host assembly. Add the module assembly:
+
+```csharp title="src/Acme.Store.Host/Program.cs" ins={1,11-12} del={10}
+using Acme.Store.Modules.Products;
+using Cephalon.AspNetCore;
+using Cephalon.Engine;
+
+var builder = WebApplication.CreateBuilder(args);
+
+var app = builder.Services
+    .AddCephalonAspNetCore()
+    .AddModulesFromAssemblies(
+        typeof(Program).Assembly)
+        typeof(Program).Assembly,
+        typeof(ProductsModule).Assembly)
+    .Build(builder);
+
+app.MapCephalon();
+app.MapHealthChecks("/health");
+
+app.Run();
+```
+
+> **Tip.** A cleaner pattern is to call `AddModulesFromAssemblies(AppDomain.CurrentDomain.GetAssemblies())` — but only after the host references all module projects. We're explicit here to make the wiring visible.
+
+## 2.6 Run and verify
+
+```powershell
+dotnet run --project ./src/Acme.Store.Host
+```
+
+The startup banner should now list two modules:
+
+```text frame="terminal" title="output"
+modules: Acme.Store.Modules.Health (1.0.0), Acme.Store.Modules.Products (1.0.0)
+```
+
+Hit the endpoints:
+
+```powershell frame="terminal"
+curl http://localhost:5000/products
+curl http://localhost:5000/products/p-001
+curl http://localhost:5000/products/does-not-exist  # 404
+```
+
+Open `http://localhost:5000/scalar/v1` in the browser. The Products endpoints should be documented automatically, with schemas, examples, and a "Try it" button.
+
+## 2.7 Add a behavior test
+
+Add the spec class:
+
+```csharp title="tests/Acme.Store.Host.Tests/Features/ProductsBehaviorSpecifications.cs" {3-12,14-22}
+public sealed class ProductsBehaviorSpecifications
+{
+    [Fact]
+    public async Task Listing_products_returns_the_seeded_catalog()
+    {
+        await using var host = await TestHostFactory.CreateAsync();
+        var client = host.CreateClient();
+
+        var response = await client.GetAsync("/products");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<Product[]>();
+        body.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task Requesting_an_unknown_product_returns_404()
+    {
+        await using var host = await TestHostFactory.CreateAsync();
+        var client = host.CreateClient();
+
+        var response = await client.GetAsync("/products/missing");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+}
+```
+
+Run tests:
+
+```powershell
+dotnet test
+```
+
+Both should pass.
+
+## What you should have now
+
+- [x] A `Products` module in a separate project.
+- [x] Two REST endpoints (`GET /products`, `GET /products/{id}`).
+- [x] OpenAPI/Scalar documentation generated automatically.
+- [x] Behavior specifications for happy-path and 404.
+
+## Pitfalls we hit the first time
+
+- **Forgetting to reference the module from the host.** Module discovery only sees assemblies that are loaded. The host project must reference the module project (or the module DLL has to live next to the host binary at runtime).
+- **Using `Endpoint` instead of `Behavior`.** Plain ASP.NET Core `app.MapGet(...)` still works but bypasses the behavior pipeline — no automatic OpenAPI binding, no decorators, no manifest entry.
+- **Module name collisions.** Two modules with the same `Describe().name` will fail composition. Always include the module's project name as the prefix.
+
+## What to do next
+
+**[Step 3 → Wire EF Core](/0-1-0-preview/tutorials/first-app/03-add-data/)**.

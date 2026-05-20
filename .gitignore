@@ -137,3 +137,30 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Astro
+# `.astro/` (no leading slash) matches the build cache at the repo root AND
+# the content cache at `src/content/.astro/`. The `dist` build output is
+# already covered above.
+.astro/
+
+# Operating-system metadata files — never belong in the repo.
+# macOS:
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+# Windows:
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Editor / IDE workspace folders.
+.vscode/
+.idea/
+
+# Local scratch/output
+.scratch/
+build-output.log
+sync-output.log

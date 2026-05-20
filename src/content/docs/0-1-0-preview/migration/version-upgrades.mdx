@@ -1,0 +1,42 @@
+---
+title: Version upgrades
+description: Move between CephalonEngine versions. Per-minor playbooks with before/after diffs.
+sidebar:
+  order: 4
+editUrl: false
+---
+
+CephalonEngine follows semantic versioning **plus** a `M0–M4` maturity ladder for every package. The version-upgrade matrix below lists every minor release with the supported source versions and the canonical playbook to land it.
+
+## Matrix
+
+| From | To | Status | Playbook |
+| --- | --- | --- | --- |
+| Greenfield | `0.1.0-preview` | ✅ Stable preview | [Quickstart](/0-1-0-preview/guide/quickstart/) |
+| `0.1.0-preview.x` | `0.1.0-preview.y` | ✅ Additive | Pin centrally in `Directory.Packages.props`. Run composition smoke tests. |
+| `0.1.0-preview` | `0.2.0-preview` | ⏳ Planned | Lands when `M3 → M4` graduation criteria are met. Playbook to follow. |
+
+## Upgrade philosophy
+
+- **Pin centrally.** Every Cephalon app should use centralised package management (`Directory.Packages.props`). Upgrades are a single-file diff.
+- **Smoke first.** Run the composition smoke test before anything else. Most breakage manifests at composition time.
+- **Manifest delta.** Compare `/engine/manifest` output before and after — every new capability shows up.
+- **Telemetry watch.** Look for `cephalon.engine.started` events after the upgrade. Missing means boot failure.
+
+## Within a preview minor
+
+While CephalonEngine is on the `0.1.0-preview` track, all changes are additive within a preview minor. You can bump `0.1.0-preview.42 → 0.1.0-preview.50` with confidence, run smoke tests, and ship.
+
+Watch for:
+
+- New `Engine:*` configuration keys (safe defaults).
+- New capabilities your modules can opt into.
+- New behaviors on existing companion packages (additive).
+
+## Across preview minors
+
+The `0.1.0-preview → 0.2.0-preview` jump will be the first one with a real migration story. The playbook will:
+
+- enumerate breaking changes in **[Breaking changes](/0-1-0-preview/migration/breaking-changes/)**.
+- ship a `Cephalon.MigrationAssistant` tool that can detect and rewrite common patterns.
+- document the manifest schema version bump and the runtime-contract diff.

@@ -1,0 +1,79 @@
+---
+title: Guide
+description: Start here. The CephalonEngine guide walks you from install through architecture, deployment, and day-2 operations.
+sidebar:
+  order: 0
+  label: Overview
+editUrl: false
+---
+
+import PathCards from '../../../../components/PathCards.astro';
+
+The Guide is the canonical reference for adopting CephalonEngine. Every page here is written for someone who is shipping a real application — not a sample, not a demo, an app that will be on-call for years.
+
+If you only have five minutes, jump to the **[Quickstart](/0-1-0-preview/guide/quickstart/)**. If you have an afternoon, read the **[Concepts](/0-1-0-preview/guide/concepts/)** and pick a **[deployment target](/0-1-0-preview/guide/deployment/)**.
+
+<PathCards
+  paths={[
+    {
+      badge: '5 min',
+      title: 'Quickstart',
+      description: 'Install Cephalon.Cli, run `cephalon doctor`, scaffold a host, and watch it boot.',
+      href: '/0-1-0-preview/guide/quickstart/',
+      cta: 'Start now',
+    },
+    {
+      badge: '15 min',
+      title: 'Installation',
+      description: 'Prerequisites, package feeds, CLI install paths, and how to verify your environment.',
+      href: '/0-1-0-preview/guide/installation/',
+      cta: 'Set up the toolchain',
+    },
+    {
+      badge: '30 min',
+      title: 'Concepts',
+      description: 'The engine, modules, capabilities, manifests, and how composition is resolved.',
+      href: '/0-1-0-preview/guide/concepts/',
+      cta: 'Learn the model',
+    },
+    {
+      badge: '45 min',
+      title: 'Architecture',
+      description: 'Layered architecture, app models, transport surfaces, and the runtime contract.',
+      href: '/0-1-0-preview/guide/architecture/',
+      cta: 'Read the architecture',
+    },
+    {
+      badge: 'Day 2',
+      title: 'Deployment',
+      description: 'Windows Service, IIS, Azure App Service, Azure Container Apps, Kubernetes, Linux systemd, and Docker.',
+      href: '/0-1-0-preview/guide/deployment/',
+      cta: 'Pick a target',
+    },
+    {
+      badge: 'Ongoing',
+      title: 'Operations',
+      description: 'Observability, dependency health, runtime failure policy, benchmarking, and runbooks.',
+      href: '/0-1-0-preview/guide/operations/',
+      cta: 'Operate with confidence',
+    },
+  ]}
+/>
+
+## How the Guide is organised
+
+1. **Quickstart** — the shortest path from zero to a running host.
+2. **Installation** — what you need on the machine, and how to set up package feeds for offline or air-gapped scenarios.
+3. **Concepts** — the smallest model you need in your head to read the rest of the docs.
+4. **Architecture** — the layers, app models, and runtime contract that the engine guarantees.
+5. **Configuration** — the `Engine:*` schema and how options flow into modules.
+6. **Deployment** — supported hosts and the generated `deploy/` folders.
+7. **Operations** — observability, health, runbooks, and the runtime failure policy.
+8. **Compatibility** — supported .NET versions, deployment modes, trim/AOT/single-file posture.
+
+## Conventions used in this guide
+
+- **Code blocks** are runnable. Where a snippet requires a specific package or directive, the `using` lines are kept.
+- **PowerShell** is the default shell for Windows examples. Linux/macOS users can replace `pwsh` with `bash` and rerun the equivalent commands.
+- **Callouts** flag risks (`warning`), breaking shifts (`danger`), confirmed behaviour (`success`), and adoption keys (`key`).
+- **Maturity labels** appear on every package mention. Treat anything below `M4` as something that may evolve additively. The full taxonomy lives in the [maturity audit](/0-1-0-preview/reference/architecture/maturity/).

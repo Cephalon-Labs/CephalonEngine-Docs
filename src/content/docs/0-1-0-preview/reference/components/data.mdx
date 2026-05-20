@@ -1,0 +1,78 @@
+---
+title: Data
+description: Cephalon.Data + 15 backend adapters (Postgres, SQL Server, MySQL, Oracle, MongoDB, Cassandra, ClickHouse, Elasticsearch, OpenSearch, Redis, Neo4j, Qdrant, NATS, Debezium, EF Core).
+sidebar:
+  order: 3
+editUrl: false
+---
+
+`Cephalon.Data` provides the transport-neutral data capability. Adapter packages wire each backend's driver into the engine's runtime catalog.
+
+## Packages
+
+Click any package name to jump to its **source-doc** (canonical per-package detail).
+
+### Base
+
+| Package | NuGet ID | Maturity | Capability |
+| --- | --- | --- | --- |
+| **[Data](/0-1-0-preview/source/components/data/)** *(base)* | `Cephalon.Data` | `M3` | `Capability.Data` |
+| **[EntityFramework](/0-1-0-preview/source/components/data-entityframework/)** *(adapter)* | `Cephalon.Data.EntityFramework` | `M3` | `Capability.Data` |
+
+### Backend adapters
+
+| Package | NuGet ID | Maturity | `Engine:Data:Provider` | Backend driver |
+| --- | --- | --- | --- | --- |
+| **[Postgres](/0-1-0-preview/source/components/data-postgres/)** | `Cephalon.Data.Postgres` | `M3` | `"Postgres"` | `Npgsql` |
+| **[SQL Server](/0-1-0-preview/source/components/data-sqlserver/)** | `Cephalon.Data.SqlServer` | `M3` | `"SqlServer"` | `Microsoft.Data.SqlClient` |
+| **[MySQL](/0-1-0-preview/source/components/data-mysql/)** | `Cephalon.Data.MySql` | `M3` | `"MySql"` | `MySqlConnector` |
+| **[Oracle](/0-1-0-preview/source/components/data-oracle/)** | `Cephalon.Data.Oracle` | `M3` | `"Oracle"` | `Oracle.ManagedDataAccess.Core` |
+| **[MongoDB](/0-1-0-preview/source/components/data-mongodb/)** | `Cephalon.Data.MongoDB` | `M3` | `"MongoDB"` | `MongoDB.Driver` |
+| **[Cassandra](/0-1-0-preview/source/components/data-cassandra/)** | `Cephalon.Data.Cassandra` | `M3` | `"Cassandra"` | `CassandraCSharpDriver` |
+| **[ClickHouse](/0-1-0-preview/source/components/data-clickhouse/)** | `Cephalon.Data.ClickHouse` | `M3` | `"ClickHouse"` | `ClickHouse.Client` |
+| **[Elasticsearch](/0-1-0-preview/source/components/data-elasticsearch/)** | `Cephalon.Data.Elasticsearch` | `M3` | `"Elasticsearch"` | `Elastic.Clients.Elasticsearch` |
+| **[OpenSearch](/0-1-0-preview/source/components/data-opensearch/)** | `Cephalon.Data.OpenSearch` | `M3` | `"OpenSearch"` | `OpenSearch.Net` |
+| **[Redis](/0-1-0-preview/source/components/data-redis/)** | `Cephalon.Data.Redis` | `M3` | `"Redis"` | `StackExchange.Redis` |
+| **[Neo4j](/0-1-0-preview/source/components/data-neo4j/)** | `Cephalon.Data.Neo4j` | `M3` | `"Neo4j"` | `Neo4j.Driver` |
+| **[Qdrant](/0-1-0-preview/source/components/data-qdrant/)** | `Cephalon.Data.Qdrant` | `M3` | `"Qdrant"` | `Qdrant.Client` |
+| **[NATS](/0-1-0-preview/source/components/data-nats/)** *(KV/JetStream/Obj)* | `Cephalon.Data.Nats` | `M3` | `"Nats"` | `NATS.Client.Core` |
+| **[Debezium](/0-1-0-preview/source/components/data-debezium/)** *(CDC)* | `Cephalon.Data.Debezium` | `M2` | *(via `Cephalon.Data:Cdc`)* | Debezium Engine .NET |
+
+## Configuration shape
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Data": {
+      "IdStrategy": "Sfid",                    // Cephalon.Ids.Sfid
+      "Provider": "Postgres",                  // matches the adapter package
+      "Migrations": { "ApplyOn": "Startup" },
+      "Outbox": { "Enabled": true },
+      "Inbox": { "Enabled": true }
+    }
+  },
+  "ConnectionStrings": {
+    "Default": "Host=…;Port=5432;Database=…;Username=…;Password=…"
+  }
+}
+```
+
+Full schema: **[Reference → Configuration → Data](/0-1-0-preview/reference/configuration/data/)**.
+
+## Read/write split
+
+Both `Engine:Data:ReadModel` and `Engine:Data:WriteModel` accept the same shape — allowing separate providers per model:
+
+```jsonc
+{ "Engine": { "Data": {
+    "WriteModel": { "Provider": "Postgres" },
+    "ReadModel":  { "Provider": "ClickHouse" }
+}}}
+```
+
+Requires both adapter packages installed.
+
+## See also
+
+- **[Technology → Data](/0-1-0-preview/technology/data/)** — workload-to-backend matrix + use cases.
+- **[Reference → Configuration → Data](/0-1-0-preview/reference/configuration/data/)** — full schema.

@@ -1,0 +1,71 @@
+---
+title: Eventing
+description: Cephalon.Eventing transport-neutral primitives + Wolverine adapter + handler-side behaviors.
+sidebar:
+  order: 4
+editUrl: false
+---
+
+`Cephalon.Eventing` is the transport-neutral eventing capability. The Wolverine adapter wires the runtime against a broker (in-memory, RabbitMQ, Azure Service Bus, AWS SQS, Kafka).
+
+## Packages
+
+Click any package name to jump to its **source-doc**.
+
+| Package | NuGet ID | Maturity | Capability | What it ships |
+| --- | --- | --- | --- | --- |
+| **[Eventing](/0-1-0-preview/source/components/eventing/)** *(base)* | `Cephalon.Eventing` | `M3` | `Capability.Eventing` | `IMessagePublisher`, `IMessageHandler<T>`, `[Event]`, `MessageContext`, process-manager base. |
+| **[Wolverine adapter](/0-1-0-preview/source/components/eventing-wolverine/)** | `Cephalon.Eventing.Wolverine` | `M3` | `Capability.Eventing` | `Engine:Messaging:Provider="Wolverine"` registration; outbox, scheduled delivery, DLQ replay, process managers, broker topology. |
+| **[Behaviors](/0-1-0-preview/source/components/eventing-behaviors/)** | `Cephalon.Eventing.Behaviors` | `M3` | — *(decorators)* | `WithRetry`, `WithCircuitBreaker`, `WithInbox`, `WithOutbox`, `WithDeadLetter`. |
+
+## Install matrix
+
+| Scenario | Packages |
+| --- | --- |
+| Publish + handle in-memory (tests / monolith) | `Cephalon.Eventing` + `Cephalon.Eventing.Wolverine` |
+| Distributed with RabbitMQ | + `Wolverine.RabbitMQ` |
+| Distributed with Azure Service Bus | + `Wolverine.AzureServiceBus` |
+| Distributed with AWS SQS/SNS | + `Wolverine.AmazonSqs` |
+| Distributed with Kafka | + `Wolverine.Kafka` |
+| Adding retries / circuit-breaker decorators | + `Cephalon.Eventing.Behaviors` |
+
+## Configuration shape
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Messaging": {
+      "Enabled": true,
+      "Provider": "Wolverine",
+      "Wolverine": {
+        "Transport": "RabbitMQ",
+        "ConnectionString": "...",
+        "Concurrency": 4,
+        "ScheduledDelivery": true,
+        "DeadLetter": { "MaxAttempts": 5, "Backoff": "00:00:30" }
+      }
+    }
+  }
+}
+```
+
+Full schema + 6 transport scenarios: **[Reference → Configuration → Messaging](/0-1-0-preview/reference/configuration/messaging/)**.
+
+## Behaviors registered
+
+Behaviors with the **`Cephalon.Eventing.Behaviors`** package:
+
+| Decorator | What it adds |
+| --- | --- |
+| `.WithRetry(attempts, backoff)` | Per-handler retry with exponential backoff. |
+| `.WithCircuitBreaker(threshold)` | Fail-fast after N consecutive failures. |
+| `.WithInbox()` | Deduplicate messages by id (requires `Capability.Data`). |
+| `.WithOutbox()` | Transactional publish from a DB write (requires `Capability.Data`). |
+| `.WithDeadLetter(topic)` | Route after-all-retries-exhausted messages to a DLQ. |
+| `.WithIdempotency(keySelector)` | Skip-execute if handler ran for this key before. |
+
+## See also
+
+- **[Technology → Eventing](/0-1-0-preview/technology/eventing/)** — broker comparison + 7 patterns.
+- **[Reference → Configuration → Messaging](/0-1-0-preview/reference/configuration/messaging/)** — full schema.
+- **[Tutorial → Event-driven](/0-1-0-preview/tutorials/event-driven/)** — saga / process-manager walkthrough.

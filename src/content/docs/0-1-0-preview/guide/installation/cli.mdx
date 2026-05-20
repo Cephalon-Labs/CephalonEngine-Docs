@@ -1,0 +1,303 @@
+---
+title: CLI install
+description: Install Cephalon.Cli as a global or local-manifest tool. Configure custom NuGet feeds (corporate, Azure Artifacts, GitHub Packages), behind-proxy, air-gapped, and the optional Cephalon.TemplatePack.
+sidebar:
+  order: 1
+  label: ① CLI install
+editUrl: false
+---
+
+This page covers installing `Cephalon.Cli` — the `cephalon` command-line tool that scaffolds apps, runs `cephalon doctor` health checks, and stages local engine builds.
+
+**Prefer the no-CLI path?** See **[② Manual install](/0-1-0-preview/guide/installation/manual/)** — the engine itself works identically without the CLI.
+
+## Standard install (public feed)
+
+The simplest install pulls `Cephalon.Cli` from your configured NuGet feeds. The `--prerelease` flag is **required** while CephalonEngine is on the `0.1.0-preview` track (preview NuGet versions are hidden behind `--prerelease` by default).
+
+```powershell frame="terminal"
+dotnet tool install -g Cephalon.Cli --prerelease
+```
+
+| Flag | Why |
+| --- | --- |
+| `-g` / `--global` | Installs to `~/.dotnet/tools` (or `%USERPROFILE%\.dotnet\tools`). Picked up by your shell's PATH. |
+| `--prerelease` | Required for `0.1.x-preview` versions. Drop this once the engine reaches `1.0.0`. |
+
+After install, **restart your shell** if `cephalon --version` reports "command not found" — Windows / macOS terminals don't auto-refresh PATH.
+
+## Pin to a specific version
+
+Recommended for teams — locks every developer + CI agent to the same CLI behaviour.
+
+```powershell frame="terminal"
+dotnet tool install -g Cephalon.Cli --version 0.1.0-preview.42 --prerelease
+```
+
+To see available versions:
+
+```powershell frame="terminal"
+dotnet package search Cephalon.Cli --prerelease
+```
+
+## Update / upgrade
+
+```powershell frame="terminal"
+dotnet tool update -g Cephalon.Cli --prerelease
+cephalon doctor
+```
+
+After updating the CLI, also bump `Cephalon.*` package versions in your generated app's `Directory.Packages.props`. The engine surface is **additive within a preview minor** — see **[Migration → Version upgrades](/0-1-0-preview/migration/version-upgrades/)** for the canonical matrix.
+
+## Uninstall
+
+```powershell frame="terminal"
+dotnet tool uninstall -g Cephalon.Cli
+dotnet new uninstall Cephalon.TemplatePack
+```
+
+Removing the CLI doesn't affect generated apps — they reference `Cephalon.*` NuGet packages directly, not the CLI.
+
+## Per-repo / local-tool install
+
+For monorepos that pin tool versions, install into a **local tool manifest** instead of globally. This means every developer + CI agent uses the same CLI version automatically (no global install drift).
+
+```powershell frame="terminal"
+dotnet new tool-manifest                            # creates .config/dotnet-tools.json
+dotnet tool install Cephalon.Cli --prerelease       # installs into the manifest
+```
+
+Commit `.config/dotnet-tools.json`. Use the tool via:
+
+```powershell frame="terminal"
+dotnet tool restore                                 # CI-friendly: idempotent restore
+dotnet tool run cephalon doctor                     # invoke via tool run
+```
+
+To add the local tools dir to your PATH so you can call `cephalon` directly:
+
+```powershell frame="terminal"
+# Add to your shell profile
+$env:PATH = "$PWD\.config\bin;$env:PATH"
+```
+
+<div class="ce-callout ce-callout--key">
+<span class="ce-callout__icon" aria-hidden="true">🔑</span>
+<div>**Pin your CLI version per repo.** Use <code>dotnet new tool-manifest</code> and commit <code>.config/dotnet-tools.json</code>. CI agents get the exact same CLI version as developers, and upgrades become explicit PRs — no surprise breakage from a global tool update.</div>
+</div>
+
+## Install from a custom NuGet feed
+
+### Corporate feed
+
+```powershell frame="terminal" {2}
+dotnet tool install -g Cephalon.Cli `
+  --add-source https://nuget.acme.example/v3/index.json `
+  --ignore-failed-sources `
+  --no-cache `
+  --prerelease
+```
+
+| Flag | Why |
+| --- | --- |
+| `--add-source <url>` | Temporary additional source for this install. Doesn't modify global `NuGet.config`. |
+| `--ignore-failed-sources` | If a configured source is down, continue with the rest. |
+| `--no-cache` | Skip local package cache — useful when debugging "wrong version cached" issues. |
+
+### Azure Artifacts (requires Azure Artifacts credential provider)
+
+```powershell frame="terminal" {3}
+dotnet tool install -g Cephalon.Cli `
+  --add-source "https://pkgs.dev.azure.com/<org>/_packaging/<feed>/nuget/v3/index.json" `
+  --interactive `
+  --prerelease
+```
+
+`--interactive` triggers the credential prompt for authenticated feeds. Install the credential provider first if it's not present:
+
+```powershell frame="terminal"
+iex "& { $(irm https://aka.ms/install-artifacts-credprovider.ps1) }"
+```
+
+### GitHub Packages
+
+```powershell frame="terminal"
+dotnet tool install -g Cephalon.Cli `
+  --add-source "https://nuget.pkg.github.com/<org>/index.json" `
+  --interactive `
+  --prerelease
+```
+
+Configure a PAT with `read:packages` scope when prompted.
+
+## Repo-local feed
+
+When you're working from the CephalonEngine **source repository** (before packages land on a shared feed, or to test in-progress engine changes), build a local feed:
+
+```powershell frame="terminal"
+git clone https://github.com/Cephalon-Labs/CephalonEngine.git
+cd CephalonEngine
+pwsh ./scripts/publish-package-artifacts.ps1 -Configuration Release -SkipBuild
+```
+
+This produces `./artifacts/packages-release` with every `Cephalon.*.nupkg`.
+
+Point a tool install at that folder:
+
+```powershell frame="terminal" {2}
+dotnet tool install -g Cephalon.Cli `
+  --add-source ./artifacts/packages-release `
+  --ignore-failed-sources `
+  --no-cache `
+  --prerelease
+```
+
+For a generated app to consume those packages, run `cephalon stage-packages <app-path>` — see **[Quickstart → step 5](/0-1-0-preview/guide/quickstart/#5-restore-packages)**.
+
+## Behind a corporate proxy
+
+If your network requires HTTP(S) proxy for outbound:
+
+```powershell frame="terminal"
+$env:HTTP_PROXY  = "http://proxy.corp.acme:8080"
+$env:HTTPS_PROXY = "http://proxy.corp.acme:8080"
+$env:NO_PROXY    = "localhost,127.0.0.1,nuget.acme.example"
+
+dotnet tool install -g Cephalon.Cli --prerelease
+```
+
+| Variable | Purpose |
+| --- | --- |
+| `HTTP_PROXY` / `HTTPS_PROXY` | Outbound proxy URL. Use http:// even for HTTPS — the proxy is the transport, not the destination. |
+| `NO_PROXY` | Comma-separated list of hosts to bypass the proxy. Always include `localhost` and your internal feeds. |
+
+For corporate-trusted CA certificates that aren't in the system trust store:
+
+```powershell frame="terminal"
+# Trust an additional cert for dotnet on Linux/macOS
+export SSL_CERT_FILE=/etc/ssl/certs/corp-ca.pem
+```
+
+On Windows, install the cert into the **Trusted Root Certification Authorities** store and dotnet will pick it up automatically.
+
+### Proxy troubleshooting tips
+
+- **`NO_PROXY` is a list, not a glob.** `*.acme.example` doesn't work; list the hosts explicitly or use the suffix form `acme.example` (matches subdomains automatically).
+- **Test the proxy with `dotnet nuget list source`** before installing packages. If list works but install fails, the proxy is dropping POSTs — common with strict perimeter rules.
+- **Some proxies inject their CA into the response.** If you see "The remote certificate is invalid" with a working internet on the same machine, the issue is the proxy's MITM cert — install it into the system trust store (Windows: `Trusted Root Certification Authorities`; macOS: `Keychain Access`; Linux: `/etc/ssl/certs/`).
+
+## Air-gapped install
+
+If your build agents have no internet access:
+
+1. **From a connected machine**, build the package artifacts:
+   ```powershell frame="terminal"
+   pwsh ./scripts/publish-package-artifacts.ps1 -Configuration Release -SkipBuild
+   ```
+   This produces `./artifacts/packages-release` (engine packages) and `./artifacts/tool-packages` (CLI tool packages).
+
+2. **Copy both artifact folders** to the air-gapped target via approved channels (USB drive, internal artifact promotion, file share).
+
+3. **On the air-gapped target**, register the folder as a local NuGet source:
+   ```powershell frame="terminal"
+   dotnet nuget add source /path/to/packages-release `
+     --name cephalon-local
+   ```
+
+4. **Install the CLI** from the tool-packages folder:
+   ```powershell frame="terminal"
+   dotnet tool install -g Cephalon.Cli `
+     --add-source /path/to/tool-packages `
+     --prerelease
+   ```
+
+5. **Verify** with `cephalon doctor` — the deployment-mode and runtime checks don't need network access.
+
+For air-gapped container builds, see **[Operations](/0-1-0-preview/guide/operations/)** (the container-image publishing section walks through air-gapped image flows).
+
+### Air-gap workflow tips
+
+- **Pre-stage artifacts on a quarterly cadence**, not per-build. Build a "current set" of packages off the public feed, copy to internal NuGet, leave it there until the next refresh.
+- **Add `--no-cache` to `dotnet restore` in restricted environments** — a stale cache from a previous internet-connected build can silently override the air-gapped copies.
+- **`cephalon doctor --json | jq '.deploymentMode'`** still works offline — useful as a smoke check after copying artifacts in.
+
+## Optional: register the template pack
+
+Installing `Cephalon.TemplatePack` lets you scaffold via `dotnet new` instead of `cephalon new`:
+
+```powershell frame="terminal"
+dotnet new install Cephalon.TemplatePack --prerelease
+
+# Now you can scaffold with:
+dotnet new cephalon-app -n Acme.Store -o ./Acme.Store
+```
+
+Both `cephalon new` and `dotnet new cephalon-app` produce **identical output**. Pick whichever fits your team's tooling. The template pack is useful when:
+
+- Your CI / dev tooling already exposes `dotnet new` (Visual Studio New Project wizard, JetBrains Rider's "New Solution from Template").
+- You want IDE-driven scaffolding without leaving the GUI.
+
+To uninstall:
+
+```powershell frame="terminal"
+dotnet new uninstall Cephalon.TemplatePack
+```
+
+## Verify the install
+
+```powershell frame="terminal"
+cephalon --version
+cephalon doctor
+```
+
+A clean `doctor` run reports `[ok]` for required SDK/runtimes and `[warn]` for optional checks (template pack, trim/AOT/single-file). See **[Quickstart → step 3](/0-1-0-preview/guide/quickstart/#3-run-cephalon-doctor)** for the full reading guide.
+
+**Machine-readable output for CI gating:**
+
+```powershell frame="terminal"
+cephalon doctor --json | jq -e '.result == "ok"'
+```
+
+Returns exit code `0` if all required checks pass.
+
+## Tips & tricks
+
+### Toolchain tips
+
+- **Always include both `--no-cache` and `--ignore-failed-sources`** when chasing transient feed issues. Without `--no-cache` you can get stuck on a cached "not found"; without `--ignore-failed-sources` a single broken feed blocks the whole install.
+- **Use `dotnet tool list -g`** to see what's installed globally. `dotnet tool list` (no `-g`) shows the local-manifest tools.
+- **Cache the dotnet tool restore in CI.** Add `~/.dotnet/tools` to your cache key — `dotnet tool restore` is otherwise re-run on every build.
+- **Use `--add-source ./artifacts/packages-release`** for ad-hoc installs from a folder. No need to register a permanent source in `NuGet.config`.
+
+### Team / multi-developer setup
+
+- **Commit the tool manifest, not the global install.** The manifest is reproducible; global state is not.
+- **One CI step for `dotnet tool restore`, one for `dotnet restore`.** Same shape across all repos in your org — new joiners learn it once.
+- **Bake the .NET 10 SDK into your base CI image** if you have one. Faster than `actions/setup-dotnet` on every build.
+- **Use Renovate / Dependabot to manage `Directory.Packages.props` + `dotnet-tools.json`.** Bumps land as PRs you can verify.
+
+### Common pitfalls
+
+| Don't | Do |
+| --- | --- |
+| `dotnet tool install -g` everything | Per-repo manifest, `dotnet tool restore` |
+| Global `nuget.config` with secrets in plaintext | Use environment-variable interpolation (`%FEED_TOKEN%`) or per-user config |
+| Re-running `cephalon doctor` only when something breaks | Run on every PR as a CI step — catches drift before it bites |
+| Hard-pinning the SDK exact patch (`10.0.100`) | Pin band + `rollForward: latestFeature` |
+| Committing built artifacts | `.gitignore` `bin/`, `obj/`, `dist/`, `*.nupkg` |
+
+## Known limits
+
+- **The CLI is required for `cephalon new`.** Scaffolding without it is not supported (the underlying `Cephalon.Scaffolding` library is consumed via the CLI; calling it directly is undocumented and may change).
+- **Tool-manifest tool versions are independent from the engine package versions.** If you bump the CLI but not your generated app's `Cephalon.*` package versions, the scaffolds may diverge. Keep them in sync via the same release cadence.
+- **`Cephalon.TemplatePack`** registers a single template family (`cephalon-app`). It doesn't support per-feature templates yet (e.g. there's no `cephalon-module`).
+- **`cephalon stage-packages`** copies files; it doesn't symlink. Re-stage after every local engine rebuild.
+- **CLI install ≠ package versions in your app.** Updating the CLI doesn't bump engine packages in already-generated apps; you still edit `Directory.Packages.props` for that.
+
+## Where to go next
+
+- **[② Manual install](/0-1-0-preview/guide/installation/manual/)** — install without the CLI.
+- **[③ IDE setup](/0-1-0-preview/guide/installation/ide/)** — Visual Studio, Rider, VS Code feed configuration.
+- **[④ CI / build agents](/0-1-0-preview/guide/installation/ci/)** — pipelines that use `dotnet tool restore`.
+- **[Quickstart](/0-1-0-preview/guide/quickstart/)** — run the install end-to-end.
+- **[Reference → CLI](/0-1-0-preview/reference/cli/)** — every `cephalon` subcommand with flags + exit codes.

@@ -1,0 +1,82 @@
+---
+title: Runtime contracts
+description: Every /engine/* HTTP route, every snapshot.* configuration key, and every runtime catalog interface the engine exposes.
+sidebar:
+  order: 1
+editUrl: false
+---
+
+The runtime contract is what the engine promises will be available at runtime regardless of which modules you compose. Hosts implement the routes; modules and operators consume the snapshot keys and catalog interfaces.
+
+## HTTP routes (`Cephalon.AspNetCore`)
+
+| Route | Method | Returns |
+| --- | --- | --- |
+| `/engine/manifest` | `GET` | The full runtime manifest — modules, capabilities, sources, integrity hashes, language-pack contributions. |
+| `/engine/runtime` | `GET` | Live runtime state — module statuses, capability bindings, technology profiles. |
+| `/engine/snapshot` | `GET` | Resolved configuration snapshot. |
+| `/health` | `GET` | Composed health from dependency-health probes + lifecycle. |
+| `/openapi/{version}.json` | `GET` | OpenAPI document per registered API version. |
+| `/scalar/{version}` | `GET` | Scalar docs UI per registered API version. |
+
+The contract version is included in the manifest payload as `manifestSchemaVersion`.
+
+## `snapshot.*` configuration keys
+
+| Key | Purpose |
+| --- | --- |
+| `snapshot.engineId` | The configured `Engine:Id`. |
+| `snapshot.engineVersion` | The active engine package version. |
+| `snapshot.manifestSchemaVersion` | The manifest schema version. |
+| `snapshot.deploymentMode.baseline` | The shipping baseline (`net10.0`). |
+| `snapshot.deploymentMode.readinessLanes` | Map of `dotnet11`, `trim`, `aot`, `singleFile` → status. |
+| `snapshot.capabilities` | The set of declared capabilities. |
+| `snapshot.providers` | The set of registered providers per capability. |
+| `snapshot.host` | The host adapter id and version. |
+
+## Catalog interfaces
+
+| Interface | What it exposes |
+| --- | --- |
+| `IRuntimeManifest` | The full manifest. |
+| `ICapabilityRegistry` | Capability → provider mapping. |
+| `ITechnologyContributor` / `ITechnologyServiceContributor` / `ITechnologyCapabilityContributor` | Technology-profile contribution points. |
+| `ICellBoundaryContributor` / `ICellRouteContributor` | Cell boundary and route declarations. |
+| `ICellBoundaryCatalog` / `ICellRouteCatalog` | Read-side catalogs for the above. |
+| `ICdcCaptureContributor` | CDC source declarations. |
+| `ICdcCaptureCatalog` / `ICdcCaptureRuntimeStateCatalog` | Read-side catalogs for CDC. |
+| `IRuntimeStatus` | Lifecycle / health roll-up. |
+| `IDependencyHealthSource` | Per-backend health contributions. |
+
+## Manifest schema (v2)
+
+```jsonc title="GET /engine/manifest" collapse={8-15}
+{
+  "manifestSchemaVersion": "v2",
+  "engineId":              "<configured Engine:Id>",
+  "engineVersion":         "<package version>",
+  "host":                  { "kind": "aspnetcore", "version": "..." },
+  "modules": [{
+    "name": "...",
+    "version": "...",
+    "package": { "name": "...", "version": "...", "publisher": "..." },
+    "capabilities": ["Data", ...],
+    "dependsOn": [...],
+    "integrity": { "hash": "...", "algorithm": "SHA-256", "trusted": true }
+  }],
+  "capabilities": [...],
+  "providers": [...],
+  "technologyProfiles": [...],
+  "cellBoundaries": [...],
+  "cdcSources": [...],
+  "languagePacks": [...],
+  "deploymentMode": {
+    "baseline": "net10.0",
+    "readinessLanes": { "dotnet11": "assessment-only", "trim": "warn", "aot": "warn", "singleFile": "warn" }
+  }
+}
+```
+
+## Source-doc snapshot
+
+- [Runtime contract index](/0-1-0-preview/source/runtime-contract-index/)

@@ -1,0 +1,53 @@
+---
+title: Cephalon.Observability.OpenTelemetry
+editUrl: false
+---
+
+> **Maturity:** `M1` · **Ownership:** cephalon-managed · **Family:** `observability` · See [audit](../engine-surface-maturity-audit.md), [matrix](../conformance-matrix.md).
+
+`Cephalon.Observability.OpenTelemetry` adds a supported OpenTelemetry OTLP export path for Cephalon hosts.
+
+## What it owns
+
+- host-builder registration for OpenTelemetry logs, metrics, and traces
+- OTLP exporter wiring over the shared `Engine:Observability:Telemetry` contract
+- explicit self-hosted collector defaults on top of that shared OTLP contract when `UseSelfHostedDefaults` is enabled
+- signal-specific HTTP/protobuf endpoint normalization so hosts can configure a base collector URL once
+- ASP.NET Core server-trace instrumentation so exported request traces line up with Cephalon HTTP log correlation
+
+## Main surfaces
+
+- `Hosting/OpenTelemetryHostApplicationBuilderExtensions.cs`
+
+## Source structure
+
+- `Hosting`
+
+## How it fits
+
+This package stays outside `Cephalon.Engine` and `Cephalon.Observability` on purpose. The engine still owns the diagnostics names and lifecycle signals, `Cephalon.Observability` still owns startup summaries and the shared telemetry config contract, and this companion package turns that contract into a reusable OTLP integration path for ASP.NET Core or worker hosts that want real exporter wiring.
+
+For ASP.NET Core hosts, the shipped baseline now also adds server-request tracing so `traceId` and `spanId` values emitted by Cephalon request logging can be followed through exported OTLP traces without adding cloud-specific dependencies to the engine layer.
+
+For self-hosted deployments, the same companion package now supports an explicit no-vendor-default path: set `Engine:Observability:Telemetry:UseSelfHostedDefaults` to `true`, omit `Endpoint`, and the package will target the standard local OTLP collector ports (`http://localhost:4317` for `otlp` / `otlp/grpc`, `http://localhost:4318` for `otlp/http`). The host also adds `deployment.environment.name` from the active environment alongside the existing service-name and service-version resource defaults. Hosts that need a platform-neutral Kubernetes collector-first path can instead pair the same shared telemetry contract with `Cephalon.Observability.Kubernetes`; hosts that need Alibaba Cloud-specific hosted defaults or an opt-in managed traces/metrics path can instead pair the same shared telemetry contract with `Cephalon.Observability.AlibabaCloud`, hosts that need AWS-specific X-Ray propagation or hosted AWS resource defaults can pair it with `Cephalon.Observability.Aws`, hosts that need DigitalOcean collector-first defaults or hosted runtime guidance can pair it with `Cephalon.Observability.DigitalOcean`, hosts that need Grafana Cloud-specific OTLP endpoint wiring or access-policy authentication guidance can pair it with `Cephalon.Observability.GrafanaCloud`, hosts that need GCP-specific resource defaults or an opt-in Google-managed traces/metrics path can pair it with `Cephalon.Observability.Gcp`, hosts that need Huawei Cloud-specific hosted defaults or an opt-in managed APM trace path can pair it with `Cephalon.Observability.HuaweiCloud`, hosts that need New Relic native OTLP endpoint wiring or `api-key` authentication guidance can pair it with `Cephalon.Observability.NewRelic`, hosts that need Oracle Cloud APM-specific hosted defaults or an opt-in managed traces/metrics path can pair it with `Cephalon.Observability.OracleCloud`, hosts that need OpenShift in-cluster collector wiring or hosted cluster defaults can pair it with `Cephalon.Observability.OpenShift`, and hosts that need VMware Tanzu hosted defaults or proxy-focused trace handoff can pair it with `Cephalon.Observability.Tanzu`.
+
+That same contract is also the intended authoring surface for downstream provider packs. A developer-authored companion package can read `ObservabilityOptions.FromConfiguration(builder.Configuration).Telemetry`, bind its own provider-specific sub-section, keep exporter/auth/resource wiring in its own package, and optionally publish `IDiagnosticsConventionContributor` plus a startup `IHostedService` summary. That keeps later Cloudflare or internal-provider integrations additive instead of pushing new abstractions back into `Cephalon.Engine`. See [Observability provider authoring](../observability-provider-authoring.md) for the recommended package shape and the current Cloudflare/downstream guidance.
+
+## Related docs
+
+- [Cephalon.Observability](observability.md)
+- [Cephalon.Observability.AlibabaCloud](observability-alibaba-cloud.md)
+- [Cephalon.Observability.Aws](observability-aws.md)
+- [Cephalon.Observability.DigitalOcean](observability-digitalocean.md)
+- [Cephalon.Observability.GrafanaCloud](observability-grafana-cloud.md)
+- [Cephalon.Observability.Gcp](observability-gcp.md)
+- [Cephalon.Observability.HuaweiCloud](observability-huawei-cloud.md)
+- [Cephalon.Observability.NewRelic](observability-new-relic.md)
+- [Cephalon.Observability.OracleCloud](observability-oracle-cloud.md)
+- [Cephalon.Observability.Kubernetes](observability-kubernetes.md)
+- [Cephalon.Observability.OpenShift](observability-openshift.md)
+- [Cephalon.Observability.Tanzu](observability-tanzu.md)
+- [Cephalon.Observability.AzureMonitor](observability-azure-monitor.md)
+- [Observability provider authoring](../observability-provider-authoring.md)
+- [Operations](../operations.md)
+- [Architecture](../architecture.md)

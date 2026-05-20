@@ -1,0 +1,122 @@
+---
+title: Technology
+description: The full CephalonEngine companion-package catalogue. Browse by domain — hosts, data, eventing, identity, multi-tenancy, observability, edge, agentics, retrieval, CLI, scaffolding.
+sidebar:
+  order: 0
+  label: Overview
+editUrl: false
+---
+
+import PathCards from '../../../../components/PathCards.astro';
+
+CephalonEngine is intentionally **small at the core, broad at the edges**. The engine and abstractions stay tight; capabilities ship as opt-in companion packages.
+
+This section catalogs every shipped package by domain. Each domain page lists the packages, their current maturity label, what they ship, and how to enable them.
+
+<PathCards
+  paths={[
+    {
+      badge: 'Core',
+      title: 'Core',
+      description: 'Cephalon.Abstractions, Cephalon.Engine, runtime contract types, scaffolding internals.',
+      href: '/0-1-0-preview/technology/core/',
+      cta: 'Open core',
+    },
+    {
+      badge: 'Hosts',
+      title: 'Hosts & transports',
+      description: 'Cephalon.AspNetCore (REST, SSE, WebSocket), AspNetCore.GraphQL, AspNetCore.Grpc, AspNetCore.JsonRpc, Cephalon.Worker.',
+      href: '/0-1-0-preview/technology/hosts/',
+      cta: 'Open hosts',
+    },
+    {
+      badge: 'Data',
+      title: 'Data',
+      description: 'Cephalon.Data + adapters for Postgres, SQL Server, MySQL, Oracle, MongoDB, Cassandra, ClickHouse, Elasticsearch, OpenSearch, Redis, Neo4j, Qdrant, NATS, Debezium.',
+      href: '/0-1-0-preview/technology/data/',
+      cta: 'Open data',
+    },
+    {
+      badge: 'Eventing',
+      title: 'Eventing',
+      description: 'Cephalon.Eventing + Wolverine adapter. Outbox, scheduled delivery, DLQ replay, process managers, CDC capture.',
+      href: '/0-1-0-preview/technology/eventing/',
+      cta: 'Open eventing',
+    },
+    {
+      badge: 'Identity',
+      title: 'Identity',
+      description: 'Host-agnostic identity capability + AspNetCore adapter. Audit companion package.',
+      href: '/0-1-0-preview/technology/identity/',
+      cta: 'Open identity',
+    },
+    {
+      badge: 'Multi-tenancy',
+      title: 'Multi-tenancy',
+      description: 'Tenancy primitives, governance (memberships, invitations, domain ownership, approvals), email-delivery adapters.',
+      href: '/0-1-0-preview/technology/multi-tenancy/',
+      cta: 'Open multi-tenancy',
+    },
+    {
+      badge: 'Observability',
+      title: 'Observability',
+      description: 'OTLP exporter + provider adapters (AWS, Azure, GCP, …) + dependency-health probes for 18+ backends.',
+      href: '/0-1-0-preview/technology/observability/',
+      cta: 'Open observability',
+    },
+    {
+      badge: 'Edge',
+      title: 'Edge',
+      description: 'Cephalon.Edge runtime + Traefik and Kubernetes Gateway adapters.',
+      href: '/0-1-0-preview/technology/edge/',
+      cta: 'Open edge',
+    },
+    {
+      badge: 'Agentics',
+      title: 'Agentics',
+      description: 'Agentic workload runtime services — task graph, tool registry, scheduled agents.',
+      href: '/0-1-0-preview/technology/agentics/',
+      cta: 'Open agentics',
+    },
+    {
+      badge: 'Retrieval',
+      title: 'Retrieval',
+      description: 'Retrieval/RAG runtime services + Qdrant adapter.',
+      href: '/0-1-0-preview/technology/retrieval/',
+      cta: 'Open retrieval',
+    },
+    {
+      badge: 'Tooling',
+      title: 'CLI & scaffolding',
+      description: 'Cephalon.Cli, Cephalon.Scaffolding, Cephalon.TemplatePack, Cephalon.ReferenceDocs.',
+      href: '/0-1-0-preview/technology/tooling/',
+      cta: 'Open tooling',
+    },
+    {
+      badge: 'Identifiers',
+      title: 'Identifiers',
+      description: 'Cephalon.Ids.Sfid — the Sfid.Net-backed default for generated apps.',
+      href: '/0-1-0-preview/technology/identifiers/',
+      cta: 'Open identifiers',
+    },
+  ]}
+/>
+
+## How to read a domain page
+
+Each domain page has four sections:
+
+1. **Packages** — every package in the domain, with current maturity (`M0`–`M4`) and what it ships.
+2. **How to enable** — the `Engine:*` configuration plus the `AddXxx(...)` builder call.
+3. **What you get** — what the package adds to the runtime manifest, what services it registers, what behaviors it exposes.
+4. **Cross-references** — pointers to tutorials, reference docs, and the synced versioned source docs.
+
+## Companion-package philosophy
+
+- **Optional by default.** Adding a package never breaks an existing app.
+- **Capability-driven.** The package fulfils a declared `Capability`; the engine validates that providers exist for declared capabilities at composition time.
+- **Host-agnostic.** Where possible, the package's runtime lives outside the host adapter. Host-specific adapters are separate packages.
+- **Maturity-labelled.** Every package ships with an explicit M0–M4 label so adopters know what is taxonomy-only, narrow, broad, or adoption-ready.
+- **Source-traced.** Every contribution appears in the runtime manifest with the contributing package and module recorded.
+
+The full per-package source of truth lives in **[Reference → Architecture → Maturity audit](/0-1-0-preview/reference/architecture/maturity/)** and **[Conformance matrix](/0-1-0-preview/reference/architecture/conformance-matrix/)**.

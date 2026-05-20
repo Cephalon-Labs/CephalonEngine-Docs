@@ -1,0 +1,31 @@
+---
+title: Benchmarking
+description: Cephalon.Benchmarks — BenchmarkDotNet suite, hot-path gates, regression discipline.
+sidebar:
+  order: 8
+editUrl: false
+---
+
+`Cephalon.Benchmarks` is a BenchmarkDotNet suite that covers:
+
+- Composition (registration + ordering performance).
+- Runtime lifecycle (`OnStart` / `OnStop`).
+- AspNetCore REST hot path.
+- Runtime host hot path.
+- Scaffolding performance.
+
+## Running locally
+
+```powershell
+dotnet run -c Release --project ./benchmarks/Cephalon.Benchmarks -- --filter "*RestHotPath*"
+```
+
+## Discipline
+
+- Hot-path regressions of more than ~5% require a justified rationale in the PR.
+- Memory regressions (allocations / Gen0/Gen1/Gen2) are tracked separately and called out in review.
+- Baselines move forward only when intentional.
+
+## Source-doc snapshot
+
+- [Benchmarking](/0-1-0-preview/source/benchmarking/)

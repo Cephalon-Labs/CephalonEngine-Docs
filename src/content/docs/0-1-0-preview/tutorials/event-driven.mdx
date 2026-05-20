@@ -1,0 +1,37 @@
+---
+title: 'Tutorial: Event-driven pipeline'
+description: 'Wolverine adapter, outbox, scheduled delivery, DLQ replay, process managers, and CDC capture — the full eventing surface.'
+sidebar:
+  order: 6
+editUrl: false
+---
+
+CephalonEngine's eventing capability ships with the Wolverine adapter as the current managed dispatch path. This tutorial expands the patterns introduced in **[First-app step 5](/0-1-0-preview/tutorials/first-app/05-eventing/)** into the full eventing surface: outbox transactions, scheduled delivery, DLQ replay, process managers, and CDC capture.
+
+## What you'll build
+
+- a `Billing` module that consumes `ProductPurchased` and reacts asynchronously.
+- a scheduled delivery flow that retries failed invoices after a back-off.
+- a DLQ replay tool that re-emits failed messages from the dead-letter store.
+- a process manager that coordinates a multi-step "fulfillment" saga.
+- CDC capture wired from the Orders DB into a downstream sink.
+
+## Eventing primitives
+
+| Primitive | Source |
+| --- | --- |
+| `IMessagePublisher` | `Cephalon.Eventing` |
+| `IMessageHandler<T>` | `Cephalon.Eventing` |
+| `[Event]` attribute | `Cephalon.Eventing` |
+| Outbox storage | `Cephalon.Data.EntityFramework` (when EF is in play) |
+| Scheduled delivery | `Cephalon.Eventing.Wolverine` |
+| DLQ replay | `Cephalon.Eventing.Wolverine` |
+| Process manager base | `Cephalon.Eventing` |
+| CDC capture | `Cephalon.Engine` + `Cephalon.Eventing.Wolverine` |
+
+## Status
+
+The full step-by-step walkthrough lands in the next docs push. Until then:
+
+- **[Technology → Eventing](/0-1-0-preview/technology/eventing/)** for the package catalogue.
+- the proof commits on the current branch document broker topology, partition behaviour, scheduled delivery, DLQ replay, and process manager state.

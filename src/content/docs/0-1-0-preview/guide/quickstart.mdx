@@ -1,0 +1,458 @@
+---
+title: Quickstart
+description: Install Cephalon.Cli, run cephalon doctor, scaffold a host, and run it in under five minutes — with what's happening at each step.
+sidebar:
+  order: 1
+  badge:
+    text: 5 min
+    variant: tip
+editUrl: false
+---
+
+import PathCards from '../../../../components/PathCards.astro';
+
+This page is the fastest path from "I just heard about CephalonEngine" to a host listening on `http://localhost:5000`. Every step includes a short **what's happening** note so you can recover quickly if something goes sideways; jump to **[Troubleshooting](#troubleshooting)** if you hit a wall.
+
+The quickstart is **deliberately narrow** — it doesn't explain architecture, app-model dimensions, or maturity labels. That's what **[Concepts](/0-1-0-preview/guide/concepts/)** is for. Treat this page as "prove it works on my machine", then dive into the concept docs.
+
+## Before you start
+
+| Requirement | Why it's needed |
+| --- | --- |
+| **.NET 10 SDK** (`dotnet --version` shows `10.x`) | CephalonEngine targets `net10.0`; the abstractions and engine use .NET 10-only APIs (file-scoped `using`, generic-attribute patterns, `IRuntimeManifest`-flavoured generic math, etc.). Older SDKs cannot build the generated host. |
+| **PowerShell 7+ on Windows** *or* **Bash 5+ on Linux/macOS** | The generated `deploy/` scripts target these shells. The dotnet CLI itself works in any shell. |
+| **Internet or a reachable NuGet feed** | To pull `Cephalon.Cli` and the engine packages. See **[Installation → CLI → Air-gapped install](/0-1-0-preview/guide/installation/cli/#air-gapped-install)** if you cannot reach the public feed. |
+| ~ **2 GB free disk** | For SDK cache, package restore, sample artifacts. |
+
+You do **not** need: Docker, a database, an Azure account, or any specific IDE. Those become relevant later as you add capabilities.
+
+## 1. Verify .NET 10
+
+```powershell frame="terminal"
+dotnet --list-sdks
+dotnet --list-runtimes
+```
+
+**Look for:** `10.x` under SDKs **and** `Microsoft.NETCore.App 10.x` *and* `Microsoft.AspNetCore.App 10.x` under runtimes.
+
+**Why both runtimes?** The CephalonEngine ASP.NET Core host (`Cephalon.AspNetCore`) is published as a framework-dependent app and shares the ASP.NET Core runtime; the worker host (`Cephalon.Worker`) only needs the base runtime. Most projects use both eventually, so install both up front.
+
+If either is missing, install the **[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)** — the SDK bundle pulls both runtimes in.
+
+<div class="ce-callout ce-callout--warn">
+<span class="ce-callout__icon" aria-hidden="true">⚠️</span>
+<div>**.NET 8/9 are not supported.** The engine uses .NET 10-specific BCL surfaces. Building against an older SDK will produce CS-level errors before composition even runs. The .NET 11 readiness lane is tracked at <a href="/0-1-0-preview/migration/dotnet-versions/">Migration → .NET versions</a> in <code>assessment-only</code> mode.</div>
+</div>
+
+## 2. Install the CLI
+
+<div class="ce-callout ce-callout--key">
+<span class="ce-callout__icon" aria-hidden="true">🔑</span>
+<div>**Prefer to skip the CLI?** You can install CephalonEngine packages directly into an existing project — no <code>Cephalon.Cli</code>, no <code>Cephalon.TemplatePack</code>. See <a href="/0-1-0-preview/guide/installation/manual/"><strong>Installation → Manual install</strong></a> for the full from-scratch flow with package lists, <code>Program.cs</code>, and the minimum module. The rest of this quickstart assumes the CLI route, which is faster for greenfield apps.</div>
+</div>
+
+CephalonEngine ships a CLI called `cephalon` that owns scaffolding, doctor checks, package staging, and reference-doc generation. It's a single .NET global tool.
+
+**Default install (public feed):**
+
+```powershell frame="terminal"
+dotnet tool install -g Cephalon.Cli --prerelease
+```
+
+The `--prerelease` flag is required while the engine is on the `0.1.0-preview` track. Stable releases drop the flag.
+
+**Behind a corporate NuGet feed:**
+
+```powershell frame="terminal" {2}
+dotnet tool install -g Cephalon.Cli `
+  --add-source https://nuget.acme.example/v3/index.json `
+  --ignore-failed-sources `
+  --no-cache `
+  --prerelease
+```
+
+**Behind Azure Artifacts (requires the credential provider):**
+
+```powershell frame="terminal" {3}
+dotnet tool install -g Cephalon.Cli `
+  --add-source "https://pkgs.dev.azure.com/<org>/_packaging/<feed>/nuget/v3/index.json" `
+  --interactive `
+  --prerelease
+```
+
+**Pin to a specific version (recommended for teams):**
+
+```powershell frame="terminal"
+dotnet tool install -g Cephalon.Cli --version 0.1.0-preview.42 --prerelease
+```
+
+**Pin per-repo (best for monorepos / CI parity):**
+
+```powershell frame="terminal"
+dotnet new tool-manifest
+dotnet tool install Cephalon.Cli --prerelease
+# Invoke via: dotnet tool run cephalon ...
+```
+
+For repo-local development against an in-progress engine build, see **[Installation → CLI → Repo-local feed](/0-1-0-preview/guide/installation/cli/#repo-local-feed)**.
+
+## 3. Run cephalon doctor
+
+`cephalon doctor` is the first-run baseline check. It confirms the active SDK, installed runtimes, the optional template pack, and the current deployment-mode posture. Run it **before** scaffolding — fixing problems here is much cheaper than debugging them inside a generated app.
+
+```powershell frame="terminal"
+cephalon doctor
+```
+
+A clean run looks like:
+
+```text frame="terminal" title="cephalon doctor" {1-3,5-6} "[warn]"
+[ok]   dotnet --version is 10.0.100
+[ok]   Microsoft.NETCore.App 10.x installed
+[ok]   Microsoft.AspNetCore.App 10.x installed
+[warn] Cephalon.TemplatePack not registered with `dotnet new` (optional)
+[ok]   deployment-mode baseline: net10.0
+[ok]   .NET 11 readiness lane: assessment-only
+[warn] trim: outside support contract
+[warn] aot: outside support contract
+[warn] single-file: outside support contract
+
+Next steps:
+  cephalon new <AppName> --output ./<AppName>
+  dotnet run --project ./<AppName>/src/<AppName>.Host
+```
+
+### Reading the output
+
+| Line | Meaning |
+| --- | --- |
+| **`[ok] dotnet --version is 10.0.100`** | Active SDK band. Doctor honours `global.json` if present. |
+| **`[ok] Microsoft.NETCore.App 10.x installed`** | Base runtime, required by all hosts. |
+| **`[ok] Microsoft.AspNetCore.App 10.x installed`** | Required for `Cephalon.AspNetCore` hosts. |
+| **`[warn] Cephalon.TemplatePack not registered`** | Optional. Lets you scaffold via `dotnet new cephalon-app …` instead of `cephalon new …`. Both produce the same output. |
+| **`[ok] deployment-mode baseline: net10.0`** | Shipping baseline. Any generated host will publish to this. |
+| **`[ok] .NET 11 readiness lane: assessment-only`** | The .NET 11 audit is in flight; the engine is not yet supported on .NET 11. See **[.NET versions](/0-1-0-preview/migration/dotnet-versions/)**. |
+| **`[warn] trim / aot / single-file`** | These deployment modes are outside the support contract. They might work for narrow apps but are not gated by CI. See **[Compatibility](/0-1-0-preview/guide/compatibility/#deployment-modes)** for the supported matrix. |
+
+> **`[fail]` on any required check is a hard stop.** Fix it first; running `cephalon new` against a broken doctor produces a host that may build but won't compose. If you can't tell what's required, **required checks are the ones that are NOT prefixed `[warn]`** — failures on those are blocking.
+
+For machine-readable output (CI gating):
+
+```powershell frame="terminal"
+cephalon doctor --json
+```
+
+Returns a structured JSON document with `result`, `checks[]`, and `deploymentMode`. Pipe to `jq` to gate on specific lines.
+
+## 4. Scaffold a host
+
+The default blueprint generates a **modular monolith** — a single ASP.NET Core host that loads modules from assemblies. This is the broadest starting shape; you can split into microservices later by changing the `Engine:Deployment:Topology` configuration and `cephalon new`-generating a new partner host.
+
+```powershell frame="terminal"
+cephalon new Acme.Store --output ./Acme.Store
+```
+
+### Other blueprints you might pick
+
+| Use case | Command |
+| --- | --- |
+| **Default modular monolith** | `cephalon new Acme.Store --output ./Acme.Store` |
+| **Worker / background service** (no HTTP surface) | `cephalon new Acme.Worker --output ./Acme.Worker --topology Worker` |
+| **REST + gRPC together** | `cephalon new Acme.Api --output ./Acme.Api --transport RestApi --transport Grpc` |
+| **REST + GraphQL together** | `cephalon new Acme.Api --output ./Acme.Api --transport RestApi --transport GraphQL` |
+| **Vertical-slice feature organisation** | `cephalon new Acme.Store --output ./Acme.Store --feature-organization VerticalSlice` |
+| **GUID ids instead of Sfid** | `cephalon new Acme.Store --output ./Acme.Store --id-strategy Guid` |
+| **All flags** | `cephalon new --help` |
+
+Full flag reference: **[Reference → CLI → cephalon new](/0-1-0-preview/reference/cli/#cephalon-new)**.
+
+### What you get
+
+```text title="generated layout"
+Acme.Store/
+├── README.md                       # Onboarding for new developers on this app
+├── Acme.Store.slnx                 # .NET 10 solution file
+├── Directory.Build.props           # repo-wide MSBuild props (TargetFramework=net10.0, Nullable=enable, …)
+├── Directory.Build.targets         # repo-wide MSBuild targets
+├── Directory.Packages.props        # Centralised NuGet versions (CPM)
+├── global.json                     # Pins SDK band
+├── NuGet.config                    # .cephalon/packages first, then your default feeds
+├── Dockerfile                      # Multi-stage build → runtime-only image
+├── .dockerignore
+├── compose.yaml                    # docker compose with otel-collector preset
+├── otel-collector-config.yaml      # OTLP collector config (receivers, exporters)
+├── .cephalon/
+│   └── packages/                   # Local NuGet feed for Cephalon.* packages
+├── deploy/                         # Seven deployment targets (see below)
+│   ├── windows-service/
+│   ├── iis/
+│   ├── azure-app-service/
+│   ├── azure-container-apps/
+│   ├── container-image/
+│   ├── kubernetes/
+│   └── linux/systemd/
+├── src/
+│   ├── Acme.Store.Host/            # The executable
+│   │   ├── Program.cs              # Engine composition entry point
+│   │   ├── appsettings.json        # Engine:* config
+│   │   ├── appsettings.Development.json
+│   │   ├── Configurations/         # Strongly-typed POCOs for Engine:* sections
+│   │   └── Acme.Store.Host.csproj
+│   └── Acme.Store.Modules.Health/  # Starter "Health" module — feel free to delete once you add your own
+└── tests/
+    └── Acme.Store.Host.Tests/
+        ├── Architecture/
+        │   └── CompositionSmokeTests.cs   # "Does the host wire?" — every module shows up in /engine/manifest
+        └── Features/                       # Per-feature behavior specs go here
+```
+
+**Deploy folders** — each is a runnable preset for one target. For example, `deploy/azure-container-apps/` ships `deploy-up.ps1` plus a README explaining the assumptions and rollback path. You only need the folder for the target you'll actually use; delete the others if they confuse the team.
+
+References:
+- **[Architecture → App models](/0-1-0-preview/guide/concepts/#app-model)** explains why those six dimensions exist.
+- **[Deployment](/0-1-0-preview/guide/deployment/)** picks a target.
+- **[Reference → Configuration](/0-1-0-preview/reference/configuration/)** documents every `Engine:*` key the host reads.
+
+## 5. Restore packages
+
+Generated apps look at `./.cephalon/packages` **first**, then fall back to your configured feeds. The two-step search means in-progress local engine builds override the published versions without needing config changes.
+
+**For the standard public-feed flow** — just restore:
+
+```powershell frame="terminal"
+dotnet restore ./Acme.Store/Acme.Store.slnx
+```
+
+**For repo-local engine development** — build local artifacts, stage them into the app's local feed:
+
+```powershell frame="terminal"
+# Inside the engine repo (D:\SaaS\CephalonEngine):
+pwsh ./scripts/publish-package-artifacts.ps1 -Configuration Release -SkipBuild
+
+# Then in the docs/Acme.Store repo:
+cephalon stage-packages ./Acme.Store
+```
+
+`cephalon stage-packages` copies every `Cephalon.*.nupkg` from `./artifacts/packages-release` into `./Acme.Store/.cephalon/packages/`. Restore picks them up because of the priority order in `NuGet.config`.
+
+<div class="ce-callout ce-callout--key">
+<span class="ce-callout__icon" aria-hidden="true">🔑</span>
+<div>**Don't `dotnet restore --force` against the public feed if you're staging local packages** — the `--force` flag bypasses local sources. Plain <code>dotnet restore</code> respects the priority order.</div>
+</div>
+
+## 6. Run the host
+
+```powershell frame="terminal"
+dotnet run --project ./Acme.Store/src/Acme.Store.Host
+```
+
+You should see the engine come up and the **runtime banner** print the engine id, registered modules, active transports, and capability set:
+
+```text frame="terminal" title="startup banner" "acme-store"
+info: Cephalon.Engine[1001]
+      Cephalon Engine started: acme-store
+      modules: Acme.Store.Modules.Health (1.0.0)
+      transports: RestApi
+      capabilities: Audit
+      manifest schema: v2
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5000
+```
+
+### What just happened
+
+1. `WebApplication.CreateBuilder(args)` set up the ASP.NET Core builder.
+2. `AddCephalonAspNetCore()` registered the host adapter, OpenAPI/Scalar surface, and the `/engine/*` routes.
+3. `AddModulesFromAssemblies(typeof(Program).Assembly)` told the engine to scan for `IModule` implementations.
+4. `Build(builder)` ran composition: validated modules, resolved dependency ordering, registered services, executed `OnRegister` hooks.
+5. The HTTP server started; `app.MapCephalon()` wired the behaviour pipeline into ASP.NET Core endpoints.
+6. Lifecycle `OnStart` hooks ran.
+
+You can see the resolved manifest at `/engine/manifest` (next step).
+
+### Choosing a different port / host
+
+```powershell frame="terminal"
+$env:ASPNETCORE_URLS = "http://localhost:5050"
+dotnet run --project ./Acme.Store/src/Acme.Store.Host
+```
+
+Or via the launchSettings file at `src/Acme.Store.Host/Properties/launchSettings.json`.
+
+### Hot reload
+
+`dotnet watch run --project ./Acme.Store/src/Acme.Store.Host` recompiles on file changes. Useful while you're authoring modules.
+
+## 7. Inspect the engine
+
+In another shell, hit the runtime endpoints:
+
+```powershell frame="terminal"
+curl http://localhost:5000/engine/manifest
+curl http://localhost:5000/engine/runtime
+curl http://localhost:5000/engine/snapshot
+curl http://localhost:5000/health
+```
+
+| Endpoint | Returns |
+| --- | --- |
+| `/engine/manifest` | Full typed description of every module, capability, provider, integrity hash, language pack — generated at composition time. |
+| `/engine/runtime` | Live runtime state: module statuses, technology profiles, cell boundary catalog, CDC catalog. |
+| `/engine/snapshot` | Resolved configuration snapshot — `snapshot.engineId`, `snapshot.deploymentMode.baseline`, etc. |
+| `/health` | Composed health from `IDependencyHealthSource` contributions. Returns `200 Healthy`, `503 Unhealthy`, or `200 Degraded`. |
+
+**OpenAPI / Scalar UI:**
+
+Visit `http://localhost:5000/scalar/v1` in a browser — the host wires the Scalar documentation surface automatically when REST is enabled. Behaviours show up grouped by `WithTags(...)`.
+
+Full contract reference: **[Reference → Architecture → Runtime contracts](/0-1-0-preview/reference/architecture/runtime-contracts/)**.
+
+## Troubleshooting
+
+<div class="ce-callout ce-callout--warn">
+<span class="ce-callout__icon" aria-hidden="true">⚠️</span>
+<div>If `cephalon doctor` shows everything `[ok]` but the app fails to build or run, the issue is almost always in `appsettings.json` (typo in `Engine:*` key) or a missing module assembly reference. Composition failures print the failing module name and the unmet capability — read the first error line carefully.</div>
+</div>
+
+### `cephalon: command not found`
+
+The .NET global-tools directory isn't on your PATH.
+
+- Windows: add `%USERPROFILE%\.dotnet\tools` to `PATH`.
+- macOS/Linux: add `~/.dotnet/tools` to your shell profile (`~/.bashrc`, `~/.zshrc`).
+
+Or invoke via the absolute path: `~/.dotnet/tools/cephalon doctor` (Unix) or `%USERPROFILE%\.dotnet\tools\cephalon.exe doctor` (Windows).
+
+### `Could not find 'Cephalon.Cli' or version 0.1.0-preview` during install
+
+The default feed couldn't resolve the package. Add the public feed explicitly:
+
+```powershell frame="terminal"
+dotnet tool install -g Cephalon.Cli `
+  --add-source https://api.nuget.org/v3/index.json `
+  --prerelease
+```
+
+If you're behind a corporate proxy, see **[Installation → CLI → Behind a corporate proxy](/0-1-0-preview/guide/installation/cli/#behind-a-corporate-proxy)**.
+
+### Port `5000` already in use
+
+```powershell frame="terminal"
+$env:ASPNETCORE_URLS = "http://localhost:5050"
+dotnet run --project ./Acme.Store/src/Acme.Store.Host
+```
+
+Or set `ASPNETCORE_URLS` in `launchSettings.json`.
+
+### Composition failure: "capability `X` requires a provider"
+
+A module declared a capability (e.g. `Capability.Data`) but no companion package is registered to provide it. Either:
+
+1. **Remove the capability from the module's descriptor** if your module doesn't actually need it.
+2. **Add a provider package** — e.g. for `Data`, install `Cephalon.Data.EntityFramework` and call `AddData(o => o.UseEntityFramework())` in `Program.cs`.
+
+The error message lists the missing capability and the module that declared it.
+
+### Composition failure: "module `X` depends on module `Y`, which is not registered"
+
+The `DependsOn` chain isn't satisfied. Reference the missing module project from the host (`dotnet add reference …`) or include its assembly in the `AddModulesFromAssemblies(...)` list.
+
+### Startup hangs at "Cephalon Engine starting"
+
+A module's `OnStart` lifecycle hook is blocking. The engine waits for every hook to complete before declaring readiness. Common offenders:
+
+- A migration step that's waiting for an unreachable database.
+- A configuration call that's reading from an env var that isn't set.
+
+Run with `Logging:LogLevel:Cephalon.Engine=Debug` in `appsettings.Development.json` to see exactly which hook is stuck.
+
+### `[warn] trim / aot / single-file: outside support contract`
+
+These deployment modes are not in the support matrix for `0.1.0-preview`. Generated hosts will publish in them but the engine doesn't guarantee correctness (some companion packages use unbounded reflection that AOT can't trim). Stick to the standard publish until those modes graduate — tracked in the **[Maturity audit](/0-1-0-preview/reference/architecture/maturity/)**.
+
+## Tips & tricks
+
+Small habits that save hours later.
+
+### Productivity tricks
+
+- **Alias `cephalon doctor --json | jq '.checks'`** in your shell — it's the fastest way to inspect what the doctor sees without scrolling.
+- **Use `dotnet watch run` instead of `dotnet run`** while iterating on a module. The hot-reload picks up most changes; only structural changes (DI registrations, descriptor edits) require a restart.
+- **Run `cephalon doctor` in CI** on every PR. Catches "works on my laptop" SDK / runtime drift before merge.
+- **Pin the SDK band in `global.json`** the day you start a new project. Your team and CI never auto-upgrade across a major SDK band without a deliberate PR.
+- **Keep `Cephalon.Cli` in a tool manifest, not global.** Every dev + agent uses the same CLI version. Drop a `dotnet tool restore` line at the top of your CI script.
+
+### Naming conventions worth adopting
+
+- **Module names** — `<Org>.<Product>.Modules.<Bounded Context>` (e.g. `Acme.Store.Modules.Products`). Keeps `manifest.json` self-documenting at a glance.
+- **Engine ID** — `<product>-<role>` (e.g. `acme-store`, `acme-orders-worker`). Used in OTLP resource attributes; short, kebab-case, no environment suffix (use `Engine:Deployment:Id` for env).
+- **Connection string names** — `<Module>` for the module's primary DB (e.g. `ConnectionStrings:Products`), not generic `Default`. Makes secret management auditable.
+
+### Debugging shortcuts
+
+- **Composition won't start?** Run with `Logging:LogLevel:Cephalon.Engine=Debug` in `appsettings.Development.json`. Every step prints its outcome.
+- **Module not loading?** Hit `/engine/manifest` — if your module isn't listed, the assembly isn't being scanned. Check the host project references the module project.
+- **Behavior route not registered?** Hit `/openapi/v1.json` — if your behavior isn't there, double-check `MapProfile<TBehavior>()` runs in `ConfigureRestBehaviors`.
+- **Mysterious capability error?** The exception message includes the requesting module + missing capability. Search the codebase for that capability — usually you have an `AddXxx` extension method you forgot to call.
+
+### Anti-patterns to avoid
+
+| Don't | Do |
+| --- | --- |
+| **`dotnet add package Cephalon.X --version 0.1.0-preview`** repeated per project | Centralise versions in `Directory.Packages.props` (already set up by `cephalon new`). |
+| **Hard-coding `Engine:Id` in `appsettings.json` for prod** | Set via env var: `Engine__Id=acme-store-eu-west-1`. Keeps the same file working across all environments. |
+| **`Program.cs` doing module work** (DbContext setup, route mapping) | Move everything into a module's `RegisterServices` / `ConfigureRestBehaviors`. `Program.cs` should be ~15 lines. |
+| **Sharing a single big "Common" module** for all utilities | Split by capability — one module per capability is fine, but `Common` becomes a dependency choke point. |
+
+### Recommended dev loop
+
+```text
+1. dotnet watch run          (in one terminal)
+2. curl http://localhost:5000/engine/manifest | jq   (verify modules loaded)
+3. Edit module → save → hot-reload picks it up
+4. Hit the new endpoint → see the change
+5. dotnet test --filter Category=Composition   (run smoke tests)
+6. Commit
+```
+
+Once observability is wired (step 6 of the [First-app tutorial](/0-1-0-preview/tutorials/first-app/06-observability/)), add `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` to your `launchSettings.json` so traces flow into your local collector while you develop.
+
+## 8. Where to go next
+
+<PathCards
+  paths={[
+    {
+      badge: '2 hours',
+      title: 'Build a feature, end to end',
+      description: 'The First-app tutorial — 8 steps from scaffold to deployed image. Adds a Products module, EF Core, REST CRUD, eventing, observability, tests.',
+      href: '/0-1-0-preview/tutorials/first-app/',
+      cta: 'Start the tutorial',
+    },
+    {
+      badge: '30 min',
+      title: 'Understand the model',
+      description: 'Concepts — engine, modules, capabilities, manifest, app models, transports. The smallest mental model that makes everything else click.',
+      href: '/0-1-0-preview/guide/concepts/',
+      cta: 'Read Concepts',
+    },
+    {
+      badge: '15 min',
+      title: 'Pick a deployment target',
+      description: 'Deployment — Windows Service, IIS, Azure App Service, Azure Container Apps, Kubernetes, Linux systemd, Docker. Each with assumptions + rollback.',
+      href: '/0-1-0-preview/guide/deployment/',
+      cta: 'Open Deployment',
+    },
+    {
+      badge: 'Reference',
+      title: 'What the engine actually guarantees',
+      description: 'Runtime contracts — every /engine/* route, snapshot.* key, manifest schema field. The contract you can rely on.',
+      href: '/0-1-0-preview/reference/architecture/runtime-contracts/',
+      cta: 'Open Runtime contracts',
+    },
+  ]}
+/>
+
+<div class="ce-callout ce-callout--success">
+<span class="ce-callout__icon" aria-hidden="true">✅</span>
+<div>**You're set.** The host you just generated is the same shape we use for production apps. Everything you'll learn from here on is additive — opt-in capabilities, optional transports, optional companion packages. Nothing you've done so far locks you into anything.</div>
+</div>

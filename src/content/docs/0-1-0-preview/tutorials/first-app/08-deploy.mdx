@@ -1,0 +1,165 @@
+---
+title: '8 · Deploy'
+description: 'Build the container image, deploy to Azure Container Apps, and validate the full stack in production.'
+sidebar:
+  order: 8
+editUrl: false
+---
+
+The final step takes the app from "runs on my laptop" to "running on Azure Container Apps with a real database and a real observability backend". The same shape applies to Kubernetes, Linux systemd, and Windows Service — pick the target that matches your environment.
+
+## 8.1 Build the container image
+
+The scaffold already provided a multi-stage Dockerfile:
+
+```dockerfile
+# build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY . .
+RUN dotnet publish src/Acme.Store.Host/Acme.Store.Host.csproj -c Release -o /app /p:UseAppHost=false
+
+# runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+COPY --from=build /app .
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "Acme.Store.Host.dll"]
+```
+
+Build and tag it locally:
+
+```powershell
+docker build -t acmestore:latest .
+docker run --rm -p 8080:8080 `
+  -e ConnectionStrings__Products="<your-postgres-conn>" `
+  -e ConnectionStrings__Orders="<your-postgres-conn>" `
+  acmestore:latest
+```
+
+The host should boot to `http://localhost:8080`.
+
+## 8.2 Publish to a registry
+
+Use the included script (Azure Container Registry example):
+
+```powershell
+./deploy/container-image/publish-image.ps1 `
+  -Registry acmestore.azurecr.io `
+  -Tag 1.0.0
+```
+
+The script logs in (`az acr login`), tags the image as `acmestore.azurecr.io/acme/store:1.0.0`, and pushes it.
+
+## 8.3 Deploy to Azure Container Apps
+
+The scaffolded script wraps `az containerapp up`:
+
+```powershell
+./deploy/azure-container-apps/deploy-up.ps1 `
+  -ResourceGroup acme-prod `
+  -EnvironmentName acme-aca-env `
+  -AppName acmestore `
+  -Image acmestore.azurecr.io/acme/store:1.0.0 `
+  -Location eastus
+```
+
+The first run provisions the Container Apps environment, Log Analytics workspace, and the app itself. Subsequent runs perform a revision update.
+
+## 8.4 Wire production configuration
+
+ACA accepts environment variables and secrets at the app level. The script supports `-EnvVar` and `-Secret`:
+
+```powershell
+./deploy/azure-container-apps/deploy-up.ps1 `
+  -AppName acmestore `
+  -Image acmestore.azurecr.io/acme/store:1.0.0 `
+  -EnvVar @{
+    "Engine__Id" = "acme-store-prod"
+    "ASPNETCORE_ENVIRONMENT" = "Production"
+    "Observability__Endpoint" = "https://otlp-gateway-prod-eu-west-2.grafana.net/otlp"
+  } `
+  -Secret @{
+    "connectionstrings-products" = "<your-secret-conn>"
+    "connectionstrings-orders" = "<your-secret-conn>"
+    "observability-headers" = "Authorization=Basic <BASE64>"
+  } `
+  -SecretRef @{
+    "ConnectionStrings__Products" = "connectionstrings-products"
+    "ConnectionStrings__Orders" = "connectionstrings-orders"
+    "Observability__Headers" = "observability-headers"
+  }
+```
+
+## 8.5 Validate the deploy
+
+```powershell
+$fqdn = az containerapp show -n acmestore -g acme-prod --query properties.configuration.ingress.fqdn -o tsv
+
+curl https://$fqdn/health
+curl https://$fqdn/engine/manifest
+curl https://$fqdn/products
+```
+
+You should see:
+
+- `200 Healthy` from `/health` with the dependency probes green.
+- the expected modules from `/engine/manifest`.
+- products served from the production database.
+
+## 8.6 Roll back
+
+ACA revisions make rollback trivial:
+
+```powershell
+az containerapp revision list -n acmestore -g acme-prod -o table
+az containerapp revision activate -n acmestore -g acme-prod --revision <previous-revision-name>
+```
+
+This is your "if everything is on fire" button. Keep the previous revision active for a while after each deploy.
+
+## 8.7 Wire CI/CD
+
+Once the manual deploy works, automate it. The **[CI/CD tutorial](/0-1-0-preview/tutorials/ci-cd-pipeline/)** walks through a GitHub Actions reference pipeline that:
+
+1. restores + builds + tests on PR.
+2. publishes the container image on merge to `main`.
+3. runs composition + behavior + integration tests against a temporary ACA environment.
+4. promotes the image to the production environment on tag.
+
+## 8.8 What to monitor
+
+In your observability backend, set alerts on:
+
+- `/health` non-`200` for more than 60 seconds.
+- `cephalon.engine.started` event missing after a deploy (boot failure).
+- traces from `POST /orders` exceeding p99 latency budget.
+- the Postgres dependency probe going `Degraded` or `Unhealthy`.
+
+Templates for these alerts live in the **[Observability stack tutorial](/0-1-0-preview/tutorials/observability-stack/)**.
+
+## Series wrap-up
+
+You built:
+
+- a modular monolith with three modules.
+- full CRUD over Products via REST.
+- an event-driven flow for Orders.
+- production observability and dependency health.
+- a tiered test suite (composition, behavior, integration).
+- a CI/CD-ready container image deployed to Azure Container Apps.
+
+The same shape ships to Kubernetes (`./deploy/kubernetes/apply.ps1`), Linux systemd, IIS, Windows Service, or any container runtime — see **[Deployment](/0-1-0-preview/guide/deployment/)**.
+
+## Where to go next
+
+- **[Multi-tenant SaaS tutorial](/0-1-0-preview/tutorials/multi-tenant-saas/)** — add tenancy on top of this app.
+- **[Microservice suite tutorial](/0-1-0-preview/tutorials/microservice-suite/)** — split Orders and Products across two hosts.
+- **[Observability stack tutorial](/0-1-0-preview/tutorials/observability-stack/)** — wire Grafana, Tempo, Loki, and SLO templates.
+- **[Reference → Architecture](/0-1-0-preview/reference/architecture/)** — read the canonical contracts you've been relying on.
+
+<div class="ce-callout ce-callout--success">
+<span class="ce-callout__icon" aria-hidden="true">🎉</span>
+<div>Nice work. The foundation you built here scales to teams of dozens and codebases with hundreds of modules — that's exactly what CephalonEngine is designed for.</div>
+</div>

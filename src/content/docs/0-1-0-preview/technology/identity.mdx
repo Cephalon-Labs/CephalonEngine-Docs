@@ -1,0 +1,58 @@
+---
+title: Identity
+description: Host-agnostic identity + authorization plus the AspNetCore adapter. Audit companion package for tamper-evident audit trails.
+sidebar:
+  order: 5
+editUrl: false
+---
+
+## Packages
+
+| Package | Maturity | What it brings |
+| --- | --- | --- |
+| **`Cephalon.Identity`** | `M2` | Host-agnostic identity + authorization primitives. Principal model, scope/role decisions, claim contracts. |
+| **`Cephalon.Identity.AspNetCore`** | `M2` | AspNetCore adapter — wires the principal from the HTTP context, plugs into the behavior pipeline. |
+| **`Cephalon.Audit`** | `M2` | Host-agnostic audit recording + runtime catalog. Tamper-evident audit trail. |
+| **`Cephalon.Audit.EntityFramework`** | `M2` | EF-backed durable audit storage. |
+
+## How to enable
+
+```jsonc title="appsettings.json" {3-4}
+{
+  "Engine": {
+    "Identity": { "Enabled": true, "Provider": "Bearer", "Authority": "https://login.acme.example/" },
+    "Audit": { "Enabled": true, "Provider": "EntityFramework" }
+  }
+}
+```
+
+```csharp title="Program.cs" {3-4}
+builder.Services
+    .AddCephalonAspNetCore()
+    .AddIdentity(options => options.UseBearer("https://login.acme.example/"))
+    .AddAudit(options => options.UseEntityFramework<AuditDbContext>())
+    .AddModulesFromAssemblies(/* ... */);
+```
+
+## Behavior-level authorisation
+
+```csharp title="Behaviors/DeleteProductBehavior.cs" {2-3}
+public RestRoute Route => RestRoute.Delete("/products/{id}")
+    .WithRequireScope("products:write")
+    .WithRequireRole("admin");
+```
+
+The behavior pipeline rejects unauthorised callers before the handler runs and emits an audit entry with the principal, the failed claim, and the trace context.
+
+## Source-doc snapshots
+
+- [Cephalon.Identity](/0-1-0-preview/source/components/identity/)
+- [Cephalon.Identity.AspNetCore](/0-1-0-preview/source/components/identity-aspnetcore/)
+- [Cephalon.Audit](/0-1-0-preview/source/components/audit/)
+- [Cephalon.Audit.EntityFramework](/0-1-0-preview/source/components/audit-entityframework/)
+
+## Cross-references
+
+- **[Reference → Configuration → Identity](/0-1-0-preview/reference/configuration/identity/)** — `Engine:Identity` schema, Bearer/Cookie auth, JWT validation, claim mapping.
+- **[Reference → Architecture](/0-1-0-preview/reference/architecture/)** — canonical contracts index (the dedicated *Identity contract* page is planned for `0.2.0-preview`).
+- **[Tutorial → Multi-tenant SaaS](/0-1-0-preview/tutorials/multi-tenant-saas/)** — identity in a multi-tenant world.

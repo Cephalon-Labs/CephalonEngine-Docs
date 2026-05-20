@@ -1,0 +1,232 @@
+---
+title: Components
+description: Canonical catalog of every Cephalon NuGet package shipped on the 0.1.0-preview track — name, NuGet ID, maturity (M0–M4), capability provided, Engine:* config key, and source-doc link.
+sidebar:
+  order: 0
+  label: Overview
+editUrl: false
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+This is the **canonical per-package reference** — terse, exhaustive, and updated each release. For the narrative tour with use cases see **[Technology overview](/0-1-0-preview/technology/)**.
+
+## Maturity legend
+
+| Label | Meaning | Adopter posture |
+| --- | --- | --- |
+| **M0** | Taxonomy-only — types, no behavior | Don't depend on |
+| **M1** | Narrow — single backend / scenario | Experiment, expect API churn |
+| **M2** | Broad — multi-scenario, surface settling | Production-careful — read the limits |
+| **M3** | Adoption-ready — surface frozen within preview minor | Production OK |
+| **M4** | Stable — frozen across preview track | Production preferred |
+
+## Browse by domain
+
+<CardGrid>
+  <LinkCard title="Core" href="/0-1-0-preview/reference/components/core/"
+    description="Cephalon.Abstractions, Cephalon.Engine, Cephalon.Behaviors + sub-packages, Cephalon.Ids.Sfid." />
+  <LinkCard title="Hosts" href="/0-1-0-preview/reference/components/hosts/"
+    description="Cephalon.AspNetCore (+ GraphQL / gRPC / JSON-RPC adapters), Cephalon.Worker." />
+  <LinkCard title="Data" href="/0-1-0-preview/reference/components/data/"
+    description="Cephalon.Data + 15 backends (Postgres, SQL Server, MySQL, Oracle, MongoDB, Cassandra, ClickHouse, Elasticsearch, OpenSearch, Redis, Neo4j, Qdrant, NATS, Debezium, EF Core)." />
+  <LinkCard title="Eventing" href="/0-1-0-preview/reference/components/eventing/"
+    description="Cephalon.Eventing + Wolverine adapter + behaviors." />
+  <LinkCard title="Event Sourcing" href="/0-1-0-preview/reference/components/event-sourcing/"
+    description="Cephalon.EventSourcing + 10 backend stores." />
+  <LinkCard title="Identity & Audit" href="/0-1-0-preview/reference/components/identity/"
+    description="Cephalon.Identity, Cephalon.Identity.AspNetCore, Cephalon.Audit, Cephalon.Audit.EntityFramework." />
+  <LinkCard title="Multi-tenancy" href="/0-1-0-preview/reference/components/multi-tenancy/"
+    description="Cephalon.MultiTenancy + governance + 7 email-delivery adapters." />
+  <LinkCard title="Observability" href="/0-1-0-preview/reference/components/observability/"
+    description="Cephalon.Observability + OpenTelemetry + 13 cloud-provider adapters + 18 dependency-health probes." />
+  <LinkCard title="Edge" href="/0-1-0-preview/reference/components/edge/"
+    description="Cephalon.Edge + Traefik + Kubernetes Gateway." />
+  <LinkCard title="Agentics & Retrieval" href="/0-1-0-preview/reference/components/ai/"
+    description="Cephalon.Agentics, Cephalon.Retrieval." />
+  <LinkCard title="Tooling" href="/0-1-0-preview/reference/components/tooling/"
+    description="Cephalon.Cli, Cephalon.Scaffolding, Cephalon.TemplatePack, Cephalon.ReferenceDocs." />
+</CardGrid>
+
+## Master catalog (all 102 packages)
+
+Sorted by domain then alphabetical. Click the NuGet ID to read the engine-source-doc snapshot.
+
+### Core (8)
+
+| Package | Maturity | Capability | `Engine:*` keys |
+| --- | --- | --- | --- |
+| [Cephalon.Abstractions](/0-1-0-preview/source/components/abstractions/) | `M3` | — *(taxonomy)* | — |
+| [Cephalon.Engine](/0-1-0-preview/source/components/engine/) | `M3` | — *(host)* | `Engine:Id`, `Engine:Deployment`, `Engine:Composition` |
+| [Cephalon.Behaviors](/0-1-0-preview/source/components/behaviors/) | `M3` | — *(decorator base)* | — |
+| [Cephalon.Behaviors.Http](/0-1-0-preview/source/components/behaviors-http/) | `M3` | — | — |
+| [Cephalon.Behaviors.Messaging](/0-1-0-preview/source/components/behaviors-messaging/) | `M3` | — | — |
+| [Cephalon.Behaviors.Patterns](/0-1-0-preview/source/components/behaviors-patterns/) | `M3` | — | — |
+| [Cephalon.Behaviors.Sourcegen](/0-1-0-preview/source/components/behaviors-sourcegen/) | `M2` | — *(build-time)* | — |
+| [Cephalon.Ids.Sfid](/0-1-0-preview/source/components/ids-sfid/) | `M3` | — *(value type + EF converter)* | `Engine:Data:IdStrategy` |
+
+### Hosts (5)
+
+| Package | Maturity | Capability | `Engine:*` keys |
+| --- | --- | --- | --- |
+| [Cephalon.AspNetCore](/0-1-0-preview/source/components/aspnetcore/) | `M3` | `Capability.HttpHost` | `Engine:Transports` |
+| [Cephalon.AspNetCore.GraphQL](/0-1-0-preview/source/components/aspnetcore-graphql/) | `M3` | `Capability.GraphQLHost` | `Engine:Transports` |
+| [Cephalon.AspNetCore.Grpc](/0-1-0-preview/source/components/aspnetcore-grpc/) | `M3` | `Capability.GrpcHost` | `Engine:Transports` |
+| [Cephalon.AspNetCore.JsonRpc](/0-1-0-preview/source/components/aspnetcore-jsonrpc/) | `M3` | `Capability.JsonRpcHost` | `Engine:Transports` |
+| [Cephalon.Worker](/0-1-0-preview/source/components/worker/) | `M3` | `Capability.WorkerHost` | — |
+
+### Data (16)
+
+| Package | Maturity | Capability | `Engine:*` keys |
+| --- | --- | --- | --- |
+| [Cephalon.Data](/0-1-0-preview/source/components/data/) | `M3` | `Capability.Data` | `Engine:Data` |
+| [Cephalon.Data.EntityFramework](/0-1-0-preview/source/components/data-entityframework/) | `M3` | `Capability.Data` | `Engine:Data:Provider="EntityFramework"` |
+| [Cephalon.Data.Postgres](/0-1-0-preview/source/components/data-postgres/) | `M3` | `Capability.Data` | `Engine:Data:Provider="Postgres"` |
+| [Cephalon.Data.SqlServer](/0-1-0-preview/source/components/data-sqlserver/) | `M3` | `Capability.Data` | `Engine:Data:Provider="SqlServer"` |
+| [Cephalon.Data.MySql](/0-1-0-preview/source/components/data-mysql/) | `M3` | `Capability.Data` | `Engine:Data:Provider="MySql"` |
+| [Cephalon.Data.Oracle](/0-1-0-preview/source/components/data-oracle/) | `M3` | `Capability.Data` | `Engine:Data:Provider="Oracle"` |
+| [Cephalon.Data.MongoDB](/0-1-0-preview/source/components/data-mongodb/) | `M3` | `Capability.Data` | `Engine:Data:Provider="MongoDB"` |
+| [Cephalon.Data.Cassandra](/0-1-0-preview/source/components/data-cassandra/) | `M3` | `Capability.Data` | `Engine:Data:Provider="Cassandra"` |
+| [Cephalon.Data.ClickHouse](/0-1-0-preview/source/components/data-clickhouse/) | `M3` | `Capability.Data` | `Engine:Data:Provider="ClickHouse"` |
+| [Cephalon.Data.Elasticsearch](/0-1-0-preview/source/components/data-elasticsearch/) | `M3` | `Capability.Data` | `Engine:Data:Provider="Elasticsearch"` |
+| [Cephalon.Data.OpenSearch](/0-1-0-preview/source/components/data-opensearch/) | `M3` | `Capability.Data` | `Engine:Data:Provider="OpenSearch"` |
+| [Cephalon.Data.Redis](/0-1-0-preview/source/components/data-redis/) | `M3` | `Capability.Data` | `Engine:Data:Provider="Redis"` |
+| [Cephalon.Data.Neo4j](/0-1-0-preview/source/components/data-neo4j/) | `M3` | `Capability.Data` | `Engine:Data:Provider="Neo4j"` |
+| [Cephalon.Data.Qdrant](/0-1-0-preview/source/components/data-qdrant/) | `M3` | `Capability.Data` | `Engine:Data:Provider="Qdrant"` |
+| [Cephalon.Data.Nats](/0-1-0-preview/source/components/data-nats/) | `M3` | `Capability.Data` | `Engine:Data:Provider="Nats"` |
+| [Cephalon.Data.Debezium](/0-1-0-preview/source/components/data-debezium/) | `M2` | `Capability.CdcCapture` | `Engine:Data:Cdc` |
+
+### Eventing (3)
+
+| Package | Maturity | Capability | `Engine:*` keys |
+| --- | --- | --- | --- |
+| [Cephalon.Eventing](/0-1-0-preview/source/components/eventing/) | `M3` | `Capability.Eventing` | `Engine:Messaging` |
+| [Cephalon.Eventing.Wolverine](/0-1-0-preview/source/components/eventing-wolverine/) | `M3` | `Capability.Eventing` | `Engine:Messaging:Provider="Wolverine"`, `Engine:Messaging:Wolverine` |
+| [Cephalon.Eventing.Behaviors](/0-1-0-preview/source/components/eventing-behaviors/) | `M3` | — *(decorators)* | — |
+
+### Event Sourcing (11)
+
+| Package | Maturity | Capability | `Engine:*` keys |
+| --- | --- | --- | --- |
+| [Cephalon.EventSourcing](/0-1-0-preview/source/components/event-sourcing/) | `M2` | `Capability.EventSourcing` | `Engine:EventSourcing` |
+| [Cephalon.EventSourcing.EntityFramework](/0-1-0-preview/source/components/event-sourcing-entityframework/) | `M2` | `Capability.EventSourcing` | `Engine:EventSourcing:Provider="EntityFramework"` |
+| [Cephalon.EventSourcing.Cassandra](/0-1-0-preview/source/components/event-sourcing-cassandra/) | `M2` | `Capability.EventSourcing` | `Engine:EventSourcing:Provider="Cassandra"` |
+| [Cephalon.EventSourcing.ClickHouse](/0-1-0-preview/source/components/event-sourcing-clickhouse/) | `M2` | `Capability.EventSourcing` | `Engine:EventSourcing:Provider="ClickHouse"` |
+| [Cephalon.EventSourcing.Elasticsearch](/0-1-0-preview/source/components/event-sourcing-elasticsearch/) | `M2` | `Capability.EventSourcing` | `Engine:EventSourcing:Provider="Elasticsearch"` |
+| [Cephalon.EventSourcing.MongoDB](/0-1-0-preview/source/components/event-sourcing-mongodb/) | `M2` | `Capability.EventSourcing` | `Engine:EventSourcing:Provider="MongoDB"` |
+| [Cephalon.EventSourcing.Nats](/0-1-0-preview/source/components/event-sourcing-nats/) | `M2` | `Capability.EventSourcing` | `Engine:EventSourcing:Provider="Nats"` |
+| [Cephalon.EventSourcing.Neo4j](/0-1-0-preview/source/components/event-sourcing-neo4j/) | `M2` | `Capability.EventSourcing` | `Engine:EventSourcing:Provider="Neo4j"` |
+| [Cephalon.EventSourcing.OpenSearch](/0-1-0-preview/source/components/event-sourcing-opensearch/) | `M2` | `Capability.EventSourcing` | `Engine:EventSourcing:Provider="OpenSearch"` |
+| [Cephalon.EventSourcing.Qdrant](/0-1-0-preview/source/components/event-sourcing-qdrant/) | `M2` | `Capability.EventSourcing` | `Engine:EventSourcing:Provider="Qdrant"` |
+| [Cephalon.EventSourcing.Redis](/0-1-0-preview/source/components/event-sourcing-redis/) | `M2` | `Capability.EventSourcing` | `Engine:EventSourcing:Provider="Redis"` |
+
+### Identity & Audit (4)
+
+| Package | Maturity | Capability | `Engine:*` keys |
+| --- | --- | --- | --- |
+| [Cephalon.Identity](/0-1-0-preview/source/components/identity/) | `M3` | `Capability.Identity` | `Engine:Identity` |
+| [Cephalon.Identity.AspNetCore](/0-1-0-preview/source/components/identity-aspnetcore/) | `M3` | `Capability.Identity` | `Engine:Identity:Provider`, `Engine:Identity:Authority` |
+| [Cephalon.Audit](/0-1-0-preview/source/components/audit/) | `M3` | `Capability.Audit` | `Engine:Audit` |
+| [Cephalon.Audit.EntityFramework](/0-1-0-preview/source/components/audit-entityframework/) | `M3` | `Capability.Audit` | `Engine:Audit:Provider="EntityFramework"` |
+
+### Multi-tenancy (10)
+
+| Package | Maturity | Capability | `Engine:*` keys |
+| --- | --- | --- | --- |
+| [Cephalon.MultiTenancy](/0-1-0-preview/source/components/multi-tenancy/) | `M3` | `Capability.Tenancy` | `Engine:Tenancy` |
+| [Cephalon.MultiTenancy.Governance](/0-1-0-preview/source/components/multi-tenancy-governance/) | `M3` | `Capability.TenancyGovernance` | `Engine:Tenancy:Governance` |
+| [Cephalon.MultiTenancy.Governance.AspNetCore](/0-1-0-preview/source/components/multi-tenancy-governance-aspnetcore/) | `M3` | — *(host adapter)* | — |
+| [Cephalon.MultiTenancy.Governance.HttpDelivery](/0-1-0-preview/source/components/multi-tenancy-governance-httpdelivery/) | `M2` | — | `Engine:Tenancy:Governance:Delivery="Http"` |
+| [Cephalon.MultiTenancy.Governance.SmtpDelivery](/0-1-0-preview/source/components/multi-tenancy-governance-smtpdelivery/) | `M2` | — | `Engine:Tenancy:Governance:Delivery="Smtp"` |
+| [Cephalon.MultiTenancy.Governance.AmazonSesDelivery](/0-1-0-preview/source/components/multi-tenancy-governance-amazonsesdelivery/) (+ `.AspNetCore`) | `M2` | — | `Engine:Tenancy:Governance:Delivery="AmazonSes"` |
+| [Cephalon.MultiTenancy.Governance.MailgunDelivery](/0-1-0-preview/source/components/multi-tenancy-governance-mailgundelivery/) (+ `.AspNetCore`) | `M2` | — | `Engine:Tenancy:Governance:Delivery="Mailgun"` |
+| [Cephalon.MultiTenancy.Governance.SendgridDelivery](/0-1-0-preview/source/components/multi-tenancy-governance-sendgriddelivery/) (+ `.AspNetCore`) | `M2` | — | `Engine:Tenancy:Governance:Delivery="Sendgrid"` |
+| [Cephalon.MultiTenancy.Governance.MicrosoftGraphDelivery](/0-1-0-preview/source/components/multi-tenancy-governance-microsoftgraphdelivery/) (+ `.AzureIdentity`) | `M2` | — | `Engine:Tenancy:Governance:Delivery="MicrosoftGraph"` |
+| [Cephalon.MultiTenancy.Governance — all delivery roll-up](/0-1-0-preview/reference/components/multi-tenancy/) | — | — | See sub-page for full roster |
+
+### Observability — base (2)
+
+| Package | Maturity | Capability | `Engine:*` keys |
+| --- | --- | --- | --- |
+| [Cephalon.Observability](/0-1-0-preview/source/components/observability/) | `M3` | `Capability.Observability` | `Engine:Observability` |
+| [Cephalon.Observability.OpenTelemetry](/0-1-0-preview/source/components/observability-opentelemetry/) | `M3` | `Capability.Observability` | `Engine:Observability:Provider="OpenTelemetry"` |
+
+### Observability — cloud providers (13)
+
+| Package | Maturity | `Engine:Observability:Provider` value |
+| --- | --- | --- |
+| [Cephalon.Observability.AlibabaCloud](/0-1-0-preview/source/components/observability-alibaba-cloud/) | `M2` | `"AlibabaCloud"` |
+| [Cephalon.Observability.Aws](/0-1-0-preview/source/components/observability-aws/) | `M3` | `"Aws"` |
+| [Cephalon.Observability.AzureMonitor](/0-1-0-preview/source/components/observability-azure-monitor/) | `M3` | `"AzureMonitor"` |
+| [Cephalon.Observability.DigitalOcean](/0-1-0-preview/source/components/observability-digitalocean/) | `M2` | `"DigitalOcean"` |
+| [Cephalon.Observability.Gcp](/0-1-0-preview/source/components/observability-gcp/) | `M3` | `"Gcp"` |
+| [Cephalon.Observability.GrafanaCloud](/0-1-0-preview/source/components/observability-grafana-cloud/) | `M3` | `"GrafanaCloud"` |
+| [Cephalon.Observability.HuaweiCloud](/0-1-0-preview/source/components/observability-huawei-cloud/) | `M2` | `"HuaweiCloud"` |
+| [Cephalon.Observability.NewRelic](/0-1-0-preview/source/components/observability-new-relic/) | `M3` | `"NewRelic"` |
+| [Cephalon.Observability.OracleCloud](/0-1-0-preview/source/components/observability-oracle-cloud/) | `M2` | `"OracleCloud"` |
+| [Cephalon.Observability.Kubernetes](/0-1-0-preview/source/components/observability-kubernetes/) | `M3` | `"Kubernetes"` |
+| [Cephalon.Observability.OpenShift](/0-1-0-preview/source/components/observability-openshift/) | `M2` | `"OpenShift"` |
+| [Cephalon.Observability.Tanzu](/0-1-0-preview/source/components/observability-tanzu/) | `M2` | `"Tanzu"` |
+| [Cephalon.Observability.Serilog](/0-1-0-preview/source/components/observability-serilog/) | `M3` | `"Serilog"` |
+
+### Observability — dependency-health probes (18)
+
+| Package | Maturity | What it probes |
+| --- | --- | --- |
+| [Cephalon.Observability.CassandraDependencies](/0-1-0-preview/source/components/observability-cassandra-dependencies/) | `M3` | Cassandra |
+| [Cephalon.Observability.ClickHouseDependencies](/0-1-0-preview/source/components/observability-clickhouse-dependencies/) | `M3` | ClickHouse |
+| [Cephalon.Observability.ConsulDependencies](/0-1-0-preview/source/components/observability-consul-dependencies/) | `M3` | Consul |
+| [Cephalon.Observability.ElasticsearchDependencies](/0-1-0-preview/source/components/observability-elasticsearch-dependencies/) | `M3` | Elasticsearch |
+| [Cephalon.Observability.HttpDependencies](/0-1-0-preview/source/components/observability-http-dependencies/) | `M3` | HTTP endpoints |
+| [Cephalon.Observability.KafkaDependencies](/0-1-0-preview/source/components/observability-kafka-dependencies/) | `M3` | Kafka |
+| [Cephalon.Observability.MemcachedDependencies](/0-1-0-preview/source/components/observability-memcached-dependencies/) | `M3` | Memcached |
+| [Cephalon.Observability.MongoDbDependencies](/0-1-0-preview/source/components/observability-mongodb-dependencies/) | `M3` | MongoDB |
+| [Cephalon.Observability.MqttDependencies](/0-1-0-preview/source/components/observability-mqtt-dependencies/) | `M3` | MQTT broker |
+| [Cephalon.Observability.MySqlDependencies](/0-1-0-preview/source/components/observability-mysql-dependencies/) | `M3` | MySQL |
+| [Cephalon.Observability.NatsDependencies](/0-1-0-preview/source/components/observability-nats-dependencies/) | `M3` | NATS |
+| [Cephalon.Observability.Neo4jDependencies](/0-1-0-preview/source/components/observability-neo4j-dependencies/) | `M3` | Neo4j |
+| [Cephalon.Observability.OpenSearchDependencies](/0-1-0-preview/source/components/observability-opensearch-dependencies/) | `M3` | OpenSearch |
+| [Cephalon.Observability.OracleDependencies](/0-1-0-preview/source/components/observability-oracle-dependencies/) | `M3` | Oracle DB |
+| [Cephalon.Observability.PostgresDependencies](/0-1-0-preview/source/components/observability-postgres-dependencies/) | `M3` | Postgres |
+| [Cephalon.Observability.RabbitMqDependencies](/0-1-0-preview/source/components/observability-rabbitmq-dependencies/) | `M3` | RabbitMQ |
+| [Cephalon.Observability.RedisDependencies](/0-1-0-preview/source/components/observability-redis-dependencies/) | `M3` | Redis |
+| [Cephalon.Observability.SqlServerDependencies](/0-1-0-preview/source/components/observability-sqlserver-dependencies/) | `M3` | SQL Server |
+
+### Edge (3)
+
+| Package | Maturity | Capability | `Engine:*` keys |
+| --- | --- | --- | --- |
+| [Cephalon.Edge](/0-1-0-preview/source/components/edge/) | `M2` | `Capability.Edge` | `Engine:Edge` |
+| [Cephalon.Edge.Traefik](/0-1-0-preview/source/components/edge-traefik/) | `M2` | `Capability.Edge` | `Engine:Edge:Adapter="Traefik"`, `Engine:Edge:Traefik` |
+| [Cephalon.Edge.KubernetesGateway](/0-1-0-preview/source/components/edge-kubernetes-gateway/) | `M2` | `Capability.Edge` | `Engine:Edge:Adapter="KubernetesGateway"`, `Engine:Edge:KubernetesGateway` |
+
+### Agentics & Retrieval (2)
+
+| Package | Maturity | Capability | `Engine:*` keys |
+| --- | --- | --- | --- |
+| [Cephalon.Agentics](/0-1-0-preview/source/components/agentics/) | `M2` | `Capability.Agentics` | `Engine:Agentics` |
+| [Cephalon.Retrieval](/0-1-0-preview/source/components/retrieval/) | `M2` | `Capability.Retrieval` | `Engine:Retrieval` |
+
+### Tooling (3)
+
+| Package | Maturity | Capability | `Engine:*` keys |
+| --- | --- | --- | --- |
+| [Cephalon.Cli](/0-1-0-preview/source/components/cli/) | `M3` | — *(CLI tool)* | — |
+| [Cephalon.Scaffolding](/0-1-0-preview/source/components/scaffolding/) | `M3` | — *(library)* | — |
+| [Cephalon.ReferenceDocs](/0-1-0-preview/source/components/reference-docs/) | `M2` | — *(CLI tool)* | — |
+
+## How to use this catalog
+
+| You're … | Use |
+| --- | --- |
+| picking which adapter to install | filter by domain → check maturity → install |
+| diagnosing a composition error | look up the package that registered the failing capability |
+| writing release notes | check what's M3+ this release vs prior release |
+| writing a migration guide | check Engine:* key column for breaking-config changes |
+
+## Where to go next
+
+- **[Technology overview](/0-1-0-preview/technology/)** — narrative tour with use cases.
+- **[Reference → Configuration](/0-1-0-preview/reference/configuration/)** — every `Engine:*` option documented.
+- **[Reference → Architecture → Maturity audit](/0-1-0-preview/reference/architecture/maturity/)** — the source of the M0–M4 labels.
+- **[Reference → API](/0-1-0-preview/reference/api/)** — auto-generated namespace reference.

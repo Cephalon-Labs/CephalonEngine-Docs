@@ -1,0 +1,456 @@
+---
+title: Architecture
+description: The CephalonEngine layered architecture, app-model dimensions, runtime contracts, and the boundaries between engine, host, modules, and packages — with diagrams.
+sidebar:
+  order: 4
+editUrl: false
+---
+
+import FeatureGrid from '../../../../components/FeatureGrid.astro';
+
+This page is the **architectural reference for adopters** — the model behind every API decision, why the layers exist, and how to reason about your own code's place in them. If you only want "what runs in production", skip to **[Deployment](/0-1-0-preview/guide/deployment/)**; if you want surface-level reference, skip to **[Reference → Runtime contracts](/0-1-0-preview/reference/architecture/runtime-contracts/)**.
+
+## North star
+
+> **CephalonEngine should evolve into an engine/framework, not a single app shell.**
+
+That single sentence drives every architectural choice. The foundation is optimised for **composition**, **discoverability**, and **multiple hosts** from day one. Every public surface is shaped to allow additive growth without rewrites. A team that adopts CephalonEngine should be able to:
+
+- Start on a laptop with a single host.
+- Scale to a fleet of microservices.
+- Move some workload to the edge.
+- Add capabilities (eventing, multi-tenancy, identity) at any point.
+
+…all without re-architecting the foundation.
+
+## Layered model
+
+CephalonEngine has six explicit layers, each with a stable contract. Each layer **only depends on layers below it** — never sideways or upward.
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ 6. Tooling (CLI, scaffolding, template pack)            │
+├─────────────────────────────────────────────────────────┤
+│ 5. Modules (yours + third-party)                        │
+├─────────────────────────────────────────────────────────┤
+│ 4. Companion packages (Data, Eventing, Observability…)  │
+├─────────────────────────────────────────────────────────┤
+│ 3. Hosts (Cephalon.AspNetCore, Cephalon.Worker)         │
+├─────────────────────────────────────────────────────────┤
+│ 2. Engine (Cephalon.Engine)                             │
+├─────────────────────────────────────────────────────────┤
+│ 1. Abstractions (Cephalon.Abstractions)                 │
+└─────────────────────────────────────────────────────────┘
+```
+
+<FeatureGrid
+  columns={3}
+  features={[
+    {
+      icon: '1️⃣',
+      title: 'Abstractions',
+      description: 'Cephalon.Abstractions — pure contracts modules build against. IModule, ModuleDescriptor, Capability, ICapabilityRegistry, app-model types, transport types. No reflection, no DI calls.',
+    },
+    {
+      icon: '2️⃣',
+      title: 'Engine',
+      description: 'Cephalon.Engine — composition, dependency ordering, manifest v2 generation, capability registry, technology contributors, lifecycle execution, integrity verification.',
+    },
+    {
+      icon: '3️⃣',
+      title: 'Hosts',
+      description: 'Cephalon.AspNetCore, Cephalon.Worker — adapt the engine to a runtime (HTTP server, generic host). Provide transport mapping and host-specific extension points.',
+    },
+    {
+      icon: '4️⃣',
+      title: 'Companion packages',
+      description: 'Cephalon.Data, Cephalon.Eventing, Cephalon.Observability, Cephalon.Identity, … — optional, opt-in capability providers the engine wires deterministically.',
+    },
+    {
+      icon: '5️⃣',
+      title: 'Modules',
+      description: 'Authored by adopters or shared as packages. Declare descriptors, capabilities, services, behaviours. Reference companion packages as needed.',
+    },
+    {
+      icon: '6️⃣',
+      title: 'Tooling',
+      description: 'Cephalon.Cli, Cephalon.Scaffolding, Cephalon.ReferenceDocs, Cephalon.TemplatePack — generate, inspect, document. Never required at runtime.',
+    },
+  ]}
+/>
+
+### Why this ordering matters
+
+- **Abstractions never reference Engine.** That keeps the contracts stable while the engine implementation evolves.
+- **Engine never references Hosts.** Multiple hosts can adapt the same engine — that's how the modular monolith and the worker share code.
+- **Companion packages never reference Modules.** Capabilities (data, eventing) are usable by *any* module, including ones that don't exist yet.
+- **Modules can reference companion packages but not the host.** That keeps modules transport-neutral — a `Products` module works in REST, gRPC, GraphQL, JSON-RPC, or no transport at all.
+
+## How a request flows
+
+For a REST request to `GET /products/p-001`:
+
+```text
+1. HTTP request lands on Kestrel
+2. ASP.NET Core middleware: auth, logging, tenancy resolution
+3. Cephalon behaviour pipeline (built by the engine):
+     ↓ audit decorator
+     ↓ metrics decorator
+     ↓ auth decorator (WithRequireScope)
+     ↓ tenant-context decorator
+     → GetProductBehavior.Handle(...)
+         → IProductCatalog.FindAsync(...)
+             → ProductsDbContext.Products.FirstOrDefaultAsync(...)
+4. Response serialised + returned through the decorator chain (in reverse)
+```
+
+Each layer adds exactly one concern. Your handler code stays focused on domain logic — auth, audit, metrics, tenancy are wired by capabilities, not hand-written into every endpoint.
+
+## Engine responsibilities
+
+The engine is the smallest stable surface. It **guarantees**:
+
+| Guarantee | How |
+| --- | --- |
+| **Validation** | Duplicate module descriptors, conflicting capability providers, and missing dependencies fail at composition time. |
+| **Deterministic ordering** | `DependsOn` is resolved via topological sort before any lifecycle hook runs. |
+| **Module discovery** | From referenced assemblies, explicit DLL paths, package manifests, or package directories. |
+| **Package compatibility** | Engine version, target frameworks, publisher provenance, signature verification all enforced. |
+| **Integrity** | Package assembly hashes validated against trust-store entries (when signing metadata is present). |
+| **Capability registration** | Explicit or contributed via `ITechnologyContributor`, `ITechnologyServiceContributor`, `ITechnologyCapabilityContributor`. |
+| **Cell boundaries** | `ICellBoundaryContributor`, `ICellRouteContributor` with queryable cell catalogs at runtime. |
+| **CDC posture** | `ICdcCaptureContributor`, `ICdcCaptureCatalog`, runtime state catalog, typed freshness/lag status. |
+| **Lifecycle** | `OnRegister` → `OnStart` deterministic; `OnStop` reverse-order; `OnFailure` for emergency draining. |
+| **Language packs** | Merged from base + project + package contributions. |
+| **Runtime manifest** | Typed, versioned `v2`, source-traced. |
+| **Health aggregation** | Host-agnostic dependency health composes into the runtime catalog. |
+
+The engine **never**:
+
+- Owns a transport. Hosts do.
+- Owns a database driver. Companion packages do.
+- Owns an HTTP route. Modules do.
+
+## Runtime contract
+
+Every shipped engine version publishes a **runtime contract** that names:
+
+- The `/engine/*` HTTP routes hosts expose.
+- The `snapshot.*` configuration keys hosts read.
+- The runtime catalog interfaces modules implement or consume.
+- The manifest schema version.
+
+The current contract: **[Reference → Architecture → Runtime contracts](/0-1-0-preview/reference/architecture/runtime-contracts/)**.
+
+### Why a typed contract matters
+
+- **Operators can dashboard `/engine/*`** without scraping app logs. Every Cephalon app exposes the same routes.
+- **Modules can introspect at runtime** — a tenant module checks `snapshot.capabilities` to decide whether to enable eventing-backed flows.
+- **CI / conformance tests** assert that the manifest contains expected modules — version drift is caught before deploy.
+- **Cross-version analysis** — diff manifests between versions to see what changed.
+
+## App model dimensions
+
+A Cephalon app is described by six dimensions. The blueprint and CLI take this as input and produce a generated host that matches the choice.
+
+```text
+Composition model    : Modular
+Deployment topology  : SingleHost | Microservice | MicroserviceSuite
+Feature organization : VerticalSlice | ModuleFirst
+Shared foundation    : always on
+Transport surface    : { RestApi, JsonRpc, Grpc, GraphQL, SSE, WebSocket }+
+Behavioural extension: strategy hooks per module
+```
+
+### Visualising the dimensions
+
+```text
+                  ┌── RestApi ────┐
+                  │               │
+Transport ────────┼── Grpc ───────┤   (pick any combination)
+                  │               │
+                  └── GraphQL ────┘
+
+                  ┌── SingleHost (one process, modular monolith)
+                  │
+Topology  ────────┼── Microservice (multiple processes, shared eventing)
+                  │
+                  └── MicroserviceSuite (multiple bounded contexts)
+
+                  ┌── ModuleFirst   (folders per module, "vertical")
+Organization ─────┤
+                  └── VerticalSlice (folders per feature, "horizontal")
+```
+
+The dimensions are **independent** — pick `Modular` composition + `Microservice` topology + `RestApi+Grpc` transports + `ModuleFirst` organization, and the scaffold generates exactly that combination.
+
+### Example: from monolith to microservice suite
+
+You start with a `SingleHost` modular monolith. After 18 months, the Orders feature has 10× the traffic of the rest of the app — it needs its own scale profile.
+
+**Without CephalonEngine**, this is a 6-month rewrite: re-extracting domain code, building a new HTTP API, setting up new deployment.
+
+**With CephalonEngine**:
+
+1. Generate a new `Orders` service: `cephalon new Acme.Orders --output ./orders --topology Microservice`.
+2. Copy the `Orders` module project into the new service (no code changes).
+3. Update both services to use the same eventing transport (`Wolverine: RabbitMq`).
+4. Switch the old host's Orders REST behaviours to call the new service via HTTP / gRPC.
+5. Deploy both services.
+
+Domain code is unchanged. The engine guarantees that modules work the same whether composed into one host or many.
+
+Full migration playbook: **[Migration → From a modular monolith to microservices](/0-1-0-preview/migration/from-modular-monolith/)**.
+
+## Module-package relationship
+
+Modules **declare capabilities**. Companion packages **provide capabilities**. The engine validates at composition time that every declared capability has at least one provider.
+
+```text
+┌─────────────────────────────────┐
+│ Module: Acme.Billing            │
+│   declares: Data, Eventing      │
+└────────┬──────────┬─────────────┘
+         │          │
+         ▼          ▼
+   ┌─────────┐ ┌──────────────────────────────┐
+   │ Data    │ │ Eventing                     │
+   │ provider│ │ provider                     │
+   │ EF Core │ │ Wolverine                    │
+   │ M3      │ │ M3                           │
+   └─────────┘ └──────────────────────────────┘
+
+           validated at composition →
+           "every declared capability has a provider"
+```
+
+This separation is why CephalonEngine has 40+ companion packages but a tiny engine surface. **Every package is optional; nothing leaks into the abstractions layer.**
+
+### Example: choosing your data provider
+
+The same `Acme.Billing` module that declares `Capability.Data` works with **any** registered data provider:
+
+- `Cephalon.Data.EntityFramework` + Postgres in production
+- `Cephalon.Data.EntityFramework` + SQL Server in another deployment
+- An in-memory test double in unit tests
+
+The module code doesn't change. The provider is wired in `Program.cs` per host:
+
+```csharp title="Program.cs (production)"
+builder.Services
+    .AddCephalonAspNetCore()
+    .AddData(o => o.UseEntityFramework().UsePostgres(conn))
+    .AddModulesFromAssemblies(typeof(Program).Assembly);
+```
+
+```csharp title="Program.cs (tests)"
+builder.Services
+    .AddCephalonAspNetCore()
+    .AddData(o => o.UseInMemoryStore())     // different provider, same capability
+    .AddModulesFromAssemblies(typeof(Program).Assembly);
+```
+
+## Maturity ladder
+
+Every package carries an explicit maturity label so you know what to depend on:
+
+| Label | Meaning | Adopt? |
+| --- | --- | --- |
+| **`M0`** | Taxonomy-only. Name and shape exist, no behaviour claim. | No — for forward-looking reference only. |
+| **`M1`** | Catalog-only. Descriptors and runtime catalogs in place, no managed execution. | Read-only introspection only. |
+| **`M2`** | Narrow execution. Single vertical proof — happy path works on one config. | OK for narrow scenarios; verify your specific path is exercised. |
+| **`M3`** | Broad execution. Multiple paths working together. Composes well with other packages. | Yes for production where additive change is acceptable. |
+| **`M4`** | Adoption-ready. Consumers can rely on it across project shapes. Stability commitment. | Yes for production with frozen-contract expectations. |
+
+Adopters should treat anything below `M4` as something that **may evolve additively** without a stability commitment. The current per-package ladder lives in the **[Engine surface maturity audit](/0-1-0-preview/reference/architecture/maturity/)**.
+
+### How to read maturity labels in practice
+
+If you're choosing between two providers (e.g. EF Core data vs raw `Cephalon.Data` driver), pick the one with the higher maturity label even if the other has more features today — `M4` features are stable; `M2` features may shift.
+
+## Boundaries you can rely on
+
+| Boundary | What it means |
+| --- | --- |
+| **Engine version** is the stability anchor | Two packages built against the same engine version are compatible by construction. |
+| **Manifest schema version** is a separate axis | Schema bumps come with migration notes in **[Migration → Version upgrades](/0-1-0-preview/migration/version-upgrades/)**. |
+| **Deployment-mode contract** advertises support | What's supported (`net10.0`, AOT/trim/single-file posture). Exposed by `cephalon doctor` and `snapshot.deploymentMode`. |
+| **Package signature chain** | Validates engine-blessed publishers via trust-store entries. Optional but recommended for shared environments. |
+
+## Common architectural questions
+
+### Q: Where should my domain code live?
+
+In **modules**. Each module is a `csproj` containing:
+- The module class (`IModule` implementation)
+- Domain entities + value objects
+- Domain services (`IServiceCollection` registrations)
+- Behaviours (REST profiles, message handlers, etc.)
+- Tests
+
+The host project should be **thin** — just `Program.cs` and `appsettings.json`. All meaningful code lives in modules.
+
+### Q: How do modules share types?
+
+Via a **foundation module** that declares no capability and only registers common services:
+
+```csharp
+public sealed class FoundationModule : IModule
+{
+    public ModuleDescriptor Describe() => new("Acme.Foundation", "1.0.0");
+
+    public void RegisterServices(IServiceCollection services)
+    {
+        services.AddSingleton<IClock, SystemClock>();
+        services.AddSingleton<ICorrelationContext, AsyncCorrelationContext>();
+    }
+}
+```
+
+Other modules then declare `dependsOn: ["Acme.Foundation"]` and consume `IClock` from DI.
+
+### Q: How do modules cross-call each other?
+
+Through **typed contracts**, not module classes:
+
+```csharp
+// Bad — coupling to a specific module class
+var orders = services.GetRequiredService<OrdersModule>();
+
+// Good — coupling to a contract that any module can provide
+public interface IOrderQuery { Task<Order?> FindAsync(string id, CancellationToken ct); }
+
+public sealed class OrdersModule : IModule
+{
+    public void RegisterServices(IServiceCollection services) =>
+        services.AddScoped<IOrderQuery, EfOrderQuery>();
+}
+
+public sealed class BillingModule : IModule
+{
+    // BillingModule uses IOrderQuery without knowing OrdersModule exists
+    public void RegisterServices(IServiceCollection services) =>
+        services.AddScoped<IInvoiceService, InvoiceService>();
+}
+```
+
+If OrdersModule is later split into its own microservice, you only swap the `IOrderQuery` implementation (e.g. `HttpOrderQuery`) — every consumer is unaffected.
+
+### Q: What about cross-cutting concerns (logging, metrics)?
+
+Capabilities for the engine-known ones (`Audit`, `Identity`, `Tenancy`). Plain DI for the rest (`ILogger`, `IMeter` from `System.Diagnostics.Metrics`, etc.).
+
+For new cross-cutting concerns, **write a decorator** around the behaviour pipeline. See **[Reference → Architecture → Behaviour pipeline](/0-1-0-preview/reference/architecture/)** for the contract.
+
+### Q: How does authorisation work?
+
+Three layers:
+
+1. **ASP.NET Core authentication** (Bearer / cookies / etc.) — runs before the behaviour pipeline.
+2. **Engine identity capability** (`Cephalon.Identity`) — exposes the principal as `IUserContext` to modules.
+3. **Behaviour-level checks** — `WithRequireScope("orders:write")`, `WithRequireRole("admin")` on the behaviour route. Engine rejects unauthorised callers before the handler runs and emits an audit entry.
+
+## Architectural tips & heuristics
+
+The decision shortcuts experienced CephalonEngine architects use.
+
+### Design heuristics
+
+- **"One bounded context per module"** — if you can name what the module covers in one short noun phrase ("billing", "shipping"), it's right-sized.
+- **"If you can't tell which module a class belongs to, you've got a coupling problem."** A type that's needed by two modules belongs in a foundation/shared module, or one module should expose a service contract the other consumes.
+- **"Capabilities are nouns, not verbs."** `Capability.Data` (a thing the engine wires) vs `Capability.CanReadProducts` (no — that's a service-level concern).
+- **"Defer the microservice split until you have evidence."** Splitting a healthy modular monolith into microservices "for future-proofing" almost always loses more time than it saves. Real reasons to split: scale profile, security boundary, release-cadence divergence.
+
+### Module-boundary patterns
+
+| Pattern | Use when | Avoid when |
+| --- | --- | --- |
+| **Service-contract module** (interface in one module, impl in another) | Cross-cutting infrastructure (clock, correlation, audit) | Domain logic — keep impls colocated with their domain |
+| **Module-per-aggregate-root** | DDD-style design with strong aggregate boundaries | Small / simple domains (modular monolith with 3-4 modules is fine) |
+| **Module-per-feature** | Vertical-slice teams optimising for end-to-end ownership | Teams that share infrastructure heavily |
+| **Read-model module** (separate from write side) | CQRS, OLAP/reporting needs | Simple CRUD apps — you'll fight the engine for no gain |
+
+### Transport choice heuristics
+
+```text
+External client (browser, mobile, third-party)     → REST + OpenAPI
+Internal service-to-service in same datacenter     → gRPC (if both are .NET) else REST
+Aggregating data across many modules into one read → GraphQL
+Real-time push to browser                          → SSE (one-way) or WebSocket (two-way)
+Event-driven async                                 → Eventing capability (no public transport)
+IDE / language-server protocol                     → JSON-RPC
+```
+
+### Capability composition tips
+
+- **Most apps need 2–3 capabilities, not all of them.** Start with `Data` + `Audit`; add `Eventing` when you actually emit events; add `Identity` when you have auth; add `Tenancy` when you onboard the second tenant.
+- **Capability gates are configuration, not code.** A module can `[Event]`-decorate its types unconditionally; the engine only wires the eventing pipeline when `Messaging:Enabled=true`.
+- **`Audit` is on by default for a reason.** Disable it only if you have a regulatory reason to keep no trail.
+
+### Scalability decision tree
+
+```text
+First, ask: is the bottleneck CPU, memory, I/O, or network?
+
+CPU-bound        → Horizontal scale + sticky-less request routing
+                    (avoid in-process caches; use Redis)
+Memory-bound     → Vertical scale OR partition state by tenant/customer
+I/O-bound (DB)   → Read replicas + caching (cache-aside pattern)
+Network-bound    → Bring services closer (same datacenter, same VPC)
+                    or consider edge runtime (Cephalon.Edge)
+
+Don't scale on metrics you haven't measured.
+```
+
+### Data architecture heuristics
+
+- **Write side = your domain.** OLTP, strong consistency, EF Core + Postgres/SQL Server.
+- **Read side = optional, optimised for queries.** Materialise into ClickHouse / Elasticsearch / Redis when latency matters.
+- **CDC or event-driven projection** to keep read side fresh. Both work; CDC has lower latency but more ops cost.
+- **One database per service**, not one shared database. Two services sharing a DB are one service in disguise.
+
+### Eventing heuristics
+
+- **Events are facts, not commands.** `OrderPlaced` (fact) is right. `PlaceOrder` (command) belongs in a request, not an event.
+- **Make events idempotent-safe.** Include an `EventId` that consumers can use for deduplication.
+- **Outbox table = at-least-once delivery.** No exactly-once magic; design handlers idempotently or use the inbox pattern.
+- **One handler per (event, concern)**. Don't pile up cross-cutting work in a single handler.
+
+### Failure & resilience
+
+- **The engine crashes the host on composition failure — by design.** Orchestrators (Kubernetes, systemd, App Service) see the failure and restart. Don't try to "recover" composition; fix it.
+- **Module `OnStart` failures should crash the host** too. Half-started modules are worse than no service.
+- **Behaviour-level failures don't crash anything.** They become an HTTP error or a DLQ entry. The behavior pipeline absorbs them.
+- **Use circuit breakers (Polly) outside the engine** for downstream calls. The engine itself doesn't ship resilience policies — those belong in the consuming module.
+
+### Versioning
+
+- **Engine version = stability anchor.** Two packages on the same engine version are compatible by construction.
+- **Module version = your release**. Bump it when the module's surface changes.
+- **Event version = wire-format**. Bump it when the event's schema changes (consumers need both versions during migration).
+- **Manifest schema version** = engine ABI. Changes are tracked in **[Migration → Breaking changes](/0-1-0-preview/migration/breaking-changes/)**.
+
+### Operating heuristics
+
+- **Dashboard `/engine/manifest` diffs** — version-skew between replicas is invisible in logs but obvious in the manifest.
+- **Alert on `cephalon.engine.started` missing after deploy** — readiness probes catch process crashes; this catches composition failures.
+- **Set the OTLP resource attributes** explicitly (`Engine:Id`, `Engine:Deployment:Id`) so multiple deployments of the same product don't blur into each other in traces.
+
+### Anti-patterns
+
+| Anti-pattern | What goes wrong | Do instead |
+| --- | --- | --- |
+| "Plugin marketplace" that loads modules at runtime | Composition becomes nondeterministic; rollback is hard | Assembly-discovered modules at build time, signed packages |
+| One giant module for "the app" | Lifecycle hooks become a mess; nothing's reusable | Decompose by bounded context |
+| Modules calling host APIs directly | Locks the module to a host kind | Use capability contracts |
+| Sharing entity types across modules | Breaks the bounded-context boundary | Each module owns its types; cross-module queries via service contracts |
+| Catching exceptions in modules to "be safe" | Hides real bugs | Let composition / lifecycle hooks fail; only catch what you can recover |
+| Async-over-sync (`Task.Run` for everything) | Wastes threadpool, hides latency | Async I/O end-to-end; CPU work goes to `Parallel.ForEach` or background channels |
+
+## Where to go next
+
+- **[Concepts](/0-1-0-preview/guide/concepts/)** — the smaller mental model.
+- **[Reference → Runtime contracts](/0-1-0-preview/reference/architecture/runtime-contracts/)** — the typed contract every engine version publishes.
+- **[Reference → Maturity audit](/0-1-0-preview/reference/architecture/maturity/)** — per-package `M0`-`M4` ladder.
+- **[Tutorial → First-app](/0-1-0-preview/tutorials/first-app/)** — apply all of this to a real codebase.
+- **[Contributing → Engineering standards](/0-1-0-preview/contributing/engineering-standards/)** — the constraints engine maintainers hold themselves to.

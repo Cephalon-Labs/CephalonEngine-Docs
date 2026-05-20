@@ -1,0 +1,68 @@
+---
+title: Hosts
+description: Cephalon.AspNetCore (REST + SSE + WebSocket) plus the GraphQL, gRPC, and JSON-RPC adapter packages — and the headless Cephalon.Worker.
+sidebar:
+  order: 2
+editUrl: false
+---
+
+A **host** wraps your app's process. Cephalon ships two: an ASP.NET Core host (HTTP-flavoured) and a worker host (no HTTP). The HTTP host has additional adapter packages for non-REST transports.
+
+## Packages
+
+Click any package name to jump to its **source-doc** (canonical per-package detail).
+
+| Package | NuGet ID | Maturity | Capability | What it ships |
+| --- | --- | --- | --- | --- |
+| **[ASP.NET Core](/0-1-0-preview/source/components/aspnetcore/)** | `Cephalon.AspNetCore` | `M3` | `HttpHost` | The HTTP host adapter — REST, SSE, WebSocket. Wires `MapCephalon()` + `/engine/manifest` + ProblemDetails. |
+| **[GraphQL](/0-1-0-preview/source/components/aspnetcore-graphql/)** | `Cephalon.AspNetCore.GraphQL` | `M3` | `GraphQLHost` | GraphQL adapter on top of the HTTP host. Uses HotChocolate. |
+| **[gRPC](/0-1-0-preview/source/components/aspnetcore-grpc/)** | `Cephalon.AspNetCore.Grpc` | `M3` | `GrpcHost` | gRPC adapter. Generated `.proto` → behavior wiring. |
+| **[JSON-RPC](/0-1-0-preview/source/components/aspnetcore-jsonrpc/)** | `Cephalon.AspNetCore.JsonRpc` | `M3` | `JsonRpcHost` | JSON-RPC 2.0 adapter. |
+| **[Worker](/0-1-0-preview/source/components/worker/)** | `Cephalon.Worker` | `M3` | `WorkerHost` | Headless `IHostedService`-style host for background workloads. |
+
+## Install matrix
+
+| Scenario | Packages |
+| --- | --- |
+| REST API only | `Cephalon.AspNetCore` |
+| REST + GraphQL | + `Cephalon.AspNetCore.GraphQL` |
+| REST + gRPC | + `Cephalon.AspNetCore.Grpc` |
+| REST + JSON-RPC | + `Cephalon.AspNetCore.JsonRpc` |
+| Multiple transports (REST + gRPC + GraphQL) | All three adapter packages |
+| Headless worker (no HTTP) | `Cephalon.Worker` |
+| Worker that also exposes /health | `Cephalon.AspNetCore` + `Cephalon.Worker` |
+
+## Configuration
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Transports": ["RestApi", "Grpc", "GraphQL"]    // which adapters are active
+  }
+}
+```
+
+| `Engine:Transports` value | Requires package |
+| --- | --- |
+| `"RestApi"` | `Cephalon.AspNetCore` |
+| `"GraphQL"` | `Cephalon.AspNetCore.GraphQL` |
+| `"Grpc"` | `Cephalon.AspNetCore.Grpc` |
+| `"JsonRpc"` | `Cephalon.AspNetCore.JsonRpc` |
+| `"ServerSentEvents"` | `Cephalon.AspNetCore` |
+| `"WebSocket"` | `Cephalon.AspNetCore` |
+
+## Routes auto-registered by `Cephalon.AspNetCore`
+
+| Path | Purpose |
+| --- | --- |
+| `GET /engine/manifest` | Engine + modules manifest (capabilities, versions). |
+| `GET /engine/snapshot` | Resolved configuration as the engine sees it. |
+| `GET /health` | Standard ASP.NET Core health endpoint with module probes. |
+| `GET /openapi/v1.json` | OpenAPI spec (if module has REST behaviors). |
+
+Module-defined routes layer on top via `app.MapCephalon()`.
+
+## See also
+
+- **[Technology → Hosts](/0-1-0-preview/technology/hosts/)** — narrative + behavior-pipeline walkthrough.
+- **[Reference → Configuration](/0-1-0-preview/reference/configuration/)** — `Engine:Transports` schema.

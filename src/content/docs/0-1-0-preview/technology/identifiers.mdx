@@ -1,0 +1,361 @@
+---
+title: Identifiers
+description: Cephalon.Ids.Sfid + alternative id strategies (Guid, Long, custom). Decision matrix, EF Core value converter, performance characteristics, anti-patterns.
+sidebar:
+  order: 12
+editUrl: false
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+CephalonEngine ships an opinionated default for **database identifiers** (Sfid) but doesn't lock you in. This page covers all four supported strategies, the trade-offs, and how to plug a custom one in.
+
+## Packages
+
+| Package | Maturity | What it ships |
+| --- | --- | --- |
+| **`Cephalon.Ids.Sfid`** | `M3` | Low-ceremony database ids backed by **[Sfid.Net](https://github.com/sfid/sfid-net)**. EF Core value converter, JSON converter, model-builder extension. |
+
+The `Sfid` type itself comes from **Sfid.Net** (a small Sfid spec library). `Cephalon.Ids.Sfid` is the engine integration: EF Core converter, optional `IdStrategy.Sfid` registration, and the `IIdGenerator<Sfid>` service for non-EF cases.
+
+## The four id strategies
+
+CephalonEngine recognises four `Engine:Data:IdStrategy` values:
+
+| Strategy | Sortable? | Size | URL-safe | When to pick |
+| --- | --- | --- | --- | --- |
+| **`Sfid`** *(default)* | ✅ k-sortable | 16 bytes (binary) / 26 chars (text) | ✅ Crockford base32 | **Most new tables.** Good index locality + global uniqueness + URL-safe. |
+| **`Guid`** *(v7)* | ✅ k-sortable | 16 bytes | ❌ (use hex / base64) | When you need standard GUID format for interop with external systems or you're migrating from a `Guid`-keyed schema. |
+| **`Long`** | ✅ insert-order | 8 bytes | ✅ digits | Append-mostly tables where the DB-issued sequence is fine. Smaller footprint than 16-byte ids. |
+| **`Custom`** | depends | depends | depends | When you have an existing id format (Twitter-snowflake, Hilo, K-Sortable Unique IDentifier, NanoID) you want to preserve. |
+
+### Why Sfid is the default
+
+Sfid (the Sfid.Net implementation of the [Sfid spec](https://github.com/sfid/spec)) gives you:
+
+- **k-sortable** — ids generated within the same millisecond cluster together. Excellent for B-tree indexes (avoids page-split storms common with random Guids).
+- **Globally unique** — 48-bit timestamp + 80-bit random suffix. Collisions astronomically unlikely.
+- **Compact text form** — 26 characters using Crockford base32 (`0-9, A-Z` minus `I L O U`). Case-insensitive, URL-safe, unambiguous when read aloud.
+- **Type-safe** — `Sfid` is its own value type — never confused with an arbitrary string. The compiler catches "passing a `UserId` where `OrderId` is expected" if you use strong-typed id wrappers.
+
+```text
+01HQ8RVKSXM4Y8RBVPDC0E9YHZ
+└┬─────────┘└┬───────────┘
+ │           │
+ │           └─ 80-bit randomness
+ └─ 48-bit unix-ms timestamp (k-sortable)
+```
+
+## Configuring the id strategy
+
+### Engine-wide default
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Data": {
+      "IdStrategy": "Sfid"          // Sfid | Guid | Long | Custom
+    }
+  }
+}
+```
+
+### Per-DbContext or per-entity override
+
+Sometimes a single app uses different strategies for different tables (e.g. Sfid for new entities, Long for an existing legacy table). Override at the entity level:
+
+```csharp title="ProductsDbContext.cs" {7-9}
+public sealed class ProductsDbContext : DbContext
+{
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        // Sfid for new entities (engine default)
+        modelBuilder.Entity<Product>().UseSfidPrimaryKey();
+        modelBuilder.Entity<Catalog>().UseSfidPrimaryKey();
+
+        // Long for the legacy invoice table
+        modelBuilder.Entity<LegacyInvoice>().HasKey(i => i.InvoiceNumber);
+    }
+}
+```
+
+## Sfid in EF Core
+
+### Property type
+
+```csharp title="Product.cs"
+public sealed class Product
+{
+    public Sfid Id { get; init; }
+    public string Sku { get; init; } = string.Empty;
+    public decimal Price { get; init; }
+}
+```
+
+The `Sfid` value type is a `readonly struct` (16 bytes on the stack). It behaves like a primitive in every way except the API — equality, comparison, and hash code are based on the underlying bytes.
+
+### Value converter (auto-wired by `UseSfidPrimaryKey`)
+
+`Cephalon.Ids.Sfid` registers a converter that stores Sfids as `BINARY(16)` (Postgres `bytea`, SQL Server `BINARY(16)`, MySQL `BINARY(16)`, MongoDB binary subtype 0x04). This is the most compact + index-friendly storage.
+
+If you'd rather store the text form:
+
+```csharp title="ProductsDbContext.cs"
+modelBuilder.Entity<Product>()
+    .Property(p => p.Id)
+    .HasConversion(new SfidToStringConverter());     // 26-char base32
+```
+
+### Generation
+
+By default, the engine generates Sfids client-side at `SaveChanges`. To control this:
+
+```csharp
+// Inject the generator anywhere
+public sealed class CreateProductHandler(IIdGenerator<Sfid> ids)
+{
+    public Sfid Handle(string sku, decimal price)
+    {
+        var product = new Product { Id = ids.NewId(), Sku = sku, Price = price };
+        // ... persist
+        return product.Id;
+    }
+}
+```
+
+`IIdGenerator<Sfid>` is registered as a singleton — safe to inject anywhere.
+
+### JSON serialization
+
+The default `System.Text.Json` converter renders Sfids as base32 strings:
+
+```jsonc
+{ "id": "01HQ8RVKSXM4Y8RBVPDC0E9YHZ", "sku": "WIDGET-1", "price": 12.50 }
+```
+
+For `Newtonsoft.Json` interop, add `Cephalon.Ids.Sfid.Newtonsoft` (separate package) and call `JsonConvert.DefaultSettings += s => s.Converters.Add(new SfidJsonConverter())`.
+
+## Use-case scenarios
+
+### Scenario 1: greenfield app with Sfid
+
+The default. Nothing to configure beyond `IdStrategy: "Sfid"` (which is implicit).
+
+```csharp title="ProductsDbContext.cs"
+modelBuilder.Entity<Product>().UseSfidPrimaryKey();
+```
+
+Generated ids look like `01HQ8RVKSXM4Y8RBVPDC0E9YHZ` in URLs, JSON, logs, and DB queries.
+
+### Scenario 2: GUID-keyed schema interop
+
+You're talking to an external service that issues UUIDv7s. Pick `Guid`:
+
+```jsonc title="appsettings.json"
+{ "Engine": { "Data": { "IdStrategy": "Guid" } } }
+```
+
+EF Core's default `Guid` handling kicks in. CephalonEngine doesn't replace EF's Guid generation — it just steps out of the way.
+
+```csharp title="Product.cs"
+public sealed class Product
+{
+    public Guid Id { get; init; }
+    public string Sku { get; init; } = string.Empty;
+}
+```
+
+<div class="ce-callout ce-callout--warn">
+<span class="ce-callout__icon" aria-hidden="true">⚠️</span>
+<div>**Use UUIDv7, not v4.** Random Guids (v4) destroy B-tree index locality, causing page-split storms in Postgres / SQL Server. EF Core 9+ supports `Guid.CreateVersion7()` natively. Set <code>builder.Property(p =&gt; p.Id).HasDefaultValueSql("uuidv7()")</code> on Postgres 18+, or generate v7 ids client-side.</div>
+</div>
+
+### Scenario 3: append-mostly table with Long
+
+```jsonc
+{ "Engine": { "Data": { "IdStrategy": "Long" } } }
+```
+
+```csharp title="AuditLog.cs"
+public sealed class AuditLog
+{
+    public long Id { get; init; }    // DB-issued (IDENTITY / SERIAL / AUTO_INCREMENT)
+    public DateTime CreatedAt { get; init; }
+    public string Action { get; init; } = string.Empty;
+}
+```
+
+EF Core wires up `IDENTITY` (SQL Server / MySQL / Oracle) or `BIGSERIAL` (Postgres) automatically. Inserts are batchable and the smallest possible (8 bytes vs 16).
+
+**Trade-offs:**
+
+| Pro | Con |
+| --- | --- |
+| Smallest index footprint | Not globally unique — id only meaningful in one DB |
+| Append-friendly | Can't generate client-side without DB round-trip |
+| Trivial to share with humans | Predictable — don't use in URLs without ACL guard |
+
+### Scenario 4: mixed strategy in one app
+
+A real app often mixes strategies. The setup:
+
+```jsonc title="appsettings.json"
+{ "Engine": { "Data": { "IdStrategy": "Sfid" } } }   // default
+```
+
+Then override per entity:
+
+```csharp title="ProductsDbContext.cs"
+public sealed class ProductsDbContext : DbContext
+{
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // New entities: Sfid (engine default — no override needed)
+        modelBuilder.Entity<Product>().UseSfidPrimaryKey();
+        modelBuilder.Entity<Catalog>().UseSfidPrimaryKey();
+
+        // High-volume append table: Long
+        modelBuilder.Entity<AuditLog>().HasKey(a => a.Id);
+        modelBuilder.Entity<AuditLog>().Property(a => a.Id).ValueGeneratedOnAdd();
+
+        // External integration: Guid v7 (issued upstream)
+        modelBuilder.Entity<ExternalOrder>().HasKey(o => o.UpstreamId);
+    }
+}
+```
+
+### Scenario 5: custom strategy (Snowflake)
+
+For Twitter-style snowflake ids (used at Discord, X, others):
+
+```jsonc title="appsettings.json"
+{ "Engine": { "Data": { "IdStrategy": "Custom" } } }
+```
+
+Register your generator:
+
+```csharp title="Program.cs"
+builder.Services.AddSingleton<IIdGenerator<long>>(new SnowflakeGenerator(machineId: 1));
+```
+
+```csharp title="SnowflakeGenerator.cs"
+public sealed class SnowflakeGenerator(int machineId) : IIdGenerator<long>
+{
+    private long _sequence;
+    private long _lastTimestamp;
+    private readonly object _lock = new();
+
+    public long NewId()
+    {
+        lock (_lock)
+        {
+            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            // ... snowflake bit-packing
+            return (timestamp << 22) | ((long)machineId << 12) | _sequence++;
+        }
+    }
+}
+```
+
+The engine doesn't care about the custom format — your generator owns it. The `IdStrategy: "Custom"` flag just tells the runtime not to auto-register Sfid / Guid / Long generators.
+
+### Scenario 6: strong-typed id wrappers
+
+Common pattern to prevent "passing OrderId where UserId is expected" bugs:
+
+```csharp title="OrderId.cs"
+public readonly record struct OrderId(Sfid Value)
+{
+    public static OrderId New() => new(Sfid.NewSfid());
+    public override string ToString() => Value.ToString();
+    public static implicit operator Sfid(OrderId id) => id.Value;
+}
+```
+
+```csharp title="Order.cs"
+public sealed class Order
+{
+    public OrderId Id { get; init; }
+    public UserId CustomerId { get; init; }
+}
+```
+
+```csharp title="OrdersDbContext.cs"
+modelBuilder.Entity<Order>()
+    .Property(o => o.Id)
+    .HasConversion(id => id.Value, value => new OrderId(value));
+```
+
+Now `customerService.GetById(orderId)` fails to compile — you must convert explicitly.
+
+## Performance characteristics
+
+| Strategy | Generation cost | Storage cost | Index locality | DB round-trip |
+| --- | --- | --- | --- | --- |
+| **Sfid** | ~50ns (RNG + clock) | 16 bytes | ★★★★★ (k-sortable) | None (client-side) |
+| **Guid v7** | ~30ns | 16 bytes | ★★★★☆ (k-sortable) | None (client-side or `uuidv7()`) |
+| **Guid v4** | ~30ns | 16 bytes | ★ (random) | None |
+| **Long (DB-issued)** | trivial | 8 bytes | ★★★★★ (sequential) | 1 round-trip on insert |
+| **Snowflake** | ~50ns | 8 bytes | ★★★★★ (k-sortable) | None (client-side) |
+
+Numbers are illustrative; actual cost depends on hardware. **The "Index locality" stars correlate with insert throughput on Postgres / SQL Server** — random Guids can cut insert throughput by 10× on large tables.
+
+## Limits & gotchas
+
+- **Sfid is 16 bytes**, the same as a Guid. There's no storage saving over Guid v7. The benefit is k-sortability + URL-safe text form + type safety.
+- **Sfid doesn't carry tenant identity.** Don't try to encode tenant id in the Sfid suffix — use the tenancy capability (`Cephalon.MultiTenancy`) for tenant resolution.
+- **Don't index on the text form.** Always store and index the binary form; the text representation is for URLs, logs, and JSON.
+- **Client-side generated ids can collide if you rewind the clock.** Make sure your servers don't NTP-jump backwards more than a few seconds at a time.
+- **`Sfid` is not a UUID.** It's wire-compatible with binary(16) but the text format is different. Don't try to `Parse` a UUID string as a Sfid.
+- **`IIdGenerator<Sfid>` is a singleton.** Don't register a per-request or scoped variant — it'd serialise insert workloads.
+
+## Tips & tricks
+
+### When to deviate from Sfid
+
+- **You need a 64-bit id for legacy compatibility.** Use `Long` (DB-issued) or a Snowflake `Long`.
+- **Your platform issues UUIDv7s as the canonical id format.** Use `Guid`. (Especially common with Postgres 18 + `uuidv7()`.)
+- **You need a smaller-than-16-byte id in a write-heavy table.** Consider `Long`.
+- **The team is allergic to non-standard id formats.** Use `Guid v7` — same k-sortability, more familiar shape.
+
+### Naming conventions
+
+- **PK column name**: `Id` for the entity's primary key. `EntityNameId` for foreign keys (e.g. `CustomerId`).
+- **Strong-typed wrapper**: `EntityNameId` (no `Sfid` suffix). The implementation detail of "it wraps an Sfid" doesn't belong in the type name.
+- **JSON property casing**: lowercase `id`, even when the C# property is `Id`. Standard ASP.NET JSON convention.
+
+### Migration tips
+
+- **Migrating Guid v4 → Sfid is feasible but expensive.** Add a new `Sfid` column, backfill in batches, swap PKs, drop the old column. Plan for read-only downtime during the swap.
+- **Migrating Guid v4 → Guid v7 is cheaper.** Same column type, new ids only. Old ids stay as-is. Index locality improves over time as old rows get pruned.
+- **Long → Sfid is hard** because foreign-key relations need updating. Usually only worth it if you're moving away from a single-DB monolith.
+
+### Debugging tips
+
+- **Sfids round-trip cleanly through logs / traces / OTel** because they're plain strings. Search for an Sfid in your log aggregator and you'll find every mention.
+- **`Sfid.Parse(string).Timestamp`** gives you the creation moment — useful for "when was this row created?" forensics without needing a `CreatedAt` column.
+- **`ToString()` on a `Sfid` is allocation-free in .NET 10** thanks to `ISpanFormattable`. Safe to use in hot paths.
+
+### Anti-patterns
+
+| Don't | Do |
+| --- | --- |
+| Use Guid v4 for new tables | Use Sfid (engine default) or Guid v7 |
+| Store Sfid as `VARCHAR(26)` | Store as `BINARY(16)` — half the size, better index locality |
+| Pass raw `string` IDs through your domain | Wrap in `EntityIdSfid` strong-typed records |
+| Generate ids on the database for every entity | Generate client-side (Sfid / Guid v7 / Snowflake) so you have the id before insert — enables event sourcing, idempotency keys, etc. |
+| Use Sfid + `created_at` column | Sfid already encodes the timestamp; drop the duplicate column unless you need DST-aware local time |
+| Compose Sfids with random suffixes ("`{sfid}-v2`") | If you need to disambiguate, use a versioned domain entity, not a versioned id |
+
+## Source-doc snapshot
+
+- **[Cephalon.Ids.Sfid](/0-1-0-preview/source/components/ids-sfid/)** — engine-source-doc mirror with package internals.
+
+## Cross-references
+
+- **[Tutorial → First-app step 3](/0-1-0-preview/tutorials/first-app/03-add-data/)** — Sfid in EF Core, end-to-end.
+- **[Reference → Configuration → Data](/0-1-0-preview/reference/configuration/data/#idstrategy)** — `Engine:Data:IdStrategy` schema.
+- **[Technology → Data](/0-1-0-preview/technology/data/)** — the data companion-package catalog (Sfid storage maps to every backend's binary type).
+- **[Sfid spec on GitHub](https://github.com/sfid/spec)** — the upstream specification.

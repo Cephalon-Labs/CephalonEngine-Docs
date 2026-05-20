@@ -1,0 +1,108 @@
+---
+title: Cephalon.MultiTenancy.Governance.SendGridDelivery
+editUrl: false
+---
+
+> **Maturity:** `M2` · **Ownership:** cephalon-managed · **Family:** `multi-tenancy` · See [audit](../engine-surface-maturity-audit.md), [matrix](../conformance-matrix.md).
+
+`Cephalon.MultiTenancy.Governance.SendGridDelivery` is the optional SendGrid Mail Send API sender companion for tenant-invitation delivery.
+
+## What it owns
+
+- one provider-managed `ITenantInvitationDeliverySender` implementation for SendGrid Mail Send API handoff
+- configuration-driven setup through `Engine:MultiTenancy:Governance:SendGridInvitationDelivery`
+- code-first setup through `AddCephalonSendGridInvitationDelivery(...)`
+- a replaceable `ISendGridInvitationDeliveryClient` seam so hosts can test, wrap, or replace the default HTTP client
+- recipient email resolution from dispatch metadata, invitation metadata, or `InviteeKind = email`
+- plain-text and optional HTML message templates with bounded Cephalon placeholders
+- SendGrid Mail Send payload construction for `personalizations`, `from`, `subject`, `content`, optional `headers`, optional `categories`, optional `custom_args`, and optional sandbox mode
+- deterministic Cephalon message ids carried through SendGrid custom arguments and safe context headers
+- provider message id capture from the SendGrid `X-Message-ID` response header by default
+- safe sender metadata such as endpoint host, SendGrid status code, sandbox posture, Cephalon message id, sender id, recipient email, category count, custom-argument count, and client outcome reason
+- stable diagnostics for accepted and failed SendGrid invitation dispatch attempts
+
+## Main surfaces
+
+- `Configuration/SendGridInvitationDeliveryOptions.cs`
+- `Hosting/SendGridInvitationDeliveryServiceCollectionExtensions.cs`
+- `Services/ISendGridInvitationDeliveryClient.cs`
+- `Services/SendGridInvitationDeliveryClientResult.cs`
+- `Services/SendGridInvitationDeliveryMessage.cs`
+- `Services/SendGridInvitationDeliverySender.cs`
+- `Services/SendGridInvitationDeliveryDiagnosticsConventionContributor.cs`
+
+## Source structure
+
+- `Configuration`
+- `Hosting`
+- `Services`
+
+## How it fits
+
+The core `Cephalon.MultiTenancy.Governance` package owns the host-agnostic invitation delivery dispatcher, run catalog, outcome recording, retry queue, and `ITenantInvitationDeliverySender` extension point. This companion package supplies a real SendGrid Mail Send sender for teams that want Cephalon to hand a prepared invitation email to SendGrid without writing a custom sender first.
+
+Register the governance pack, then register the SendGrid sender:
+
+```csharp
+builder.Services.AddCephalonSendGridInvitationDelivery(builder.Configuration);
+
+builder.AddCephalon(engine =>
+{
+    engine.AddMultiTenancyGovernance();
+});
+```
+
+Configuration example:
+
+```json
+{
+  "Engine": {
+    "MultiTenancy": {
+      "Governance": {
+        "SendGridInvitationDelivery": {
+          "Enabled": true,
+          "SenderId": "sendgrid-email",
+          "BaseUrl": "https://api.sendgrid.com",
+          "ApiKey": "${SENDGRID_API_KEY}",
+          "FromEmail": "noreply@example.com",
+          "FromName": "Example SaaS",
+          "RecipientEmailMetadataKey": "email",
+          "SupportedChannels": ["email"],
+          "SubjectTemplate": "Invitation for {tenantId}",
+          "TextBodyTemplate": "You have been invited to tenant {tenantId}. Invitation: {invitationId}. Roles: {roles}.",
+          "HtmlBodyTemplate": "<p>You have been invited to tenant <strong>{tenantId}</strong>.</p>",
+          "Categories": ["cephalon-invitation"],
+          "CustomArgs": {
+            "product": "example-saas"
+          },
+          "Headers": {
+            "X-Product": "Example SaaS"
+          },
+          "EnableSandboxMode": false,
+          "ProviderMessageIdHeaderName": "X-Message-ID",
+          "AcceptedStatusCodes": [202]
+        }
+      }
+    }
+  }
+}
+```
+
+Set `BaseUrl` to `https://api.eu.sendgrid.com` for SendGrid EU regional sending. When `EnableSandboxMode` is enabled, the sender adds `mail_settings.sandbox_mode.enable = true` and treats SendGrid's validation `200 OK` response as accepted in addition to the normal `202 Accepted` response.
+
+The sender returns `dispatched` only when the SendGrid API accepts the Mail Send request. Unsupported channels are reported as `suppressed`; invalid recipient resolution, HTTP errors, non-accepted status codes, and timeouts are reported as `sender-failed`. The governance dispatcher persists those outcomes through the invitation store, queues retryable sender failures when the retry queue is enabled, and keeps `externalDeliveryOwnership = provider-managed` when this sender handled the attempt.
+
+This package intentionally owns SendGrid Mail Send API handoff only. ASP.NET Core hosts that also want first-party SendGrid Event Webhook payload translation, optional signed-webhook verification, bounded process-local signed-callback replay protection, and observation-store-backed SendGrid event-id idempotency can add `Cephalon.MultiTenancy.Governance.SendGridDelivery.AspNetCore` and map `MapCephalonSendGridInvitationDeliveryStatusCallbacks()` so SendGrid `sg_event_id`, `sg_message_id`, event type, timestamp, signature headers, safe replay fingerprints, event-id duplicate-skip metadata, and Cephalon custom arguments flow into the existing delivery-status reconciler. Mailgun Messages API handoff lives in `Cephalon.MultiTenancy.Governance.MailgunDelivery`; Amazon SES v2 handoff lives in `Cephalon.MultiTenancy.Governance.AmazonSesDelivery`; Microsoft Graph `sendMail` handoff lives in `Cephalon.MultiTenancy.Governance.MicrosoftGraphDelivery`; durable callback inboxes, distributed replay protection, distributed event-id ledgers, provider polling, dynamic-template lifecycle management, additional provider-specific email API senders beyond the shipped SMTP/SendGrid/Mailgun/Amazon SES/Microsoft Graph set, SMS, chat, CRM, identity-provider onboarding, distributed retry queues, cross-node leases, public onboarding, and tenant-admin UI remain application-managed or future provider-specific companion work until a package owns them explicitly.
+
+## Related docs
+
+- [Cephalon.MultiTenancy](multi-tenancy.md)
+- [Cephalon.MultiTenancy.Governance](multi-tenancy-governance.md)
+- [Cephalon.MultiTenancy.Governance.AspNetCore](multi-tenancy-governance-aspnetcore.md)
+- [Cephalon.MultiTenancy.Governance.HttpDelivery](multi-tenancy-governance-httpdelivery.md)
+- [Cephalon.MultiTenancy.Governance.MailgunDelivery](multi-tenancy-governance-mailgundelivery.md)
+- [Cephalon.MultiTenancy.Governance.MicrosoftGraphDelivery](multi-tenancy-governance-microsoftgraphdelivery.md)
+- [Cephalon.MultiTenancy.Governance.SendGridDelivery.AspNetCore](multi-tenancy-governance-sendgriddelivery-aspnetcore.md)
+- [Cephalon.MultiTenancy.Governance.SmtpDelivery](multi-tenancy-governance-smtpdelivery.md)
+- [Technology packs](../technology-packs.md)
+- [Operations](../operations.md)

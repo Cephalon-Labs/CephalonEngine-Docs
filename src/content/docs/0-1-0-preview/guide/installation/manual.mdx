@@ -1,0 +1,378 @@
+---
+title: Manual install — without CLI or template pack
+description: Install CephalonEngine by adding Cephalon.* NuGet packages directly to a new or existing ASP.NET Core project. Step-by-step from project creation through first module and second-module split.
+sidebar:
+  order: 2
+  label: ② Manual install
+editUrl: false
+---
+
+You don't need `Cephalon.Cli` or `Cephalon.TemplatePack` to use CephalonEngine. They're convenience tools that scaffold a generated app shape and run doctor checks; **the engine itself works perfectly with any project that adds the right NuGet packages by hand.**
+
+**Choose this path when:**
+- You're adding CephalonEngine to an **existing ASP.NET Core app**.
+- Your CI / corporate policy can't accept new global .NET tools.
+- You want **explicit control** over every file in the project.
+- You're learning the engine internals and want to see exactly what the scaffold sets up.
+
+## Step 1 — Create a fresh project (or use yours)
+
+```powershell frame="terminal"
+dotnet new web -n Acme.Store.Host -o ./Acme.Store.Host
+cd ./Acme.Store.Host
+```
+
+Or skip this step if you already have a project.
+
+| Template | When to use |
+| --- | --- |
+| `dotnet new web` | Minimal ASP.NET Core host — recommended for new CephalonEngine apps. |
+| `dotnet new webapi` | Includes WeatherForecast controller scaffolding — delete the controller before adding CephalonEngine modules. |
+| `dotnet new console` | Use with `Cephalon.Worker` (no HTTP). See **[Worker hosts](/0-1-0-preview/technology/hosts/#workers)**. |
+
+## Step 2 — Pick the right packages
+
+The minimum set depends on which host and capabilities you want.
+
+### Minimal HTTP host (just `Cephalon.AspNetCore` + the engine)
+
+```powershell frame="terminal"
+dotnet add package Cephalon.Abstractions --prerelease
+dotnet add package Cephalon.Engine --prerelease
+dotnet add package Cephalon.AspNetCore --prerelease
+```
+
+That's enough to compose modules and serve them over HTTP. No data, no eventing, no observability — those are opt-in.
+
+### Minimal worker (no HTTP)
+
+```powershell frame="terminal"
+dotnet add package Cephalon.Abstractions --prerelease
+dotnet add package Cephalon.Engine --prerelease
+dotnet add package Cephalon.Worker --prerelease
+```
+
+### Add data (EF Core + Postgres)
+
+```powershell frame="terminal"
+dotnet add package Cephalon.Data --prerelease
+dotnet add package Cephalon.Data.EntityFramework --prerelease
+dotnet add package Cephalon.Ids.Sfid --prerelease
+dotnet add package Npgsql.EntityFrameworkCore.PostgreSQL
+```
+
+(Swap `Npgsql.EntityFrameworkCore.PostgreSQL` for `Microsoft.EntityFrameworkCore.SqlServer`, `Pomelo.EntityFrameworkCore.MySql`, etc. depending on backend.)
+
+### Add eventing (Wolverine)
+
+```powershell frame="terminal"
+dotnet add package Cephalon.Eventing --prerelease
+dotnet add package Cephalon.Eventing.Wolverine --prerelease
+```
+
+### Add observability (OpenTelemetry)
+
+```powershell frame="terminal"
+dotnet add package Cephalon.Observability --prerelease
+dotnet add package Cephalon.Observability.OpenTelemetry --prerelease
+```
+
+### Add multi-tenancy
+
+```powershell frame="terminal"
+dotnet add package Cephalon.MultiTenancy --prerelease
+dotnet add package Cephalon.MultiTenancy.Governance --prerelease
+```
+
+### Add identity
+
+```powershell frame="terminal"
+dotnet add package Cephalon.Identity --prerelease
+dotnet add package Cephalon.Identity.AspNetCore --prerelease
+```
+
+Complete catalogue: **[Technology overview](/0-1-0-preview/technology/)**.
+
+<div class="ce-callout ce-callout--key">
+<span class="ce-callout__icon" aria-hidden="true">🔑</span>
+<div>**Tip — use centralised package management (CPM).** Add a <code>Directory.Packages.props</code> at your repo root so every project shares one source of truth for versions (example below).</div>
+</div>
+
+```xml title="Directory.Packages.props"
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="Cephalon.Abstractions" Version="0.1.0-preview" />
+    <PackageVersion Include="Cephalon.Engine"       Version="0.1.0-preview" />
+    <PackageVersion Include="Cephalon.AspNetCore"   Version="0.1.0-preview" />
+  </ItemGroup>
+</Project>
+```
+
+Your `.csproj` references then become version-free: `<PackageReference Include="Cephalon.AspNetCore" />`.
+
+## Step 3 — Project file
+
+A minimum `Cephalon.AspNetCore`-based `.csproj` looks like this:
+
+```xml title="Acme.Store.Host.csproj"
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Acme.Store.Host</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Cephalon.Abstractions" />
+    <PackageReference Include="Cephalon.Engine" />
+    <PackageReference Include="Cephalon.AspNetCore" />
+  </ItemGroup>
+
+</Project>
+```
+
+| Property | Why |
+| --- | --- |
+| `Microsoft.NET.Sdk.Web` | Pulls in `Microsoft.AspNetCore.App` framework reference automatically. |
+| `<TargetFramework>net10.0</TargetFramework>` | The shipping baseline. CephalonEngine `0.1.0-preview` targets `net10.0`. |
+| `<Nullable>enable</Nullable>` | Recommended — engine APIs are nullable-aware. |
+| `<ImplicitUsings>enable</ImplicitUsings>` | Cuts the `using` boilerplate. The engine namespaces still need explicit imports. |
+
+## Step 4 — Minimum `Program.cs`
+
+```csharp title="Program.cs"
+using Cephalon.AspNetCore;
+using Cephalon.Engine;
+
+var builder = WebApplication.CreateBuilder(args);
+
+var app = builder.Services
+    .AddCephalonAspNetCore()
+    .AddModulesFromAssemblies(typeof(Program).Assembly)
+    .Build(builder);
+
+app.MapCephalon();
+app.MapHealthChecks("/health");
+
+app.Run();
+```
+
+That's it. **15 lines.** This is the same `Program.cs` `cephalon new` would have generated.
+
+What each call does:
+
+| Call | Purpose |
+| --- | --- |
+| `AddCephalonAspNetCore()` | Registers the ASP.NET Core host adapter — content-negotiation, ProblemDetails, OpenAPI hooks. |
+| `AddModulesFromAssemblies(...)` | Scans assemblies for `IModule` implementations and stages them for composition. |
+| `.Build(builder)` | Materialises the engine — runs composition, registers DI services, validates capabilities. |
+| `app.MapCephalon()` | Wires module routes + the `/engine/manifest` + `/engine/snapshot` introspection endpoints. |
+| `app.MapHealthChecks("/health")` | Standard ASP.NET Core health endpoint — engine surfaces module health here. |
+
+## Step 5 — Minimum `appsettings.json`
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Id": "acme-store"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information"
+    }
+  },
+  "AllowedHosts": "*"
+}
+```
+
+The only required key is `Engine:Id`. Everything else has safe defaults — add sections as you opt into capabilities (`Engine:Data`, `Engine:Identity`, etc.). See **[Reference → Configuration](/0-1-0-preview/reference/configuration/)** for the full schema.
+
+## Step 6 — Your first module
+
+The host needs at least one module to be useful. Create a class anywhere in the project (or in a separate `csproj` for cleanliness):
+
+```csharp title="HealthModule.cs"
+using Cephalon.Abstractions.Modules;
+using Cephalon.AspNetCore.Behaviors;
+using Microsoft.AspNetCore.Http;
+
+namespace Acme.Store.Modules.Health;
+
+public sealed class HealthModule : RestBehaviorModuleBase
+{
+    public override ModuleDescriptor Describe() => new(
+        name:    "Acme.Store.Modules.Health",
+        version: "1.0.0");
+
+    protected override void ConfigureRestBehaviors(IRestBehaviorBuilder builder)
+    {
+        builder.MapProfile<PingBehavior>();
+    }
+}
+
+public sealed class PingBehavior : IRestBehavior
+{
+    public RestRoute Route => RestRoute.Get("/ping");
+
+    public IResult Handle() => Results.Ok(new { status = "ok" });
+}
+```
+
+## Step 7 — Run
+
+```powershell frame="terminal"
+dotnet run
+```
+
+You should see the engine banner + `/ping`, `/health`, `/engine/manifest` endpoints active.
+
+Smoke-test it:
+
+```powershell frame="terminal"
+curl http://localhost:5000/ping
+# → {"status":"ok"}
+
+curl http://localhost:5000/engine/manifest
+# → {"engine": {"id": "acme-store", ...}, "modules": [...]}
+```
+
+## Adding a second module from a different project
+
+For real apps, modules live in their own projects. Create one:
+
+```powershell frame="terminal"
+dotnet new classlib -n Acme.Store.Modules.Products -o ../Acme.Store.Modules.Products
+cd ../Acme.Store.Modules.Products
+dotnet add package Cephalon.Abstractions --prerelease
+dotnet add package Cephalon.AspNetCore --prerelease
+```
+
+Then reference it from your host:
+
+```powershell frame="terminal"
+cd ../Acme.Store.Host
+dotnet add reference ../Acme.Store.Modules.Products/Acme.Store.Modules.Products.csproj
+```
+
+Update `Program.cs` to include the new assembly in module discovery:
+
+```csharp title="Program.cs" {4-6}
+var app = builder.Services
+    .AddCephalonAspNetCore()
+    .AddModulesFromAssemblies(
+        typeof(Program).Assembly,
+        typeof(Acme.Store.Modules.Products.ProductsModule).Assembly)
+    .Build(builder);
+```
+
+(Or use `AppDomain.CurrentDomain.GetAssemblies()` to discover everything loaded — more concise once your host references all modules.)
+
+### Recommended folder layout
+
+```text
+/Acme.Store/
+  ├─ Directory.Packages.props          ← single source of truth for package versions
+  ├─ Directory.Build.props             ← shared MSBuild props (analyzers, lang version)
+  ├─ global.json                       ← SDK pin + rollForward policy
+  ├─ Acme.Store.slnx                   ← solution file (or `.sln`)
+  ├─ src/
+  │   ├─ Acme.Store.Host/              ← the executable
+  │   ├─ Acme.Store.Modules.Products/  ← module library
+  │   ├─ Acme.Store.Modules.Orders/    ← another module library
+  │   └─ Acme.Store.Modules.Identity/
+  └─ tests/
+      └─ Acme.Store.Tests/             ← composition smoke tests + module unit tests
+```
+
+| Convention | Why |
+| --- | --- |
+| `src/` for production code, `tests/` for tests | Universal .NET community convention — Renovate, dotnet-format, and CI templates expect it. |
+| One module per project (`Acme.Store.Modules.<Name>`) | Modules become independently testable, packageable, and microservice-splittable later. |
+| Host project ends in `.Host` | Distinguishes the executable from libraries — clearer when you have multiple hosts. |
+
+## What the CLI / template pack add on top
+
+If you skip `Cephalon.Cli` + `Cephalon.TemplatePack`, you don't lose any engine features. You only miss out on these scaffolded helpers:
+
+| Generated by `cephalon new` | What you can do by hand instead |
+| --- | --- |
+| Multi-stage `Dockerfile` + `compose.yaml` + `otel-collector-config.yaml` | Hand-write them when you need them — they're standard files. |
+| `deploy/<target>/` folders (Windows Service, IIS, Azure App Service, ACA, Kubernetes, systemd, Docker) | Use your team's existing deploy convention. The engine doesn't require these. |
+| `Directory.Build.props` + `Directory.Packages.props` + `global.json` + `.slnx` | Set them up yourself (CPM is recommended either way). |
+| `.cephalon/packages/` local NuGet feed | Use any other feed convention (Azure Artifacts, NuGet.config sources, etc.). |
+| Generated test project skeleton with `CompositionSmokeTests.cs` + `TestHostFactory` | Write your own — see **[Tutorial → Tests](/0-1-0-preview/tutorials/first-app/07-tests/)** for the canonical pattern. |
+| `cephalon doctor` SDK / runtime checks | Run `dotnet --list-sdks` and `dotnet --list-runtimes` manually. |
+| Strongly-typed `Configurations/*` POCOs bound to `Engine:*` sections | Bind them yourself via `services.Configure<TOptions>(config.GetSection(...))`. |
+
+**Engine compose, manifest, capabilities, transports — all identical.** A manually-installed CephalonEngine app composes the same way as a CLI-generated one; you can interoperate freely.
+
+## When to migrate from manual → CLI later
+
+You might start manual and later decide to use the CLI. That's fine — just:
+
+1. `dotnet tool install -g Cephalon.Cli --prerelease`.
+2. Run `cephalon new TempScaffold --output ./_scaffold` in a sibling folder.
+3. Copy whatever generated assets you want (`Dockerfile`, `deploy/*`, `Directory.Build.props`) into your project.
+4. Delete `./_scaffold`.
+
+The CLI doesn't "claim" your repo — it just writes files.
+
+## Adding CephalonEngine to an *existing* ASP.NET Core app
+
+If you already have a `Program.cs` with controllers, minimal APIs, or other middleware, you can add CephalonEngine alongside them — it doesn't take over the pipeline.
+
+```csharp title="Program.cs (existing app)" {1-2,7-11,16-17}
+using Cephalon.AspNetCore;
+using Cephalon.Engine;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers();        // your existing setup
+builder.Services
+    .AddCephalonAspNetCore()              // add CephalonEngine
+    .AddModulesFromAssemblies(typeof(Program).Assembly)
+    .Build(builder);
+
+var app = builder.Build();
+
+app.UseHttpsRedirection();
+app.MapControllers();                     // your existing routes
+app.MapCephalon();                        // CephalonEngine routes (under module-defined paths)
+app.MapHealthChecks("/health");
+
+app.Run();
+```
+
+### Route conflicts
+
+CephalonEngine routes are declared inside modules. As long as the module-defined paths don't collide with your existing controller routes, both coexist.
+
+If they do collide, the **last route wins** per ASP.NET Core's standard precedence — typically the engine-mapped route. To force a different order, swap the `app.MapControllers()` / `app.MapCephalon()` lines.
+
+### DI container
+
+CephalonEngine uses the same `IServiceCollection` your existing app does. Module services are added to the shared container — your handlers can inject anything the engine registered, and vice versa.
+
+## Anti-patterns to avoid in manual setups
+
+| Don't | Do |
+| --- | --- |
+| `dotnet add package` everything in one go without CPM | Set up `Directory.Packages.props` first — central versions save pain across many projects |
+| Skip the host adapter (`AddCephalonAspNetCore` / `AddCephalonWorker`) | The adapter wires the runtime catalog routes; without it, `/engine/manifest` won't work |
+| Put module classes in `Program.cs` to "save a project" | Modules in separate `.csproj` files are easier to test, share, and split into microservices later |
+| Skip `AddModulesFromAssemblies` because "I only have one module" | Future-proof: the moment you add a second module, you'll forget to add the call. Use it from day 1. |
+| Hardcode connection strings in `Program.cs` | Use `IConfiguration` + `ConnectionStrings:*` — the framework convention |
+| Reference `Cephalon.*` packages directly in module class libraries without `Cephalon.Abstractions` | Modules should depend on `Cephalon.Abstractions` (interface surface) only — keeps modules portable across hosts |
+
+## Where to go next
+
+- **[① CLI install](/0-1-0-preview/guide/installation/cli/)** — if you change your mind about installing the global tool.
+- **[③ IDE setup](/0-1-0-preview/guide/installation/ide/)** — get IntelliSense + tasks wired up.
+- **[④ CI / build agents](/0-1-0-preview/guide/installation/ci/)** — pipelines that build the manual setup.
+- **[Concepts](/0-1-0-preview/guide/concepts/)** — what the host, module, behavior, and capability primitives actually are.
+- **[Tutorial → first-app](/0-1-0-preview/tutorials/first-app/)** — end-to-end tour from `dotnet new` through deployment.

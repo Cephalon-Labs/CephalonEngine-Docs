@@ -1,0 +1,185 @@
+---
+title: '1 · Scaffold and run'
+description: 'Generate Acme.Store, inspect the layout, and run the host. The first step toward a production-ready modular monolith.'
+sidebar:
+  order: 1
+editUrl: false
+---
+
+In this step you generate the project, understand what the scaffold produced, and run the host. No code is written by you yet — but by the end you'll know exactly what the CLI gave you and where everything lives.
+
+## 1.1 Generate the app
+
+From a working directory of your choice:
+
+```powershell frame="terminal"
+cephalon new Acme.Store --output ./Acme.Store
+cd ./Acme.Store
+```
+
+The `--output` path becomes the solution root. `Acme.Store.slnx` is the modern solution file format used by .NET 10.
+
+## 1.2 Read the layout
+
+```text title="Acme.Store/" collapse={9-15}
+Acme.Store/
+├── README.md                        # generated README explaining the layout
+├── Acme.Store.slnx                  # solution file
+├── Directory.Build.props            # repo-wide MSBuild props
+├── Directory.Build.targets          # repo-wide MSBuild targets
+├── Directory.Packages.props         # centralised package versions
+├── global.json                      # pins the SDK band
+├── NuGet.config                     # points at .cephalon/packages first
+├── nuget.config                     # workaround for case-insensitive filesystems
+├── Dockerfile                       # multi-stage Dockerfile
+├── .dockerignore
+├── compose.yaml                     # local docker compose
+├── otel-collector-config.yaml       # OTLP collector preset
+├── .cephalon/
+│   └── packages/                    # local NuGet feed for Cephalon.* packages
+├── deploy/                          # 7 deployment targets
+├── src/
+│   ├── Acme.Store.Host/             # the executable
+│   └── Acme.Store.Modules.Health/   # a single starter module
+└── tests/
+    └── Acme.Store.Host.Tests/       # composition + behavior tests
+```
+
+A few non-obvious notes:
+
+- `Directory.Packages.props` uses centralised package management (CPM). Add new packages to that file, then reference them without version in individual `.csproj` files.
+- `global.json` pins to the SDK band — bump it deliberately when you upgrade.
+- The `.cephalon/packages/` folder is part of the NuGet feed chain. The generated `NuGet.config` puts it first, so locally-staged packages override anything from the public feed.
+
+## 1.3 Inspect `Program.cs`
+
+Open the host entry point:
+
+```csharp title="src/Acme.Store.Host/Program.cs" {7-11,13}
+using Cephalon.AspNetCore;
+using Cephalon.Engine;
+
+var builder = WebApplication.CreateBuilder(args);
+
+var app = builder.Services
+    .AddCephalonAspNetCore()
+    .AddModulesFromAssemblies(typeof(Program).Assembly)
+    .Build(builder);
+
+app.MapCephalon();
+app.MapHealthChecks("/health");
+
+app.Run();
+```
+
+Two things to notice:
+
+1. **`AddCephalonAspNetCore()`** registers the host adapter. It wires REST behavior support, OpenAPI/Scalar, the `/engine/*` routes, and the manifest endpoint.
+2. **`AddModulesFromAssemblies(...)`** asks the engine to discover modules from the listed assemblies. You can also load modules from explicit DLLs or package manifests — see **[Module authoring](/0-1-0-preview/contributing/module-authoring/)**.
+
+## 1.4 Inspect `appsettings.json`
+
+```jsonc title="src/Acme.Store.Host/appsettings.json" {3-11}
+{
+  "Engine": {
+    "Id": "acme-store",
+    "Data": { "IdStrategy": "Sfid", "Provider": null },
+    "Identity": { "Enabled": false },
+    "Tenancy": { "Enabled": false },
+    "Audit": { "Enabled": true },
+    "Messaging": { "Enabled": false },
+    "Transports": [ "RestApi" ]
+  },
+  "Logging": {
+    "LogLevel": { "Default": "Information" }
+  },
+  "AllowedHosts": "*"
+}
+```
+
+The `Engine:*` section is read by the engine at build time. Each subsection is a capability:
+
+- **`Data:IdStrategy: Sfid`** — generated apps default to [`Sfid.Net`](https://github.com/sfid/sfid-net) sortable identifiers. You can switch to `Guid`, `Long`, or a custom strategy later.
+- **`Identity:Enabled: false`** — turning this on activates the identity capability and requires a provider package.
+- **`Tenancy:Enabled: false`** — same for multi-tenancy.
+- **`Audit:Enabled: true`** — audit is enabled by default; the `Cephalon.Audit` package handles recording.
+- **`Messaging:Enabled: false`** — eventing is off until you opt in (we'll turn it on in step 5).
+- **`Transports: ["RestApi"]`** — REST is the only transport in this starter; we'll add others later.
+
+## 1.5 Run the host
+
+```powershell frame="terminal"
+dotnet run --project ./src/Acme.Store.Host
+```
+
+The first run will restore packages. After a few seconds you should see:
+
+```text frame="terminal" title="dotnet run output" "acme-store" "Acme.Store.Modules.Health"
+info: Cephalon.Engine[1001]
+      Cephalon Engine started: acme-store
+      modules: Acme.Store.Modules.Health (1.0.0)
+      transports: RestApi
+      capabilities: Audit
+      manifest schema: v2
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5000
+```
+
+## 1.6 Talk to the engine
+
+In a second shell:
+
+```powershell frame="terminal"
+curl http://localhost:5000/engine/manifest
+```
+
+You should see JSON with the engine id, the registered module, capabilities, and a manifest schema version. Try also:
+
+```powershell frame="terminal"
+curl http://localhost:5000/engine/runtime
+curl http://localhost:5000/health
+curl http://localhost:5000/scalar/v1
+```
+
+The last one opens the **Scalar** docs UI in the browser if you point at it — it's the REST documentation surface the AspNetCore host wires automatically.
+
+## 1.7 What the starter test project gives you
+
+Open the composition smoke test:
+
+```csharp title="tests/Acme.Store.Host.Tests/Architecture/CompositionSmokeTests.cs" {6-7,9-11}
+public sealed class CompositionSmokeTests
+{
+    [Fact]
+    public async Task Host_composes_successfully()
+    {
+        await using var host = await TestHostFactory.CreateAsync();
+        var manifest = host.Services.GetRequiredService<IRuntimeManifest>();
+
+        manifest.EngineId.Should().Be("acme-store");
+        manifest.Modules.Should().NotBeEmpty();
+        manifest.Modules.Should().Contain(m => m.Name == "Acme.Store.Modules.Health");
+    }
+}
+```
+
+That single test fails the moment something stops composing. It is the canonical "did I break it?" check. Keep it green at every commit.
+
+## What you should have now
+
+- [x] `Acme.Store` directory generated.
+- [x] Host runs and prints the startup banner.
+- [x] `/engine/manifest` returns JSON.
+- [x] `dotnet test ./tests/Acme.Store.Host.Tests` is green.
+
+## Pitfalls we hit the first time
+
+- **The CLI prerelease flag.** Forgetting `--prerelease` on `cephalon new` will pull a stable version that doesn't exist yet. The new command itself doesn't require it, but the install does.
+- **Port already in use.** Set `ASPNETCORE_URLS=http://localhost:5050` if `:5000` is taken.
+- **Centralised package management.** Don't add `Version=` to `.csproj` lines. Add the package to `Directory.Packages.props` instead.
+
+## What to do next
+
+- **[Step 2 → Add a domain module](/0-1-0-preview/tutorials/first-app/02-add-module/)**.
+- Read **[Concepts → Module](/0-1-0-preview/guide/concepts/#module)** if the module shape is still unclear.
+- Skim **[Reference → Architecture → Runtime contracts](/0-1-0-preview/reference/architecture/runtime-contracts/)** to see what the engine actually exposes.

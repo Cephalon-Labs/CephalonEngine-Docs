@@ -1,0 +1,321 @@
+---
+title: '3 · Wire EF Core'
+description: 'Replace the in-memory product catalog with EF Core via Cephalon.Data.EntityFramework. Configure DbContexts, migrations, and connection strings.'
+sidebar:
+  order: 3
+editUrl: false
+---
+
+The in-memory catalog from step 2 gave us a working REST surface. Now we replace it with EF Core through `Cephalon.Data.EntityFramework`, which gives us read/write `DbContext` baselines, the inbox/outbox storage, and `Sfid.EntityFramework` integration.
+
+## 3.1 Start Postgres locally
+
+```powershell
+docker run -d --name acme-postgres `
+  -e POSTGRES_USER=postgres `
+  -e POSTGRES_PASSWORD=postgres `
+  -e POSTGRES_DB=acmestore `
+  -p 5432:5432 `
+  postgres:16-alpine
+```
+
+The connection string for the app will be:
+
+```text
+Host=localhost;Port=5432;Database=acmestore;Username=postgres;Password=postgres
+```
+
+> In production you would store this in a secrets store and inject it via environment variables. We'll wire that in step 8.
+
+## 3.2 Add the data packages
+
+Open `Directory.Packages.props` and add:
+
+```xml
+<PackageVersion Include="Cephalon.Data" Version="0.1.0-preview" />
+<PackageVersion Include="Cephalon.Data.EntityFramework" Version="0.1.0-preview" />
+<PackageVersion Include="Cephalon.Ids.Sfid" Version="0.1.0-preview" />
+<PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.0" />
+```
+
+Update `src/Acme.Store.Modules.Products/Acme.Store.Modules.Products.csproj`:
+
+```xml
+<ItemGroup>
+  <PackageReference Include="Cephalon.Abstractions" />
+  <PackageReference Include="Cephalon.AspNetCore" />
+  <PackageReference Include="Cephalon.Data" />
+  <PackageReference Include="Cephalon.Data.EntityFramework" />
+  <PackageReference Include="Cephalon.Ids.Sfid" />
+  <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+</ItemGroup>
+```
+
+Restore packages:
+
+```powershell
+dotnet restore
+```
+
+## 3.3 Build the DbContext
+
+Replace `src/Acme.Store.Modules.Products/Domain/Product.cs` with the EF entity:
+
+```csharp
+using Cephalon.Ids.Sfid;
+
+namespace Acme.Store.Modules.Products.Domain;
+
+public sealed class Product
+{
+    public Sfid Id { get; init; } = Sfid.NewSfid();
+    public required string Name { get; set; }
+    public required string Sku { get; set; }
+    public required decimal Price { get; set; }
+    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+}
+```
+
+> `Sfid` is a sortable, k-ordered identifier from `Sfid.Net`. Generated apps default to `Sfid` for the `IdStrategy` setting — see **[Technology → Identifiers](/0-1-0-preview/technology/identifiers/)**.
+
+Create `src/Acme.Store.Modules.Products/Data/ProductsDbContext.cs`:
+
+```csharp
+using Acme.Store.Modules.Products.Domain;
+using Cephalon.Data.EntityFramework;
+using Microsoft.EntityFrameworkCore;
+
+namespace Acme.Store.Modules.Products.Data;
+
+public sealed class ProductsDbContext : CephalonDbContext
+{
+    public ProductsDbContext(DbContextOptions<ProductsDbContext> options) : base(options) { }
+
+    public DbSet<Product> Products => Set<Product>();
+
+    protected override void OnModelCreating(ModelBuilder builder)
+    {
+        base.OnModelCreating(builder);
+
+        builder.Entity<Product>(entity =>
+        {
+            entity.ToTable("products");
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            entity.Property(p => p.Sku).HasMaxLength(64).IsRequired();
+            entity.Property(p => p.Price).HasColumnType("numeric(12,2)");
+            entity.HasIndex(p => p.Sku).IsUnique();
+        });
+    }
+}
+```
+
+> `CephalonDbContext` is the recommended base. It wires the `Sfid.EntityFramework` value converter, sets up the inbox/outbox storage when eventing is enabled, and registers conventions that play nicely with the data abstractions.
+
+## 3.4 Replace the in-memory catalog
+
+Update `src/Acme.Store.Modules.Products/Domain/IProductCatalog.cs`:
+
+```csharp
+namespace Acme.Store.Modules.Products.Domain;
+
+public interface IProductCatalog
+{
+    Task<IReadOnlyList<Product>> ListAsync(CancellationToken ct = default);
+    Task<Product?> FindAsync(Sfid id, CancellationToken ct = default);
+    Task<Product> CreateAsync(Product product, CancellationToken ct = default);
+}
+```
+
+Create `src/Acme.Store.Modules.Products/Data/EfProductCatalog.cs`:
+
+```csharp
+using Acme.Store.Modules.Products.Domain;
+using Cephalon.Ids.Sfid;
+using Microsoft.EntityFrameworkCore;
+
+namespace Acme.Store.Modules.Products.Data;
+
+public sealed class EfProductCatalog(ProductsDbContext db) : IProductCatalog
+{
+    public async Task<IReadOnlyList<Product>> ListAsync(CancellationToken ct = default) =>
+        await db.Products.OrderBy(p => p.CreatedAt).ToListAsync(ct);
+
+    public Task<Product?> FindAsync(Sfid id, CancellationToken ct = default) =>
+        db.Products.FirstOrDefaultAsync(p => p.Id == id, ct);
+
+    public async Task<Product> CreateAsync(Product product, CancellationToken ct = default)
+    {
+        db.Products.Add(product);
+        await db.SaveChangesAsync(ct);
+        return product;
+    }
+}
+```
+
+Delete `src/Acme.Store.Modules.Products/Domain/InMemoryProductCatalog.cs`.
+
+## 3.5 Wire the module
+
+Replace the body of `ProductsModule.cs`:
+
+```csharp
+using Acme.Store.Modules.Products.Data;
+using Acme.Store.Modules.Products.Domain;
+using Cephalon.Abstractions.Modules;
+using Cephalon.AspNetCore.Behaviors;
+using Cephalon.Data.EntityFramework;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Acme.Store.Modules.Products;
+
+public sealed class ProductsModule : RestBehaviorModuleBase
+{
+    public override ModuleDescriptor Describe() => new(
+        name: "Acme.Store.Modules.Products",
+        version: "1.0.0",
+        capabilities: [Capability.Data, Capability.Audit]);
+
+    public override void RegisterServices(IServiceCollection services)
+    {
+        services.AddCephalonEntityFramework<ProductsDbContext>((sp, options) =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            var conn = config.GetConnectionString("Products")
+                ?? throw new InvalidOperationException("Missing 'Products' connection string.");
+            options.UseNpgsql(conn);
+        });
+
+        services.AddScoped<IProductCatalog, EfProductCatalog>();
+    }
+
+    protected override void ConfigureRestBehaviors(IRestBehaviorBuilder builder)
+    {
+        builder.MapProfile<ListProductsBehavior>();
+        builder.MapProfile<GetProductBehavior>();
+        builder.MapProfile<CreateProductBehavior>();
+    }
+}
+```
+
+## 3.6 Add the create behavior
+
+Create `src/Acme.Store.Modules.Products/Behaviors/CreateProductBehavior.cs`:
+
+```csharp
+using Acme.Store.Modules.Products.Domain;
+using Cephalon.AspNetCore.Behaviors;
+using Microsoft.AspNetCore.Http;
+
+namespace Acme.Store.Modules.Products.Behaviors;
+
+public sealed record CreateProductPayload(string Name, string Sku, decimal Price);
+
+public sealed class CreateProductBehavior : IRestBehavior
+{
+    public RestRoute Route => RestRoute.Post("/products");
+
+    public async Task<IResult> Handle(CreateProductPayload payload, IProductCatalog catalog, CancellationToken ct)
+    {
+        if (payload.Price < 0) return Results.BadRequest(new { error = "price must be non-negative" });
+        if (string.IsNullOrWhiteSpace(payload.Sku)) return Results.BadRequest(new { error = "sku is required" });
+
+        var product = new Product { Name = payload.Name, Sku = payload.Sku, Price = payload.Price };
+        var saved = await catalog.CreateAsync(product, ct);
+        return Results.Created($"/products/{saved.Id}", saved);
+    }
+}
+```
+
+## 3.7 Update connection strings
+
+Append to `src/Acme.Store.Host/appsettings.Development.json`:
+
+```json
+{
+  "ConnectionStrings": {
+    "Products": "Host=localhost;Port=5432;Database=acmestore;Username=postgres;Password=postgres"
+  }
+}
+```
+
+For production, the same key reads from environment variables: `ConnectionStrings__Products=...`.
+
+## 3.8 Create the initial migration
+
+```powershell
+dotnet tool install -g dotnet-ef --version 10.0.0
+cd src/Acme.Store.Modules.Products
+dotnet ef migrations add Initial --context ProductsDbContext --output-dir Data/Migrations
+cd ../..
+```
+
+Run the migration on startup. Open `src/Acme.Store.Host/Program.cs` and add the migrator block:
+
+```csharp
+using Acme.Store.Modules.Products.Data;
+using Cephalon.AspNetCore;
+using Cephalon.Engine;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+var app = builder.Services
+    .AddCephalonAspNetCore()
+    .AddModulesFromAssemblies(
+        typeof(Program).Assembly,
+        typeof(Acme.Store.Modules.Products.ProductsModule).Assembly)
+    .Build(builder);
+
+// Apply migrations in Development. Production should use a separate migrator job.
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ProductsDbContext>();
+    await db.Database.MigrateAsync();
+}
+
+app.MapCephalon();
+app.MapHealthChecks("/health");
+
+app.Run();
+```
+
+## 3.9 Run and verify
+
+```powershell
+dotnet run --project ./src/Acme.Store.Host
+```
+
+In another shell:
+
+```powershell
+# Create
+curl -X POST http://localhost:5000/products `
+     -H "Content-Type: application/json" `
+     -d '{"name":"USB-C Hub","sku":"HB-USBC","price":59.00}'
+
+# List
+curl http://localhost:5000/products
+```
+
+You should see the row persist between runs.
+
+## What you should have now
+
+- [x] EF Core wired through `Cephalon.Data.EntityFramework`.
+- [x] A `ProductsDbContext` with conventions inherited from `CephalonDbContext`.
+- [x] CRUD endpoints persisting to Postgres.
+- [x] An initial migration committed under `Data/Migrations/`.
+
+## Pitfalls we hit the first time
+
+- **Running migrations on every restart in production.** Don't. Use a dedicated migrator step in CI/CD or a sidecar job in your deploy script.
+- **Connection strings via `appsettings.json`.** Fine for `Development`. For `Production`, use `Environment=ConnectionStrings__Products=...` or a managed secret.
+- **Mixing `Sfid` and `Guid` ids in the same DbContext.** Stay consistent — the `IdStrategy` setting in `appsettings.json` is meant to be a per-app decision.
+
+## What to do next
+
+**[Step 4 → REST API + Scalar polish](/0-1-0-preview/tutorials/first-app/04-rest-api/)**.

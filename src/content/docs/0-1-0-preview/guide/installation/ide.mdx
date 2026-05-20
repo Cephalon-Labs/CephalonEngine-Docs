@@ -1,0 +1,277 @@
+---
+title: IDE setup
+description: Configure Visual Studio 2026, JetBrains Rider, and VS Code with C# Dev Kit for CephalonEngine — NuGet sources, recommended extensions, tasks, productivity flags.
+sidebar:
+  order: 3
+  label: ③ IDE setup
+editUrl: false
+---
+
+CephalonEngine is **plain C#** — no custom project SDK, no MSBuild extension, no engine-specific IDE plugin. Any editor that supports .NET 10 works without any extra setup.
+
+This page just collects the **practical configuration** that makes engine development pleasant: feed configuration, recommended extensions, run/debug shortcuts, and productivity flags.
+
+## Quick chooser
+
+| Editor | Best for | Cross-platform | Heavy on RAM |
+| --- | --- | --- | --- |
+| **Visual Studio 2026** | Windows-only teams, GUI-driven workflows, Azure DevOps integration | Windows only | High (~3-4GB per solution) |
+| **JetBrains Rider** | Mixed Windows/macOS/Linux teams, refactoring-heavy work | All three | Medium (~1.5-2GB) |
+| **VS Code + C# Dev Kit** | Lightweight setup, remote/SSH/Codespaces, multi-language repos | All three | Low (~500MB–1GB) |
+
+All three give you the same IntelliSense + debug experience for CephalonEngine code. Pick the one your team already uses.
+
+## Visual Studio 2026 (17.13+)
+
+First-class support including `.slnx` solution files (the modern slim solution format).
+
+### Required setup
+
+1. **Workloads:** install `ASP.NET and web development` + `.NET desktop development` from the Visual Studio Installer.
+2. **NuGet sources:** Tools → Options → NuGet Package Manager → Package Sources — confirm `nuget.org` is enabled, then add your engine feed (corporate, Azure Artifacts, etc.).
+3. **Open the `.slnx` file directly** (not the `.slnf` filters) for full solution view.
+4. **Restore tools on solution open** — Tools → Options → NuGet Package Manager → General — check the box. This auto-runs `dotnet tool restore` for the local manifest.
+
+### Recommended settings
+
+```text title="Tools → Options → Text Editor → C# → Advanced"
+✓ Run analyzers in parallel
+✓ Enable EditorConfig support
+✓ Show inline parameter name hints
+```
+
+CephalonEngine apps have many small projects (one per module). Serial analyzer execution is noticeably slow.
+
+### Run / debug
+
+- **F5** runs the host project. Make sure the `*.Host` project is set as Startup Project (right-click in Solution Explorer → Set as Startup Project).
+- **Ctrl+R, T** runs all tests in the current class. Composition smoke tests live in `tests/*.Tests/Composition/`.
+- **Hot Reload** works for module behavior bodies but **not** for changes to `Describe()` or capability declarations — those run during composition, which is one-shot.
+
+### Useful Visual Studio extensions
+
+| Extension | What it does |
+| --- | --- |
+| **EditorConfig Language Service** (Microsoft) | Syntax-highlights `.editorconfig` — useful if you author analyzers. |
+| **JSON Schema Cache** | Pre-validates `appsettings.json` against `Engine:*` schema once published. |
+| **CodeMaid** | Auto-formatter, project cleaner. Optional. |
+
+## JetBrains Rider (2026.1+)
+
+Recommended for **cross-platform** teams (works equally well on Windows/macOS/Linux).
+
+### Required setup
+
+1. **Settings → Build, Execution, Deployment → NuGet → Sources** — add your feeds.
+2. **Enable "Use NuGet credential providers"** if behind Azure Artifacts.
+3. **Settings → Build, Execution, Deployment → .NET Core CLI** — point to your installed .NET 10 SDK if Rider doesn't auto-detect.
+4. **Settings → Tools → External Tools** — optionally add a "Run cephalon doctor" external tool that runs in the project root.
+
+### Recommended settings
+
+```text title="Settings"
+Run Configurations → ✓ Restore tools on solution load
+Editor → Inlay Hints → ✓ Show parameter name hints
+Build → ✓ Restore packages on build
+Analysis → ✓ Run code inspections in parallel
+```
+
+### Run / debug
+
+- **Shift+F10** runs the configured startup project.
+- **Ctrl+Shift+F10** runs the test under the cursor.
+- For composition smoke tests, Rider's xUnit runner finds tests automatically — no extra config.
+
+### Useful Rider plugins
+
+| Plugin | What it does |
+| --- | --- |
+| **.NET Core User Secrets** | UI for managing `dotnet user-secrets` per project. |
+| **EditorConfig** (bundled) | Live-formatting per `.editorconfig`. |
+| **GitHub Copilot** *(optional)* | Inline completions — useful for boilerplate module bodies. |
+
+## VS Code + C# Dev Kit
+
+Works as long as the workspace folder contains the `.slnx` file at root.
+
+### Required extensions
+
+| Extension | Purpose |
+| --- | --- |
+| **C# Dev Kit** (Microsoft) | IntelliSense, debugging, solution explorer. Required. |
+| **C#** (Microsoft) | Language services (Roslyn). Dev Kit pulls this in. |
+| **.NET Install Tool** | Manage installed SDKs from inside VS Code. |
+| **.NET Watch** *(optional)* | Surfaces `dotnet watch` in the command palette. The built-in `dotnet watch` works too. |
+
+If you're also editing the docs site:
+
+| Extension | Purpose |
+| --- | --- |
+| **Astro** (Astro) | `.astro` and `.mdx` syntax + Astro Language Server. |
+
+### Recommended `settings.json`
+
+```jsonc title=".vscode/settings.json"
+{
+  "dotnet.defaultSolution": "Acme.Store.slnx",
+  "csharp.format.enable": true,
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.organizeImports": "explicit"
+  },
+  "omnisharp.enableEditorConfigSupport": true,
+  "files.exclude": {
+    "**/bin": true,
+    "**/obj": true
+  }
+}
+```
+
+### Recommended `tasks.json`
+
+```jsonc title=".vscode/tasks.json"
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "command": "dotnet",
+      "args": ["build", "${workspaceFolder}/Acme.Store.slnx"],
+      "type": "shell",
+      "group": "build"
+    },
+    {
+      "label": "test",
+      "command": "dotnet",
+      "args": ["test", "${workspaceFolder}/Acme.Store.slnx"],
+      "type": "shell",
+      "group": "test"
+    },
+    {
+      "label": "run host",
+      "command": "dotnet",
+      "args": ["run", "--project", "${workspaceFolder}/src/Acme.Store.Host"],
+      "type": "shell"
+    },
+    {
+      "label": "doctor",
+      "command": "cephalon",
+      "args": ["doctor"],
+      "type": "shell",
+      "problemMatcher": []
+    }
+  ]
+}
+```
+
+Run with `Ctrl+Shift+B` (build) or `Ctrl+Shift+P` → "Tasks: Run Task".
+
+### Recommended `launch.json`
+
+```jsonc title=".vscode/launch.json"
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run host",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/Acme.Store.Host/bin/Debug/net10.0/Acme.Store.Host.dll",
+      "cwd": "${workspaceFolder}/src/Acme.Store.Host",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5000"
+      }
+    },
+    {
+      "name": "Attach to dotnet",
+      "type": "coreclr",
+      "request": "attach"
+    }
+  ]
+}
+```
+
+## Cross-IDE features
+
+### `.editorconfig`
+
+CephalonEngine apps benefit from a strict `.editorconfig` — all three IDEs read it.
+
+```ini title=".editorconfig"
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = crlf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.{json,jsonc,yaml,yml,xml,csproj,props,targets}]
+indent_size = 2
+
+[*.cs]
+csharp_using_directive_placement = outside_namespace
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_prefer_top_level_statements = true
+dotnet_diagnostic.IDE0058.severity = none
+```
+
+### `omnisharp.json` (project-level — optional)
+
+If you want extra Roslyn analyzers for code style:
+
+```jsonc title="omnisharp.json"
+{
+  "FormattingOptions": {
+    "EnableEditorConfigSupport": true,
+    "OrganizeImports": true
+  },
+  "RoslynExtensionsOptions": {
+    "EnableAnalyzersSupport": true,
+    "EnableImportCompletion": true
+  }
+}
+```
+
+## Tips & tricks
+
+### Productivity flags
+
+- **Visual Studio**: enable "Run analyzers in parallel" under Tools → Options → Text Editor → C# → Advanced. CephalonEngine modules have many small projects; serial analysis is slow.
+- **JetBrains Rider**: turn on "Run Configurations → Restore tools on solution load". Same effect as `dotnet tool restore` on each open.
+- **VS Code**: install the `.NET Watch` extension. The built-in `dotnet watch` works, but the extension makes it discoverable from the command palette.
+
+### Cross-IDE debugging
+
+- **Always set `ASPNETCORE_ENVIRONMENT=Development`** in your launch config when debugging — engine error messages are richer in Development.
+- **`/engine/snapshot` is your debug-time friend.** It returns the resolved configuration as the engine sees it. Useful for "is my env var being read?".
+- **Hot Reload works for behavior bodies, not `Describe()`.** Composition is one-shot — capability changes need a full restart.
+
+### Multi-monitor setup
+
+- **Editor on one monitor, browser on the other.** With `dotnet watch run` and a hot-reloading browser, the round-trip is instant.
+- **For tutorials and docs work**, keep the docs site (`npm run dev`) running in a third terminal — markdown changes hot-reload in the browser too.
+
+### Common pitfalls
+
+| Don't | Do |
+| --- | --- |
+| Open the `.sln` file when `.slnx` exists | `.slnx` is the modern format. `.sln` is legacy but still works. |
+| Configure NuGet sources globally with secrets in plaintext | Use environment-variable interpolation (`%FEED_TOKEN%`) in `nuget.config`, or per-user config. |
+| Disable analyzers because "they slow my build" | Run them in parallel instead — engine modules need the consistency. |
+| Edit `appsettings.json` directly when committing — accidentally leak secrets | Bind config to typed POCOs; use `dotnet user-secrets` for dev secrets. |
+| Forget to set `*.Host` as the startup project | Visual Studio runs the *first* project alphabetically by default — usually a module library. |
+
+## Where to go next
+
+- **[① CLI install](/0-1-0-preview/guide/installation/cli/)** — install the `cephalon` tool the IDE can shell out to.
+- **[② Manual install](/0-1-0-preview/guide/installation/manual/)** — package install without the CLI.
+- **[④ CI / build agents](/0-1-0-preview/guide/installation/ci/)** — automate the same builds your IDE does.
+- **[Concepts](/0-1-0-preview/guide/concepts/)** — what to look for when stepping through engine composition in the debugger.

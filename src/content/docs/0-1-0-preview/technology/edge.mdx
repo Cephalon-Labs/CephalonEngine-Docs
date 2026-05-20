@@ -1,0 +1,269 @@
+---
+title: Edge
+description: Cephalon.Edge runtime + Traefik + Kubernetes Gateway adapters. Use cases for edge-native delivery, hot-path routing, edge-cached behaviors, signed module delivery, and POP placement.
+sidebar:
+  order: 8
+editUrl: false
+---
+
+The edge domain covers everything that runs **closer to the user than your central origin** — CDN POPs, regional micro-hosts, browser-attached service workers, and the L7 gateway in front of your cluster.
+
+CephalonEngine's edge story is opinionated: **the same module that runs at origin can run at the edge, with the engine taking care of bundle signing, route negotiation, and which behaviors are eligible for edge placement.**
+
+## Packages
+
+| Package | Maturity | What it ships | When to use |
+| --- | --- | --- | --- |
+| **`Cephalon.Edge`** | `M2` | Edge-native delivery runtime services. Hot-path routing, edge-side caching, signed module delivery. | Building edge-eligible modules; placing read-mostly endpoints at the edge. |
+| **`Cephalon.Edge.Traefik`** | `M2` | Traefik integration — config emission, dynamic provider, route negotiation. | You already run Traefik as your gateway; want CephalonEngine to emit Traefik dynamic configuration. |
+| **`Cephalon.Edge.KubernetesGateway`** | `M2` | Kubernetes Gateway API (GAMMA + standard) integration. | You're on Kubernetes and use Gateway API (Istio, Cilium, NGINX Gateway, etc.). |
+
+## How edge works in CephalonEngine
+
+Behaviors are tagged for **edge eligibility** via attributes on the handler class. The engine emits a manifest of eligible behaviors. A gateway adapter (Traefik / Kubernetes Gateway) reads that manifest and configures routes so eligible endpoints go to edge POPs, the rest go to origin.
+
+```text
+┌────────┐  read-heavy   ┌──────────────┐
+│ Client │ ────────────▶ │  Edge POP    │  ← runs cached GET /products/{id}
+└────────┘               │ (Cephalon.   │
+   │  write              │    Edge)     │
+   │                     └──────┬───────┘
+   │                            │ miss / mutate
+   ▼                            ▼
+┌──────────────────────────────────────┐
+│  Origin (Cephalon.AspNetCore)        │  ← runs everything; source of truth
+│  - all behaviors                     │
+│  - manifest emitter                  │
+└──────────────────────────────────────┘
+```
+
+The origin emits a `routing-manifest.json` describing which behaviors are edge-eligible. The gateway adapter watches the manifest and reconciles its config.
+
+## Edge eligibility
+
+Mark a behavior as edge-eligible:
+
+```csharp title="GetProductBehavior.cs" {1}
+[EdgeEligible(Cache = "5m", VaryBy = "tenant")]
+public sealed class GetProductBehavior : IRestBehavior<Sfid, ProductDto>
+{
+    public RestRoute Route => RestRoute.Get("/products/{id:sfid}");
+
+    public Task<ProductDto> Handle(Sfid id, CancellationToken ct) =>
+        _query.GetByIdAsync(id, ct);
+}
+```
+
+The engine refuses to make a behavior edge-eligible if it:
+
+- Writes to a `Capability.Data` write model.
+- Publishes `Capability.Eventing` events.
+- Requires `Capability.Identity` scopes beyond a stateless claim check.
+- Returns a streaming body (SSE, WebSocket).
+
+(These are detected at composition time — you get a clear error message rather than a runtime surprise.)
+
+## Configuring edge
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Edge": {
+      "Enabled": true,
+      "Adapter": "Traefik",                    // Traefik | KubernetesGateway | None
+      "ManifestPath": "/var/lib/cephalon/routing-manifest.json",
+      "ManifestEmitInterval": "00:00:30",
+      "Bundle": {
+        "SignWith": "/etc/cephalon/edge-key.pem",
+        "Compression": "br"
+      },
+      "DefaultCache": "60s",
+      "DefaultVaryBy": "Accept-Language"
+    }
+  }
+}
+```
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `Enabled` | `false` | Master switch. |
+| `Adapter` | `"None"` | Which gateway adapter to wire. |
+| `ManifestPath` | `null` | Where the routing manifest is emitted. Must be readable by the gateway. |
+| `ManifestEmitInterval` | `"00:01:00"` | How often to refresh the manifest. Edge POPs read it lazily. |
+| `Bundle.SignWith` | `null` | Path to a PEM-encoded signing key. **Required for production.** Edge POPs verify signatures before executing. |
+| `Bundle.Compression` | `"gzip"` | `gzip`, `br`, or `none`. `br` is ~20% smaller for typical bundles. |
+| `DefaultCache` | `null` | Fallback cache header for edge-eligible behaviors that don't set their own. |
+| `DefaultVaryBy` | `null` | Fallback `Vary` header. |
+
+## Use-case scenarios
+
+### Scenario 1: read-mostly product catalog at the edge
+
+```csharp title="GetProductBehavior.cs"
+[EdgeEligible(Cache = "5m", VaryBy = "tenant")]
+public sealed class GetProductBehavior : IRestBehavior<Sfid, ProductDto> { /* ... */ }
+```
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Edge": {
+      "Enabled": true,
+      "Adapter": "Traefik",
+      "Bundle": { "SignWith": "/etc/cephalon/edge-key.pem" }
+    }
+  }
+}
+```
+
+Result: GET `/products/{id}` is served from the nearest Traefik POP (≤50ms latency for most users), invalidated 5 minutes after origin write.
+
+### Scenario 2: edge cache + per-locale variations
+
+```csharp
+[EdgeEligible(Cache = "10m", VaryBy = "Accept-Language,tenant")]
+public sealed class GetCategoryListBehavior : IRestBehavior<Unit, CategoryListDto> { /* ... */ }
+```
+
+The edge POP caches `("acme", "en-US")` separately from `("acme", "th-TH")`. Bandwidth saved, latency win for international users.
+
+### Scenario 3: hybrid placement — read at edge, write at origin
+
+```csharp title="ProductsModule.cs"
+public sealed class ProductsModule : RestBehaviorModuleBase
+{
+    protected override void ConfigureRestBehaviors(IRestBehaviorBuilder builder)
+    {
+        // Edge-eligible (read)
+        builder.MapProfile<GetProductBehavior>();         // [EdgeEligible]
+        builder.MapProfile<ListProductsBehavior>();       // [EdgeEligible]
+
+        // Origin-only (write)
+        builder.MapProfile<CreateProductBehavior>();      // no attribute → origin
+        builder.MapProfile<UpdateProductBehavior>();
+        builder.MapProfile<DeleteProductBehavior>();
+    }
+}
+```
+
+Same module, mixed placement. The gateway adapter routes `GET /products/*` to edge, `POST/PUT/DELETE /products/*` to origin.
+
+### Scenario 4: Kubernetes Gateway API
+
+If you're using Istio, Cilium, NGINX Gateway, Envoy Gateway, or any Gateway-API-conformant control plane:
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Edge": {
+      "Enabled": true,
+      "Adapter": "KubernetesGateway",
+      "KubernetesGateway": {
+        "Namespace": "acme-store",
+        "GatewayName": "acme-gw",
+        "GatewayClass": "istio"
+      }
+    }
+  }
+}
+```
+
+The adapter emits `HTTPRoute` + `BackendTLSPolicy` resources, applies them via the Kubernetes API, and watches the manifest for changes.
+
+### Scenario 5: Traefik file provider
+
+For a simpler / non-Kubernetes deploy with Traefik:
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Edge": {
+      "Enabled": true,
+      "Adapter": "Traefik",
+      "Traefik": {
+        "FileProviderPath": "/etc/traefik/dynamic/cephalon-routing.yaml",
+        "EntryPoint": "websecure"
+      }
+    }
+  }
+}
+```
+
+The adapter writes Traefik dynamic-config YAML; Traefik's file provider hot-reloads it. No Traefik API integration required.
+
+### Scenario 6: dev loop — edge disabled
+
+Most local dev doesn't need edge; turn it off:
+
+```jsonc title="appsettings.Development.json"
+{
+  "Engine": { "Edge": { "Enabled": false } }
+}
+```
+
+Behaviors tagged `[EdgeEligible]` still work — they just always go through origin. Same code, no edge runtime, simpler debugging.
+
+## Limits & gotchas
+
+- **`Cephalon.Edge` is `M2` — narrow surface.** Edge runtime ships but the manifest format is still settling. Expect minor breaking changes within `0.1.0-preview` minor versions.
+- **Signed bundles are mandatory in production.** A POP that runs an unsigned bundle is a remote code execution vector. The engine refuses to ship bundles without `Bundle.SignWith` unless `Engine:Edge:AllowUnsigned=true` (allowed in `Development` only).
+- **Edge POPs share the manifest; they don't share state.** Each POP runs read-only handlers; any mutation hits origin. Don't try to coordinate state across POPs.
+- **Edge attribute mismatches are composition-fatal.** A behavior tagged `[EdgeEligible]` that injects an `IDbContext` write surface fails composition. The error message names the behavior + the offending dependency.
+- **The default cache TTL is `null` (no cache).** You must opt in per behavior. Forgetting `Cache = "..."` means "edge-eligible but always proxies to origin" — costly without the latency win.
+- **Vary keys are case-sensitive.** `Accept-Language` and `accept-language` produce different cache keys; pick one and stick to it. Engine emits a warning but doesn't normalise.
+
+## Tips & tricks
+
+### When to put a behavior at the edge
+
+- ✅ Read-mostly endpoint with low cardinality (catalogs, product lists, marketing pages, public RSS).
+- ✅ Geo-distributed audience where latency dominates UX (international shopping).
+- ✅ Behavior is stateless and idempotent.
+- ❌ Authenticated, per-user data (cart, account, settings) — usually wrong, the cache hit rate is too low.
+- ❌ Behaviors that write or publish events — composition will reject anyway.
+
+### Cache key design
+
+- **Always set an explicit `VaryBy`** when there's any chance of multi-tenancy or locale variation. Default to `tenant` for SaaS.
+- **Don't include the full URL in the cache key.** The engine uses route + matched parameters. Query parameters require `VaryBy = "...,QueryString:filter"` (and you should usually canonicalise instead).
+- **Watch for cache stampede** at popular endpoints. Set `Cache = "5m, stale-while-revalidate=60s"` so one user pays the origin trip while others serve stale.
+
+### Bundle signing
+
+- **Rotate the bundle-signing key on a regular cadence** (quarterly). Edge POPs cache the trust set; restart them after rotation.
+- **Use Sigstore-style keyless signing** if you can (`SignWith: "sigstore"`). Avoids key-management entirely; the engine verifies via Sigstore's transparency log.
+
+### Adapter choice
+
+- **Traefik** is the simplest path if you're not on Kubernetes. The file provider works in any Docker / VM / metal environment.
+- **Kubernetes Gateway** is the right path on Kubernetes. Don't use Ingress — Gateway is the modern API.
+- **Custom adapter** — implement `IEdgeAdapter` if your gateway isn't one of the above. The interface is two methods (`ReconcileAsync`, `WatchManifestAsync`).
+
+### Observability
+
+- The edge runtime emits `cephalon.edge.*` traces — `cache.hit`, `cache.miss`, `bundle.verify`, `manifest.read`.
+- Use the `cephalon.edge.cache_hit_ratio` metric to verify behavior eligibility is paying off. Below 50% hit rate, reconsider.
+- Edge POPs include their POP id (`cephalon.edge.pop`) in trace attributes — useful for "is this a specific POP misbehaving?" diagnostics.
+
+### Anti-patterns
+
+| Don't | Do |
+| --- | --- |
+| Tag `[EdgeEligible]` on every behavior | Be selective — read-mostly + low-cardinality only |
+| Set short cache TTLs (`<10s`) for edge behaviors | If TTL is that low, you don't benefit from edge — keep at origin |
+| Skip `VaryBy` and rely on path-only cache keys | Always vary by `tenant` in SaaS; vary by `Accept-Language` if i18n matters |
+| Run an unsigned bundle in production | Always set `Bundle.SignWith` |
+| Cache write responses | Writes go to origin; edge is read-only |
+| Maintain stateful per-POP caches | Edge POPs are stateless. Use the shared backend for any state |
+
+## Source-doc snapshots
+
+- **[Cephalon.Edge](/0-1-0-preview/source/components/edge/)** — runtime internals.
+- **[Cephalon.Edge.Traefik](/0-1-0-preview/source/components/edge-traefik/)** — Traefik adapter internals.
+- **[Cephalon.Edge.KubernetesGateway](/0-1-0-preview/source/components/edge-kubernetes-gateway/)** — K8s Gateway adapter internals.
+
+## Cross-references
+
+- **[Tutorial → Edge-native delivery](/0-1-0-preview/tutorials/edge-native/)** — walkthrough with Traefik.
+- **[Technology → Hosts](/0-1-0-preview/technology/hosts/)** — the host adapters edge wraps.
+- **[Reference → Architecture](/0-1-0-preview/reference/architecture/)** — runtime contracts (the *Transport surface* + canonical edge-eligibility contract land in `0.2.0-preview`).

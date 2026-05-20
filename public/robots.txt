@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://cephalon-labs.github.io/CephalonEngine-Docs/sitemap-index.xml

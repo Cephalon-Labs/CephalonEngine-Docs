@@ -1,0 +1,74 @@
+---
+title: 'Tutorial: Multi-tenant SaaS'
+description: 'Add tenant resolution, ambient context, durable membership/invitation governance, declared domain ownership, and approval/remediation workflows.'
+sidebar:
+  order: 3
+editUrl: false
+---
+
+Multi-tenancy is one of those decisions that's painful to retrofit but trivial when designed in. CephalonEngine ships first-party multi-tenancy through `Cephalon.MultiTenancy` and `Cephalon.MultiTenancy.Governance` — runtime-neutral, host-agnostic, and built to handle the full governance surface (memberships, invitations, declared domain ownership, approval/remediation workflows).
+
+## What you'll build
+
+- a tenant-aware version of the **First-app** modular monolith.
+- tenant resolution from a subdomain, header, or JWT claim.
+- ambient `ITenantContext` available across modules.
+- durable tenant-membership and tenant-invitation governance.
+- declared domain ownership with verification + remediation flows.
+- per-tenant data isolation through a shared `DbContext` with row-level filtering.
+
+## What's shipped today
+
+- `Cephalon.MultiTenancy` — host-agnostic tenancy primitives. `M2`.
+- `Cephalon.MultiTenancy.AspNetCore` — ASP.NET Core resolver middleware. `M2`.
+- `Cephalon.MultiTenancy.Governance` — durable governance storage. `M2`.
+- Email-delivery adapters: Amazon SES, Mailgun, Microsoft Graph, SendGrid, SMTP. All `M2`.
+
+## Skeleton
+
+```csharp
+// Program.cs
+builder.Services
+    .AddCephalonAspNetCore()
+    .AddMultiTenancy(options =>
+    {
+        options.Resolvers.UseSubdomain();
+        options.Resolvers.UseHeader("X-Tenant");
+        options.Resolvers.UseClaim("tenant_id");
+    })
+    .AddTenantGovernance(options =>
+    {
+        options.UseEntityFramework<TenantGovernanceDbContext>();
+        options.EmailDelivery.UseSendGrid();
+    })
+    .AddModulesFromAssemblies(/* ... */);
+```
+
+```csharp
+// Module
+public sealed class ProductsModule : RestBehaviorModuleBase
+{
+    public override ModuleDescriptor Describe() => new(
+        name: "Acme.Store.Modules.Products",
+        version: "1.0.0",
+        capabilities: [Capability.Data, Capability.Tenancy]);   // declares tenancy
+
+    public override void RegisterServices(IServiceCollection services)
+    {
+        services.AddCephalonEntityFramework<ProductsDbContext>((sp, options) =>
+        {
+            var tenant = sp.GetRequiredService<ITenantContext>();
+            var conn = sp.GetRequiredService<ITenantConnectionResolver>().ResolveProducts(tenant);
+            options.UseNpgsql(conn);
+        });
+    }
+}
+```
+
+## Status
+
+The full walkthrough is part of the upcoming `v0.2.0-preview` docs push. Until then:
+
+- read **[Technology → Multi-tenancy](/0-1-0-preview/technology/multi-tenancy/)** for the package catalogue and what each package does.
+- the source docs at [docs/components/multi-tenancy.md](/0-1-0-preview/source/components/multi-tenancy/) describe the runtime contract.
+- email delivery providers are listed at **[Technology → Multi-tenancy → Email delivery](/0-1-0-preview/technology/multi-tenancy/#email-delivery)**.

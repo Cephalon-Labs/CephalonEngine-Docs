@@ -1,0 +1,129 @@
+---
+title: From plain ASP.NET Core
+description: Convert a Program.cs-style ASP.NET Core app into a CephalonEngine host module-by-module without breaking running traffic.
+sidebar:
+  order: 1
+editUrl: false
+---
+
+This playbook converts a typical ASP.NET Core minimal-API app into a CephalonEngine host. You don't have to do all of it at once — every step is reversible and the new stack can run alongside the old one for as long as you need.
+
+## Starting point
+
+A familiar ASP.NET Core app:
+
+```csharp title="Program.cs (before)"
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddDbContext<AppDb>(o => o.UseNpgsql(/*conn*/));
+builder.Services.AddSingleton<IClock, SystemClock>();
+
+var app = builder.Build();
+app.MapGet("/products", async (AppDb db) => await db.Products.ToListAsync());
+app.MapPost("/products", async (Product p, AppDb db) => { db.Products.Add(p); await db.SaveChangesAsync(); return Results.Created($"/products/{p.Id}", p); });
+app.Run();
+```
+
+## Step 1 — install Cephalon
+
+Add `Cephalon.AspNetCore`, `Cephalon.Abstractions`, `Cephalon.Data`, `Cephalon.Data.EntityFramework` to the project. Replace the builder line:
+
+```csharp title="Program.cs" ins={1-3,5} del={4} {2}
+var app = builder.Services
+    .AddCephalonAspNetCore()
+    .Build(builder);
+var app = builder.Build();
+
+app.MapCephalon();
+```
+
+You haven't moved any endpoints yet. The host now exposes `/engine/manifest`, `/engine/runtime`, and the behavior pipeline — but your existing `app.MapGet(...)` lines still work.
+
+**Risk:** low. The Cephalon pipeline coexists with existing endpoints. **Rollback:** revert the change.
+
+## Step 2 — create the first module
+
+Move one endpoint into a behavior. Start with a `Health` module:
+
+```csharp title="Modules/HealthModule.cs" {1-5,7-11}
+public sealed class HealthModule : RestBehaviorModuleBase
+{
+    public override ModuleDescriptor Describe() => new("Acme.Health", "1.0.0");
+    protected override void ConfigureRestBehaviors(IRestBehaviorBuilder b) => b.MapProfile<HealthBehavior>();
+}
+
+public sealed class HealthBehavior : IRestBehavior
+{
+    public RestRoute Route => RestRoute.Get("/health");
+    public IResult Handle() => Results.Ok(new { status = "ok" });
+}
+```
+
+Tell the engine where the module lives:
+
+```csharp title="Program.cs" ins={3}
+var app = builder.Services
+    .AddCephalonAspNetCore()
+    .AddModulesFromAssemblies(typeof(Program).Assembly)
+    .Build(builder);
+```
+
+Now `/health` is served by the behavior pipeline. Remove the duplicate `app.MapGet("/health", ...)` if you had one.
+
+**Risk:** low. **Rollback:** delete the module, restore the old endpoint.
+
+## Step 3 — migrate one feature at a time
+
+Pick the simplest endpoint group (e.g. `GET /products`). Create `ProductsModule`, move the endpoint into `ListProductsBehavior`, delete the old `app.MapGet(...)`.
+
+Repeat for each feature. The behavior pipeline gives you automatic OpenAPI grouping, audit decorators, and module-aware telemetry that the old `app.MapGet` didn't.
+
+## Step 4 — migrate the DbContext
+
+Replace `AddDbContext<AppDb>` with `AddCephalonEntityFramework<AppDb>`:
+
+```csharp title="Program.cs" del={1-2} ins={3-4}
+services.AddDbContext<AppDb>(o =>
+    o.UseNpgsql(/*conn*/));
+services.AddCephalonEntityFramework<AppDb>((sp, options) =>
+    options.UseNpgsql(sp.GetRequiredService<IConfiguration>().GetConnectionString("Default")));
+```
+
+If you have multiple bounded contexts, each module owns its own DbContext. Don't share — let modules be self-contained.
+
+## Step 5 — adopt capabilities
+
+Decide whether the app needs:
+
+- `Audit` — enable with `AddAudit(...)`. Pulls in the audit companion.
+- `Identity` — enable with `AddIdentity(...)`. Wire your existing JWT auth into the principal.
+- `Tenancy` — only if multi-tenant.
+- `Messaging` — only if eventing is in the future of the app.
+
+You don't have to adopt all of them. The point of capability-driven design is that none of them is required.
+
+## Step 6 — adopt observability
+
+Add `Cephalon.Observability` + `Cephalon.Observability.OpenTelemetry`. Replace any hand-rolled OpenTelemetry wiring you had with:
+
+```csharp title="Program.cs" {1}
+services.AddObservability(o => o.UseOpenTelemetry(otel => otel.ExporterEndpoint = "http://otel-collector:4317"));
+```
+
+You'll get module-aware resource attributes and trace scoping for free.
+
+## Step 7 — adopt the generated deploy folder
+
+Run `cephalon new <name> --output ./tmp` and copy the generated `deploy/`, `Dockerfile`, `compose.yaml`, and `otel-collector-config.yaml` over the equivalents in your repo. Replace your CI pipeline with the `cephalon`-flavoured equivalent — see **[Tutorial → CI/CD pipeline](/0-1-0-preview/tutorials/ci-cd-pipeline/)**.
+
+## Verification
+
+- `dotnet test` runs the composition smoke tests. They should green.
+- `/engine/manifest` returns the modules you migrated.
+- The OpenAPI document at `/scalar/v1` reflects the new shape.
+- Traces in your observability backend now carry `cephalon.module.name`.
+
+## Risks and gotchas
+
+- **Endpoint route conflicts.** Don't `app.MapGet("/products", ...)` and register a behavior on the same path. The behavior pipeline registers first; the duplicate `MapGet` will warn but produce undefined behaviour.
+- **DI lifetime mismatches.** Some legacy services may be `Singleton` when the behavior assumes `Scoped`. The composition smoke tests catch these.
+- **Auth pipeline order.** `UseAuthentication()` / `UseAuthorization()` still apply. Cephalon's behavior-level `WithRequireScope` runs **after** ASP.NET Core auth.

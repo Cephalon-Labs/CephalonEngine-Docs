@@ -1,0 +1,146 @@
+---
+title: Tutorials
+description: End-to-end tutorials for building real applications on CephalonEngine. Modular monoliths, microservices, multi-tenant SaaS, gRPC services, eventing pipelines, and full observability stacks.
+sidebar:
+  order: 0
+  label: Overview
+editUrl: false
+---
+
+import PathCards from '../../../../components/PathCards.astro';
+
+Tutorials walk you through building a real thing. Every tutorial here:
+
+- starts from `cephalon new` and ends with a running, observable, deployable app.
+- shows the full diff at each step — not just the happy-path snippet.
+- explains the **why** behind each decision, not only the **how**.
+- ends with a checklist of what to do next when the lesson is over.
+
+If you're new to CephalonEngine, start with **[Build your first app](/0-1-0-preview/tutorials/first-app/)**. Everything else assumes you've gone through it.
+
+## Tutorial library
+
+<PathCards
+  paths={[
+    {
+      badge: 'Foundations',
+      title: 'Build your first app',
+      description: '8-part series: scaffold a modular monolith, add a domain module with REST endpoints, plug in EF Core, wire observability, write tests, deploy.',
+      href: '/0-1-0-preview/tutorials/first-app/',
+      cta: 'Start the series',
+    },
+    {
+      badge: 'Microservices',
+      title: 'Build a microservice suite',
+      description: 'Split a domain across multiple hosts with eventing, shared identity, and per-service observability. Includes Kubernetes deploy.',
+      href: '/0-1-0-preview/tutorials/microservice-suite/',
+      cta: 'Build the suite',
+    },
+    {
+      badge: 'SaaS',
+      title: 'Multi-tenant SaaS',
+      description: 'Tenant resolution, ambient context, durable membership/invitation governance, declared domain ownership, approval/remediation workflows.',
+      href: '/0-1-0-preview/tutorials/multi-tenant-saas/',
+      cta: 'Build the SaaS',
+    },
+    {
+      badge: 'Transports',
+      title: 'gRPC service',
+      description: 'Stand up a gRPC service with unary + streaming, shared types, and observability that links the trace across the wire.',
+      href: '/0-1-0-preview/tutorials/grpc-service/',
+      cta: 'Build the service',
+    },
+    {
+      badge: 'Transports',
+      title: 'GraphQL API',
+      description: 'Federate a GraphQL schema across modules, with auth and field-level resolvers driven by capabilities.',
+      href: '/0-1-0-preview/tutorials/graphql-api/',
+      cta: 'Build the API',
+    },
+    {
+      badge: 'Eventing',
+      title: 'Event-driven pipeline',
+      description: 'Wolverine adapter, outbox, scheduled delivery, DLQ replay, process managers, and CDC capture.',
+      href: '/0-1-0-preview/tutorials/event-driven/',
+      cta: 'Build the pipeline',
+    },
+    {
+      badge: 'Data',
+      title: 'CQRS + read-model projections',
+      description: 'Split writes (Postgres) from reads (ClickHouse). Wolverine events bridge them via transactional outbox + idempotent inbox. Covers lightweight CQRS + pointers to full event-sourcing.',
+      href: '/0-1-0-preview/tutorials/cqrs/',
+      cta: 'Build CQRS',
+    },
+    {
+      badge: 'Observability',
+      title: 'Full observability stack',
+      description: 'OTLP collector + Grafana + Tempo + Loki, with per-backend dependency-health dashboards and SLO templates.',
+      href: '/0-1-0-preview/tutorials/observability-stack/',
+      cta: 'Build the stack',
+    },
+    {
+      badge: 'Quality',
+      title: 'Testing strategy',
+      description: 'Composition smoke tests, behavior specifications, integration tests against real Postgres + Redis containers, contract tests for transports.',
+      href: '/0-1-0-preview/tutorials/testing-strategy/',
+      cta: 'Adopt the strategy',
+    },
+    {
+      badge: 'Ops',
+      title: 'CI/CD pipeline',
+      description: 'GitHub Actions reference pipeline: build, test, benchmark, container publish, manifest sign, deploy.',
+      href: '/0-1-0-preview/tutorials/ci-cd-pipeline/',
+      cta: 'Set up CI/CD',
+    },
+    {
+      badge: 'Edge',
+      title: 'Edge-native delivery',
+      description: 'Cephalon.Edge with Traefik or Kubernetes Gateway. Hot-path routing, edge-side caching, and signed module delivery.',
+      href: '/0-1-0-preview/tutorials/edge-native/',
+      cta: 'Deploy at the edge',
+    },
+    {
+      badge: 'Retrieval',
+      title: 'Retrieval-augmented service',
+      description: 'Cephalon.Retrieval with Qdrant + Postgres pgvector. Index, query, and trace the retrieval pipeline.',
+      href: '/0-1-0-preview/tutorials/retrieval-rag/',
+      cta: 'Build the service',
+    },
+    {
+      badge: 'Agentics',
+      title: 'Agentic workload',
+      description: 'Cephalon.Agentics runtime services: task graph, tool registry, scheduled agents, agent-to-event handoff.',
+      href: '/0-1-0-preview/tutorials/agentic-workload/',
+      cta: 'Build the agent',
+    },
+  ]}
+/>
+
+## Tutorial conventions
+
+| Convention | Meaning |
+| --- | --- |
+| **Step header** | Each step is independently runnable. You can stop after any step and have a working app. |
+| **Full diff** | We show the file before and after the change, not just the new lines. |
+| **"Why this works"** | Architectural explanation of the change, so you can recreate it without the tutorial in front of you. |
+| **"Pitfalls"** | Mistakes we made the first time so you don't repeat them. |
+| **"What to do next"** | Pointers to the related Guide / Reference page once you finish. |
+
+## Companion repositories
+
+Every tutorial has a matching tagged commit in [github.com/Cephalon-Labs/CephalonEngine-Examples](https://github.com/Cephalon-Labs/CephalonEngine-Examples). If you get lost, check out the tag for the step you're on and diff against your local copy.
+
+## Suggested learning path
+
+```text
+  first-app ──┬── microservice-suite ──── multi-tenant-saas
+              │
+              ├── grpc-service ─────┐
+              ├── graphql-api ──────┤
+              ├── event-driven ─────┼── cqrs ── observability-stack ── ci-cd-pipeline
+              │                     │
+              ├── retrieval-rag     │
+              └── agentic-workload ─┘
+```
+
+Pick the leaf that matches your delivery pressure first — everyone benefits from observability and testing strategy regardless of the shape.

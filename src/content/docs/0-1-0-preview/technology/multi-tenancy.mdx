@@ -1,0 +1,77 @@
+---
+title: Multi-tenancy
+description: Tenant resolution, ambient context, durable membership/invitation governance, declared domain ownership, approval/remediation workflows, and email delivery adapters.
+sidebar:
+  order: 6
+editUrl: false
+---
+
+CephalonEngine treats multi-tenancy as a first-class capability — not a sidecar. The `Cephalon.MultiTenancy` family covers everything from resolution to durable governance.
+
+## Packages
+
+| Package | Maturity | What it brings |
+| --- | --- | --- |
+| **`Cephalon.MultiTenancy`** | `M2` | Tenancy primitives — `ITenantContext`, `ITenantResolver`, resolution policy, ambient context middleware. |
+| **`Cephalon.MultiTenancy.Governance`** | `M2` | Durable tenant-membership, tenant-invitation, declared domain ownership, approval/remediation action decision, in-process workflow, opt-in durable membership/invitation/domain/action-store. |
+
+## Email-delivery adapters
+
+The governance flow can deliver invitations and remediation messages through pluggable providers:
+
+| Package | Maturity |
+| --- | --- |
+| `Cephalon.MultiTenancy.Governance.SmtpDelivery` | `M2` |
+| `Cephalon.MultiTenancy.Governance.SendGridDelivery` | `M2` |
+| `Cephalon.MultiTenancy.Governance.SendGridDelivery.AspNetCore` | `M2` |
+| `Cephalon.MultiTenancy.Governance.AmazonSesDelivery` | `M2` |
+| `Cephalon.MultiTenancy.Governance.AmazonSesDelivery.AspNetCore` | `M2` |
+| `Cephalon.MultiTenancy.Governance.MailgunDelivery` | `M2` |
+| `Cephalon.MultiTenancy.Governance.MailgunDelivery.AspNetCore` | `M2` |
+| `Cephalon.MultiTenancy.Governance.MicrosoftGraphDelivery` | `M2` |
+| `Cephalon.MultiTenancy.Governance.MicrosoftGraphDelivery.AzureIdentity` | `M2` |
+| `Cephalon.MultiTenancy.Governance.HttpDelivery` | `M2` |
+
+## How to enable
+
+```csharp
+builder.Services
+    .AddCephalonAspNetCore()
+    .AddMultiTenancy(options =>
+    {
+        options.Resolvers.UseSubdomain();
+        options.Resolvers.UseHeader("X-Tenant");
+        options.Resolvers.UseClaim("tenant_id");
+    })
+    .AddTenantGovernance(options =>
+    {
+        options.UseEntityFramework<TenantGovernanceDbContext>();
+        options.EmailDelivery.UseSendGrid();
+    })
+    .AddModulesFromAssemblies(/* ... */);
+```
+
+## Per-tenant data isolation
+
+A common pattern is to inject the tenant context into the `DbContextOptions` so EF Core can apply row-level filters automatically:
+
+```csharp
+services.AddCephalonEntityFramework<AppDbContext>((sp, options) =>
+{
+    var tenant = sp.GetRequiredService<ITenantContext>();
+    options.UseNpgsql(conn);
+    options.AddInterceptor(new TenantRlsInterceptor(tenant));
+});
+```
+
+## Source-doc snapshots
+
+- [Cephalon.MultiTenancy](/0-1-0-preview/source/components/multi-tenancy/)
+- [Cephalon.MultiTenancy.Governance](/0-1-0-preview/source/components/multi-tenancy-governance/)
+- Email delivery adapters live under `components/multi-tenancy-governance-*` in the versioned source.
+
+## Cross-references
+
+- **[Tutorial → Multi-tenant SaaS](/0-1-0-preview/tutorials/multi-tenant-saas/)** — full walkthrough.
+- **[Reference → Configuration → Tenancy](/0-1-0-preview/reference/configuration/tenancy/)** — `Engine:Tenancy` schema with resolver chain, sharding, governance.
+- **[Reference → Architecture](/0-1-0-preview/reference/architecture/)** — canonical contracts index (the dedicated *Tenancy contract* page is planned for `0.2.0-preview`).

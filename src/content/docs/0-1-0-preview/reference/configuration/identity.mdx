@@ -1,0 +1,363 @@
+---
+title: 'Engine:Identity'
+description: Configure the identity & authorization capability — Bearer/Cookie auth, JWT validation, claim mapping, scope enforcement.
+sidebar:
+  order: 3
+editUrl: false
+---
+
+`Engine:Identity` configures the host-agnostic identity capability. **Only consumed when `Engine:Identity:Enabled=true`** and at least one module declares `Capability.Identity`.
+
+## Full schema
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Identity": {
+      "Enabled": true,
+      "Provider": "Bearer",                       // "Bearer" | "Cookie" | "None"
+      "Authority": "https://login.acme.example/",
+      "Audience":  "https://api.acme.example",
+      "RequireHttpsMetadata": true,
+      "ClockSkew": "00:05:00",                    // TimeSpan
+      "TokenValidation": {
+        "ValidateIssuer":   true,
+        "ValidateAudience": true,
+        "ValidateLifetime": true,
+        "ValidIssuers":     [ "https://login.acme.example/" ],
+        "ValidAudiences":   [ "https://api.acme.example" ],
+        "NameClaimType":    "sub",                // claim to use as principal name
+        "RoleClaimType":    "roles"               // claim that carries role array
+      },
+      "ClaimMapping": {
+        "TenantId":        "tenant_id",
+        "UserId":          "sub",
+        "Email":           "email",
+        "DisplayName":     "name"
+      },
+      "Cookie": {
+        "Name":            ".AcmeStore.Auth",
+        "LoginPath":       "/auth/login",
+        "LogoutPath":      "/auth/logout",
+        "ExpireTimeSpan":  "08:00:00",
+        "SlidingExpiration": true
+      },
+      "Scopes": {
+        "RequireAllForApi": false,                // OR vs AND scope matching
+        "DefaultDenied":    true                   // unmatched scopes = denied
+      }
+    }
+  }
+}
+```
+
+## Each option in detail
+
+### `Enabled`
+
+| Type | Default |
+| --- | --- |
+| boolean | `false` |
+
+Master switch. When `false`:
+- Modules declaring `Capability.Identity` fail composition.
+- `WithRequireScope` / `WithRequireRole` decorators on behaviors become no-ops.
+- Principal is the anonymous user (`IUserContext.IsAnonymous == true`).
+
+Set `true` to wire the identity capability. Requires `Cephalon.Identity` + a host-side adapter (`Cephalon.Identity.AspNetCore`).
+
+### `Provider`
+
+| Type | Default | Allowed values |
+| --- | --- | --- |
+| enum string | `"None"` | `"Bearer"`, `"Cookie"`, `"None"` |
+
+Authentication scheme.
+
+| Value | Use case |
+| --- | --- |
+| `"Bearer"` | **Most common.** JWT bearer tokens from an OIDC IdP (Auth0, Okta, Azure AD, Cognito, Keycloak). |
+| `"Cookie"` | Browser-driven login with server-side cookies. Used for traditional web apps. |
+| `"None"` | Wire identity primitives without authentication (e.g. for tests that fake the principal). |
+
+```jsonc
+{ "Engine": { "Identity": { "Enabled": true, "Provider": "Bearer", "Authority": "…" } } }
+```
+
+### `Authority` (Bearer)
+
+| Type | Default |
+| --- | --- |
+| URL string | none |
+
+The OIDC authority URL. The discovery document at `<Authority>/.well-known/openid-configuration` is fetched at startup to learn the signing keys, issuer, and supported algorithms.
+
+**Examples:**
+
+```jsonc
+{ "Authority": "https://login.acme.example/" }                                  // self-hosted Keycloak
+{ "Authority": "https://acme.auth0.com/" }                                      // Auth0
+{ "Authority": "https://login.microsoftonline.com/<tenant-id>/v2.0" }           // Azure AD
+{ "Authority": "https://cognito-idp.us-east-1.amazonaws.com/<pool-id>" }        // AWS Cognito
+```
+
+**Limits:**
+- The authority must serve a valid OIDC discovery document.
+- Discovery is cached for the host lifetime; rotate keys by restarting (or use the IdP's standard JWKS rotation, which is auto-refreshed).
+
+### `Audience` (Bearer)
+
+| Type | Default |
+| --- | --- |
+| string or array | none |
+
+The expected `aud` claim on incoming JWTs. Tokens with a non-matching audience are rejected.
+
+```jsonc
+{ "Audience": "https://api.acme.example" }
+{ "Audience": ["https://api.acme.example", "https://internal-api.acme.example"] }
+```
+
+### `RequireHttpsMetadata`
+
+| Type | Default |
+| --- | --- |
+| boolean | `true` |
+
+Whether the authority URL must be HTTPS. **Always `true` in production.** Only set `false` for local dev against an `http://localhost` IdP.
+
+### `ClockSkew`
+
+| Type | Default |
+| --- | --- |
+| TimeSpan string | `"00:05:00"` (5 min) |
+
+Allowed clock skew between the IdP and the host. Tokens just-expired by less than `ClockSkew` are still accepted.
+
+```jsonc
+{ "ClockSkew": "00:01:00" }   // 1 min — strict
+{ "ClockSkew": "00:10:00" }   // 10 min — relaxed
+```
+
+**Tip:** keep this small (1–5 min) in production. Larger values widen the window of replay attacks.
+
+### `TokenValidation` (Bearer)
+
+Fine-grained token validation. Mostly safe to leave at defaults; override only when you know why.
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `ValidateIssuer` | `true` | Reject tokens whose `iss` claim isn't in `ValidIssuers`. |
+| `ValidateAudience` | `true` | Reject tokens whose `aud` claim isn't in `ValidAudiences`. |
+| `ValidateLifetime` | `true` | Reject expired tokens (with `ClockSkew` grace). |
+| `ValidIssuers` | `[Authority]` | Allowlist of acceptable issuers. Defaults to `Authority` if not set. |
+| `ValidAudiences` | `[Audience]` | Allowlist of acceptable audiences. |
+| `NameClaimType` | `"sub"` | Which claim becomes `IUserContext.UserId`. |
+| `RoleClaimType` | `"roles"` | Which claim carries the role array. Some IdPs use `"role"` or a namespaced URI. |
+
+**Example: multi-tenant SaaS with one IdP per tenant:**
+
+```jsonc
+{
+  "TokenValidation": {
+    "ValidIssuers": [
+      "https://tenant-a.auth.acme.example/",
+      "https://tenant-b.auth.acme.example/"
+    ]
+  }
+}
+```
+
+**Example: legacy app with non-standard claims:**
+
+```jsonc
+{
+  "TokenValidation": {
+    "NameClaimType": "preferred_username",
+    "RoleClaimType": "https://schemas.microsoft.com/ws/2008/06/identity/claims/role"
+  }
+}
+```
+
+### `ClaimMapping`
+
+Maps JWT claims to engine-level identity primitives. The engine exposes them via `IUserContext`.
+
+| Key | Default claim | What it populates |
+| --- | --- | --- |
+| `TenantId` | `"tenant_id"` | `IUserContext.TenantId` — used by `Capability.Tenancy` |
+| `UserId` | `"sub"` | `IUserContext.UserId` |
+| `Email` | `"email"` | `IUserContext.Email` |
+| `DisplayName` | `"name"` | `IUserContext.DisplayName` |
+
+**Example: Auth0 multi-tenant setup using a namespaced claim:**
+
+```jsonc
+{
+  "ClaimMapping": {
+    "TenantId": "https://acme.example/tenant_id",
+    "Email": "https://acme.example/email"
+  }
+}
+```
+
+### `Cookie` (Cookie provider)
+
+When `Provider="Cookie"`, configure cookie behaviour here.
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `Name` | `".AppCookie"` | Cookie name. Use a unique value per app to avoid collisions. |
+| `LoginPath` | `"/Account/Login"` | Where to redirect unauthenticated users. |
+| `LogoutPath` | `"/Account/Logout"` | Logout endpoint path. |
+| `ExpireTimeSpan` | `"08:00:00"` | Cookie lifetime. |
+| `SlidingExpiration` | `true` | Reset expiration on each request. |
+
+```jsonc
+{
+  "Cookie": {
+    "Name": ".AcmeStore.Auth",
+    "ExpireTimeSpan": "24:00:00",
+    "SlidingExpiration": false
+  }
+}
+```
+
+### `Scopes`
+
+Policy for scope enforcement on behaviors decorated with `WithRequireScope(...)`.
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `RequireAllForApi` | `false` | If `true`, **all** scopes listed in `WithRequireScope` must be present (AND). If `false`, **any** match (OR). Default is OR. |
+| `DefaultDenied` | `true` | If no scope decorator is present, deny anonymous access. Set `false` to allow anonymous as the default. |
+
+**Example: enforce all scopes on every behavior:**
+
+```jsonc
+{ "Scopes": { "RequireAllForApi": true, "DefaultDenied": true } }
+```
+
+## Common scenarios
+
+### Scenario 1: Bearer auth with Auth0
+
+```jsonc
+{
+  "Engine": {
+    "Identity": {
+      "Enabled":  true,
+      "Provider": "Bearer",
+      "Authority": "https://acme.auth0.com/",
+      "Audience":  "https://api.acme.example",
+      "RequireHttpsMetadata": true
+    }
+  }
+}
+```
+
+### Scenario 2: Bearer auth with Azure AD (single-tenant)
+
+```jsonc
+{
+  "Engine": {
+    "Identity": {
+      "Enabled":  true,
+      "Provider": "Bearer",
+      "Authority": "https://login.microsoftonline.com/<tenant-id>/v2.0",
+      "Audience":  "<client-id>",
+      "TokenValidation": {
+        "NameClaimType": "preferred_username",
+        "RoleClaimType": "roles"
+      }
+    }
+  }
+}
+```
+
+### Scenario 3: Cookie auth for a traditional web app
+
+```jsonc
+{
+  "Engine": {
+    "Identity": {
+      "Enabled":  true,
+      "Provider": "Cookie",
+      "Cookie": {
+        "Name": ".AcmeStore.Auth",
+        "LoginPath": "/account/login",
+        "ExpireTimeSpan": "12:00:00",
+        "SlidingExpiration": true
+      }
+    }
+  }
+}
+```
+
+### Scenario 4: Multi-tenant SaaS with per-tenant IdP
+
+```jsonc
+{
+  "Engine": {
+    "Identity": {
+      "Enabled":  true,
+      "Provider": "Bearer",
+      "Authority": "https://login.acme.example/",      // tenancy-agnostic default
+      "Audience":  "https://api.acme.example",
+      "TokenValidation": {
+        "ValidIssuers": [
+          "https://acme.auth0.com/",
+          "https://b2c.acme.example/",
+          "https://login.microsoftonline.com/common/v2.0"
+        ]
+      },
+      "ClaimMapping": { "TenantId": "tenant_id" }
+    }
+  }
+}
+```
+
+### Scenario 5: Test environment with anonymous + fake principal
+
+```jsonc title="appsettings.Testing.json"
+{
+  "Engine": {
+    "Identity": {
+      "Enabled":  true,
+      "Provider": "None",
+      "Scopes":   { "DefaultDenied": false }
+    }
+  }
+}
+```
+
+In tests, register a fake `IUserContext`:
+
+```csharp
+services.AddSingleton<IUserContext>(new FakeUserContext { UserId = "u1", TenantId = "t1" });
+```
+
+## Environment-variable equivalents
+
+```text
+Engine__Identity__Enabled=true
+Engine__Identity__Provider=Bearer
+Engine__Identity__Authority=https://login.acme.example/
+Engine__Identity__Audience=https://api.acme.example
+Engine__Identity__TokenValidation__NameClaimType=preferred_username
+Engine__Identity__ClaimMapping__TenantId=tenant_id
+```
+
+## Limits & gotchas
+
+- **`Provider` can't be switched at runtime.** Restart the host. Capability registration is one-shot.
+- **JWKS rotation is automatic** but takes up to the IdP's cache TTL (typically 24h) to pick up new keys. Force a rotation by restarting hosts.
+- **Cookie auth + multi-tenant SaaS is hard.** Use Bearer + IdP-managed tenancy. Cookies don't carry custom claims across subdomains without `Domain` setting.
+- **`ClockSkew` larger than `ExpireTimeSpan`** of your tokens means tokens never expire from the host's POV. Keep skew small.
+- **`Scopes:RequireAllForApi=true`** is a hard breaking change for existing apps — every endpoint must explicitly grant required scopes.
+
+## See also
+
+- **[Technology → Identity](/0-1-0-preview/technology/identity/)** — `Cephalon.Identity` package catalogue.
+- **[Tutorial → Multi-tenant SaaS](/0-1-0-preview/tutorials/multi-tenant-saas/)** — identity + tenancy walkthrough.
+- **[Reference → Configuration → Tenancy](/0-1-0-preview/reference/configuration/tenancy/)** — `Engine:Tenancy` schema.

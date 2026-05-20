@@ -1,0 +1,43 @@
+# Docker Compose — CephalonEngine docs.
+#
+# Builds the static site and serves it on http://localhost:8080.
+#
+#   docker compose up -d --build      # build + start in the background
+#   docker compose logs -f            # follow logs
+#   docker compose down               # stop + remove
+#
+# Configuration — set these in a `.env` file next to this one, or export
+# them in your shell. All have sensible defaults so `docker compose up`
+# works with zero config:
+#   DOCS_PORT       host port to publish on            (default 8080)
+#   DOCS_SITE_URL   absolute site URL → canonical+sitemap (default localhost)
+#   DOCS_BASE_PATH  sub-path prefix; empty = domain root  (default empty)
+
+services:
+  docs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        DOCS_SITE_URL: ${DOCS_SITE_URL:-http://localhost:8080}
+        DOCS_BASE_PATH: ${DOCS_BASE_PATH:-}
+    image: cephalonengine-docs:latest
+    container_name: cephalonengine-docs
+    ports:
+      - "${DOCS_PORT:-8080}:80"
+    restart: unless-stopped
+    # nginx is read-only at runtime — harden the container surface.
+    read_only: true
+    tmpfs:
+      # nginx needs writable scratch space for cache + the worker PID.
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true

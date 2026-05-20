@@ -1,0 +1,78 @@
+---
+title: 'Tutorial: CI/CD pipeline'
+description: 'A GitHub Actions reference pipeline for CephalonEngine apps: build, test, benchmark, container publish, manifest sign, deploy.'
+sidebar:
+  order: 9
+editUrl: false
+---
+
+This tutorial walks through a complete GitHub Actions pipeline for a CephalonEngine app. The reference assumes the **First-app** shape and produces a signed container image deployed to Azure Container Apps on tag.
+
+## Pipeline shape
+
+```yaml
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+      - run: dotnet restore
+      - run: dotnet build --no-restore -c Release
+      - run: dotnet test --no-build -c Release --filter "Category!=Integration"
+      - run: dotnet test --no-build -c Release --filter "Category=Integration"
+
+  benchmark:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.x' }
+      - run: dotnet run --project ./benchmarks -c Release -- --filter "*HotPath*"
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions: { id-token: write, contents: read }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with: { client-id: ${{ secrets.AZURE_CLIENT_ID }}, tenant-id: ${{ secrets.AZURE_TENANT_ID }}, subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }} }
+      - run: ./deploy/container-image/publish-image.ps1 -Registry acmestore.azurecr.io -Tag ${GITHUB_REF_NAME#v}
+
+  deploy:
+    needs: image
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with: { client-id: ${{ secrets.AZURE_CLIENT_ID }}, tenant-id: ${{ secrets.AZURE_TENANT_ID }}, subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }} }
+      - run: ./deploy/azure-container-apps/deploy-up.ps1 -AppName acmestore -Image acmestore.azurecr.io/acme/store:${GITHUB_REF_NAME#v}
+```
+
+## Why this shape
+
+- **`test` runs on every PR** with composition + behavior in the fast lane, then integration.
+- **`benchmark` runs on PRs only** so trunk stays free of benchmark noise.
+- **`image` runs on tags only** so unsigned, half-validated images never get published.
+- **`deploy` is gated by `image`** so a failed publish blocks the rollout.
+
+## Status
+
+The full step-by-step lands in the next docs push. Until then:
+
+- the AGENTS.md in the engine repo documents `pwsh ./scripts/publish-package-artifacts.ps1` and the local-feed flow.
+- **[First-app step 8](/0-1-0-preview/tutorials/first-app/08-deploy/)** shows the manual ACA deploy this pipeline automates.

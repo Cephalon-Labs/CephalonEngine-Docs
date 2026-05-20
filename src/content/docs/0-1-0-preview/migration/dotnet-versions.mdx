@@ -1,0 +1,45 @@
+---
+title: .NET versions
+description: Move between .NET 10 and .NET 11 on CephalonEngine. The current readiness lane is assessment-only.
+sidebar:
+  order: 5
+editUrl: false
+---
+
+CephalonEngine's shipping baseline is **.NET 10 LTS**. The **.NET 11 readiness lane** is tracked publicly with `assessment-only` status — you can run trial builds on .NET 11, but it is not yet a support claim.
+
+## Current matrix
+
+| .NET version | Status | Notes |
+| --- | --- | --- |
+| **.NET 10** | `supported` | The shipping baseline. All packages target `net10.0`. |
+| **.NET 11** | `assessment-only` | Trial builds may pass; not a support claim. Tracked in [.NET 11 readiness](/0-1-0-preview/source/dotnet11-readiness/). |
+| **.NET 9 and earlier** | unsupported | The engine API surface uses .NET 10 features that don't backport. |
+
+## Reading the readiness lane
+
+The deployment-mode contract is read by `cephalon doctor`:
+
+```text
+deployment-mode shipping baseline: net10.0
+.NET 11 readiness lane: assessment-only
+```
+
+When the readiness lane changes status, the doctor command reflects it on the next CLI release.
+
+## Trying .NET 11 today
+
+1. Install the .NET 11 SDK alongside .NET 10.
+2. Override the SDK band in your repo's `global.json`:
+
+   ```json
+   { "sdk": { "version": "11.0.100", "rollForward": "latestFeature" } }
+   ```
+
+3. Restore + build + test. Treat any failure as a finding to report on the engine repo.
+
+The .NET 11 readiness audit on the engine docs side tracks observed findings.
+
+## .NET 9 → .NET 10
+
+If you're still on .NET 9, follow the official Microsoft upgrade guide first; CephalonEngine adopts .NET 10 features broadly. The migration to CephalonEngine is independent — see **[From plain ASP.NET Core](/0-1-0-preview/migration/from-aspnet-core/)**.

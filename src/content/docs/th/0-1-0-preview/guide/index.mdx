@@ -1,0 +1,79 @@
+---
+title: คู่มือ
+description: เริ่มต้นที่นี่ — คู่มือ CephalonEngine พาคุณจากติดตั้งไปจนถึงสถาปัตยกรรม การ deploy และการ operate ในวันต่อ ๆ ไป
+sidebar:
+  order: 0
+  label: ภาพรวม
+editUrl: false
+---
+
+import PathCards from '../../../../../components/PathCards.astro';
+
+ส่วนคู่มือคือเอกสารอ้างอิงหลักสำหรับการนำ CephalonEngine มาใช้ ทุกหน้าในนี้เขียนสำหรับคนที่กำลังจะ ship แอปจริง — ไม่ใช่แค่ตัวอย่าง ไม่ใช่เดโม แต่เป็นแอปที่จะต้องดูแลกันยาว ๆ
+
+ถ้ามีเวลาแค่ห้านาที ข้ามไปที่ **[เริ่มต้นด่วน](/th/0-1-0-preview/guide/quickstart/)** ถ้ามีบ่ายให้ทั้งบ่าย อ่าน **[แนวคิด](/th/0-1-0-preview/guide/concepts/)** แล้วเลือก **[เป้าหมายการ deploy](/th/0-1-0-preview/guide/deployment/)**
+
+<PathCards
+  paths={[
+    {
+      badge: '5 นาที',
+      title: 'เริ่มต้นด่วน',
+      description: 'ติดตั้ง Cephalon.Cli, รัน cephalon doctor, สเกฟโฟลด์ host, และดูมันบูต',
+      href: '/th/0-1-0-preview/guide/quickstart/',
+      cta: 'เริ่มเลย',
+    },
+    {
+      badge: '15 นาที',
+      title: 'การติดตั้ง',
+      description: 'สิ่งที่ต้องเตรียม, ที่มาของแพ็กเกจ, วิธีติดตั้ง CLI และวิธีตรวจสอบสภาพแวดล้อม',
+      href: '/th/0-1-0-preview/guide/installation/',
+      cta: 'ตั้งค่า toolchain',
+    },
+    {
+      badge: '30 นาที',
+      title: 'แนวคิด',
+      description: 'เอ็นจิน โมดูล capability manifest และวิธีที่การประกอบถูกตัดสินใจ',
+      href: '/th/0-1-0-preview/guide/concepts/',
+      cta: 'เข้าใจโมเดล',
+    },
+    {
+      badge: '45 นาที',
+      title: 'สถาปัตยกรรม',
+      description: 'สถาปัตยกรรมแบบ layered, มิติของ app model, transport surface, และ runtime contract',
+      href: '/th/0-1-0-preview/guide/architecture/',
+      cta: 'อ่านสถาปัตยกรรม',
+    },
+    {
+      badge: 'Day 2',
+      title: 'การ Deploy',
+      description: 'Windows Service, IIS, Azure App Service, Azure Container Apps, Kubernetes, Linux systemd, Docker',
+      href: '/th/0-1-0-preview/guide/deployment/',
+      cta: 'เลือกเป้าหมาย',
+    },
+    {
+      badge: 'ทุกวัน',
+      title: 'Operations',
+      description: 'Observability, dependency health, นโยบาย runtime failure, benchmarking, และ runbook',
+      href: '/th/0-1-0-preview/guide/operations/',
+      cta: 'Operate อย่างมั่นใจ',
+    },
+  ]}
+/>
+
+## โครงสร้างของคู่มือ
+
+1. **เริ่มต้นด่วน** — เส้นทางที่สั้นที่สุดจากศูนย์ถึง host ที่กำลังรัน
+2. **การติดตั้ง** — สิ่งที่ต้องเตรียมในเครื่องและวิธีตั้ง package feed สำหรับ air-gapped
+3. **แนวคิด** — โมเดลที่เล็กที่สุดที่ต้องมีในหัวก่อนอ่านส่วนอื่น
+4. **สถาปัตยกรรม** — เลเยอร์ app model และ runtime contract ที่เอ็นจินรับประกัน
+5. **คอนฟิก** — โครงสร้าง `Engine:*` และวิธีที่ options ส่งต่อไปยังโมดูล
+6. **การ Deploy** — host ที่รองรับและโฟลเดอร์ `deploy/` ที่ generate มาให้
+7. **Operations** — observability, health, runbook, นโยบาย runtime failure
+8. **ความเข้ากันได้** — เวอร์ชัน .NET ที่รองรับ, deployment mode, trim/AOT/single-file
+
+## ข้อตกลงที่ใช้ในคู่มือ
+
+- **โค้ดบล็อก** สามารถรันได้ ถ้า snippet ต้องใช้แพ็กเกจหรือ directive เฉพาะ จะคง `using` ไว้
+- **PowerShell** เป็น shell หลักสำหรับตัวอย่างบน Windows ผู้ใช้ Linux/macOS เปลี่ยนเป็น `bash` ได้
+- **Callout** บ่งบอกความเสี่ยง (`warning`), การเปลี่ยนแปลงแบบ breaking (`danger`), พฤติกรรมที่ยืนยันแล้ว (`success`), และจุดสำคัญในการนำไปใช้ (`key`)
+- **ป้ายระดับความพร้อม** ปรากฏทุกครั้งที่กล่าวถึงแพ็กเกจ ถ้าต่ำกว่า `M4` ให้ระวังว่าอาจมีการเพิ่มเติม — รายละเอียดอยู่ใน [maturity audit](/th/0-1-0-preview/reference/architecture/maturity/)

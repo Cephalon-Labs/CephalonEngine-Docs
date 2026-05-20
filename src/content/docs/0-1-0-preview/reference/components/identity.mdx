@@ -1,0 +1,91 @@
+---
+title: Identity & Audit
+description: Cephalon.Identity, Cephalon.Identity.AspNetCore, Cephalon.Audit, Cephalon.Audit.EntityFramework.
+sidebar:
+  order: 6
+editUrl: false
+---
+
+`Cephalon.Identity` provides the host-agnostic identity capability. `Cephalon.Audit` provides an audit-history capability for tracking who-did-what.
+
+## Packages
+
+Click any package name to jump to its **source-doc**.
+
+| Package | NuGet ID | Maturity | Capability | What it ships |
+| --- | --- | --- | --- | --- |
+| **[Identity](/0-1-0-preview/source/components/identity/)** *(base)* | `Cephalon.Identity` | `M3` | `Capability.Identity` | `IUserContext`, `IScopePolicy`, claim contracts. Host-agnostic. |
+| **[Identity.AspNetCore](/0-1-0-preview/source/components/identity-aspnetcore/)** | `Cephalon.Identity.AspNetCore` | `M3` | `Capability.Identity` | Bearer + Cookie auth schemes, JWT validation, `WithRequireScope` integration. |
+| **[Audit](/0-1-0-preview/source/components/audit/)** *(base)* | `Cephalon.Audit` | `M3` | `Capability.Audit` | `IAuditWriter`, `IAuditHistoryReader`, audit entry types. |
+| **[Audit.EntityFramework](/0-1-0-preview/source/components/audit-entityframework/)** | `Cephalon.Audit.EntityFramework` | `M3` | `Capability.Audit` | EF Core-backed audit store. |
+
+## Install matrix
+
+| Scenario | Packages |
+| --- | --- |
+| Bearer JWT auth | `Cephalon.Identity` + `Cephalon.Identity.AspNetCore` |
+| Cookie auth (web app) | same |
+| Identity in a worker host (no HTTP) | `Cephalon.Identity` only — provide your own `IUserContext` (e.g. for impersonation in scheduled jobs) |
+| Audit-tracked writes | `Cephalon.Audit` + `Cephalon.Audit.EntityFramework` |
+| Audit-tracked writes + identity | All four packages |
+
+## Configuration shape
+
+### Identity
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Identity": {
+      "Enabled": true,
+      "Provider": "Bearer",
+      "Authority": "https://login.acme.example/",
+      "Audience": "https://api.acme.example",
+      "ClaimMapping": { "TenantId": "tenant_id" }
+    }
+  }
+}
+```
+
+Full schema + 5 scenarios (Auth0, Azure AD, Cookie, multi-tenant per-IdP, test): **[Reference → Configuration → Identity](/0-1-0-preview/reference/configuration/identity/)**.
+
+### Audit
+
+```jsonc
+{
+  "Engine": {
+    "Audit": {
+      "Enabled": true,
+      "Provider": "EntityFramework",
+      "Retention": "365.00:00:00"
+    }
+  }
+}
+```
+
+## Key types
+
+```csharp
+public interface IUserContext
+{
+    string? UserId { get; }
+    string? TenantId { get; }
+    string? Email { get; }
+    string? DisplayName { get; }
+    IReadOnlyList<string> Scopes { get; }
+    IReadOnlyList<string> Roles { get; }
+    bool IsAnonymous { get; }
+}
+
+public interface IAuditWriter
+{
+    Task WriteAsync(AuditEntry entry, CancellationToken ct = default);
+}
+```
+
+Full surface: **[API Reference → Cephalon.Abstractions.Audit](/0-1-0-preview/reference/api/cephalon-abstractions-audit/)** + **[Cephalon.Abstractions.Authorization](/0-1-0-preview/reference/api/cephalon-abstractions-authorization/)**.
+
+## See also
+
+- **[Technology → Identity](/0-1-0-preview/technology/identity/)** — narrative + auth-flow examples.
+- **[Reference → Configuration → Identity](/0-1-0-preview/reference/configuration/identity/)** — full schema.

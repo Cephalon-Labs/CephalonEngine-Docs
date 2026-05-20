@@ -1,0 +1,75 @@
+---
+title: Engineering standards
+description: The non-negotiables for CephalonEngine — naming, async style, exception hygiene, test coverage, allocation budget.
+sidebar:
+  order: 2
+editUrl: false
+---
+
+These are the constraints we hold ourselves to when shipping engine changes. Every PR is reviewed against this list.
+
+## API design
+
+- **Additive over breaking.** Within a minor, everything is additive. New parameters are optional with safe defaults. New interfaces have base implementations.
+- **Avoid leaking implementation types.** Public API surfaces use abstractions. Implementation types live in non-public namespaces.
+- **Symmetric naming.** `IXxxRegistry` ↔ `IXxxContributor`. `AddXxx(...)` ↔ `UseXxx(...)`. Pick a pattern and stay consistent within a domain.
+- **No "Manager" classes.** A class that's named "Manager" is almost always two classes that haven't been separated yet.
+- **Capability before transport.** Define capability contracts first, then transport adapters. Modules should be transport-agnostic.
+
+## Async
+
+- All I/O is async. No `.Result`, no `.Wait()`, no `GetAwaiter().GetResult()` in production code.
+- `Async` suffix on every async method that returns `Task` / `ValueTask`.
+- `CancellationToken ct` is the last parameter on every async method.
+- `ConfigureAwait(false)` in non-host library code; not needed in app code that already runs in a context-free `WebApplication`.
+
+## Exceptions
+
+- Don't catch `Exception`. Catch specific types or use exception filters.
+- Don't swallow exceptions silently. If you must catch, log with structure and rethrow or escalate to the failure policy.
+- Composition failures are fatal. Don't paper over them.
+
+## Logging
+
+- Structured. Use named placeholders, never string concatenation.
+- Level discipline: `Trace` for noisy diagnostics, `Debug` for development, `Information` for state transitions, `Warning` for recoverable issues, `Error` for caller-visible failures, `Critical` for service-wide failure.
+- Use `ILogger<T>` typed loggers, not the static `Log` class.
+
+## Allocations
+
+- Hot paths use pooled / stack-allocated buffers (`Span<T>`, `ArrayPool<T>`).
+- Avoid LINQ in hot paths; manual loops + `foreach` over arrays.
+- The benchmarks gate hot-path regressions of more than ~5%.
+
+## Tests
+
+- Every change to a public API has a test that demonstrates the change.
+- Composition smoke tests catch wiring failures.
+- Behavior specs assert the externally observable behaviour.
+- Integration tests against real backends (Postgres, Redis, Kafka, …) live behind `Category=Integration`.
+
+## Documentation
+
+- Public types have XML comments. `Cephalon.ReferenceDocs` consumes them.
+- Behaviour changes update the relevant hand-authored docs.
+- New capabilities update the maturity audit and the conformance matrix.
+
+## Performance discipline
+
+- The benchmarks suite is part of CI. PRs that regress hot paths get the regression noted in review.
+- The latency budgets per public API are tracked in the benchmarks themselves.
+- Avoid blocking calls in the request path. Avoid I/O in `OnRegister`.
+
+## Compatibility metadata
+
+- New packages carry the engine version, target frameworks, publisher metadata.
+- Signed packages carry the signature chain. Trust-store entries land alongside the package.
+
+## Where things land
+
+- **`Cephalon.Abstractions`**: pure contracts. No reflection, no DI calls.
+- **`Cephalon.Engine`**: composition. Holds the manifest schema.
+- **Host adapters**: glue the engine into a runtime. Never re-implement composition.
+- **Companion packages**: capability providers. Always opt-in.
+
+If a PR doesn't fit one of these lanes, the design is probably wrong.

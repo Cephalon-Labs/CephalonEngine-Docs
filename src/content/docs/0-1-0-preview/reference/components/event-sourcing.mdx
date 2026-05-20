@@ -1,0 +1,69 @@
+---
+title: Event Sourcing
+description: Cephalon.EventSourcing base + 10 storage adapters (EF Core, Cassandra, ClickHouse, Elasticsearch, MongoDB, NATS, Neo4j, OpenSearch, Qdrant, Redis).
+sidebar:
+  order: 5
+editUrl: false
+---
+
+`Cephalon.EventSourcing` adds an event-sourced storage capability — appending to per-aggregate streams, replaying for projections, snapshot support. Adapter packages back the streams with a specific store.
+
+<div class="ce-callout ce-callout--warn">
+<span class="ce-callout__icon" aria-hidden="true">⚠️</span>
+<div><strong>Maturity:</strong> the whole family is currently <code>M2</code>. Surface is settling; expect minor breaking schema changes within preview minors. <a href="/0-1-0-preview/reference/architecture/maturity/">Maturity audit</a>.</div>
+</div>
+
+## Packages
+
+Click any package name to jump to its **source-doc**.
+
+### Base
+
+| Package | NuGet ID | Maturity | Capability |
+| --- | --- | --- | --- |
+| **[EventSourcing](/0-1-0-preview/source/components/event-sourcing/)** *(base)* | `Cephalon.EventSourcing` | `M2` | `Capability.EventSourcing` |
+
+### Storage adapters
+
+| Package | NuGet ID | `Engine:EventSourcing:Provider` | Read model fit |
+| --- | --- | --- | --- |
+| **[EF Core](/0-1-0-preview/source/components/event-sourcing-entityframework/)** | `Cephalon.EventSourcing.EntityFramework` | `"EntityFramework"` | Relational projections |
+| **[Cassandra](/0-1-0-preview/source/components/event-sourcing-cassandra/)** | `Cephalon.EventSourcing.Cassandra` | `"Cassandra"` | Wide-column projections, very high write rate |
+| **[ClickHouse](/0-1-0-preview/source/components/event-sourcing-clickhouse/)** | `Cephalon.EventSourcing.ClickHouse` | `"ClickHouse"` | OLAP projections, analytics |
+| **[Elasticsearch](/0-1-0-preview/source/components/event-sourcing-elasticsearch/)** | `Cephalon.EventSourcing.Elasticsearch` | `"Elasticsearch"` | Full-text projections |
+| **[MongoDB](/0-1-0-preview/source/components/event-sourcing-mongodb/)** | `Cephalon.EventSourcing.MongoDB` | `"MongoDB"` | Document projections |
+| **[NATS JetStream](/0-1-0-preview/source/components/event-sourcing-nats/)** | `Cephalon.EventSourcing.Nats` | `"Nats"` | Stream-native — JetStream backs every aggregate stream |
+| **[Neo4j](/0-1-0-preview/source/components/event-sourcing-neo4j/)** | `Cephalon.EventSourcing.Neo4j` | `"Neo4j"` | Graph projections |
+| **[OpenSearch](/0-1-0-preview/source/components/event-sourcing-opensearch/)** | `Cephalon.EventSourcing.OpenSearch` | `"OpenSearch"` | Apache-licensed search projections |
+| **[Qdrant](/0-1-0-preview/source/components/event-sourcing-qdrant/)** | `Cephalon.EventSourcing.Qdrant` | `"Qdrant"` | Vector / similarity projections |
+| **[Redis Streams](/0-1-0-preview/source/components/event-sourcing-redis/)** | `Cephalon.EventSourcing.Redis` | `"Redis"` | Low-latency, in-memory streams |
+
+## Install matrix
+
+| Scenario | Packages |
+| --- | --- |
+| Event-sourced aggregate in EF Core | `Cephalon.EventSourcing` + `Cephalon.EventSourcing.EntityFramework` |
+| Event-sourced + ClickHouse projection | + `Cephalon.EventSourcing.ClickHouse` |
+| Multiple read-model targets | install one adapter per read-model target |
+
+## Configuration shape
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "EventSourcing": {
+      "Enabled": true,
+      "Provider": "EntityFramework",
+      "Snapshots": { "Every": 100 },
+      "Projections": {
+        "RebuildOnSchemaChange": true
+      }
+    }
+  }
+}
+```
+
+## See also
+
+- **[Reference → Components → Eventing](/0-1-0-preview/reference/components/eventing/)** — message-passing eventing (different from event-sourced storage).
+- **[Technology → Eventing](/0-1-0-preview/technology/eventing/)** — CQRS + event-sourcing patterns.

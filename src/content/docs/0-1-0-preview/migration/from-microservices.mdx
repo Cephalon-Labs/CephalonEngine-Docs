@@ -1,0 +1,37 @@
+---
+title: From microservices
+description: Consolidate a microservice estate behind CephalonEngine without losing the parts that benefited from separation.
+sidebar:
+  order: 3
+editUrl: false
+---
+
+Microservices solve organisational and deploy-cadence problems, not just technical ones. The right destination for a microservice fleet on CephalonEngine is rarely "one big monolith" — it's usually a **modular monolith for the dependent subset, plus microservices for the truly independent parts**.
+
+## Decision questions
+
+For each service, ask:
+
+1. **Does it have its own release cadence**, gated by a different team / approval path? If yes, keep it separate.
+2. **Does it have its own scale profile**, where the cost of co-locating is unbounded? If yes, keep it separate.
+3. **Does it own data nobody else touches?** Often a signal that it can be a module inside the monolith.
+4. **Do callers need physical isolation?** (regulated workloads, multi-region locality).
+
+A typical landing zone after migration looks like:
+
+```text
+┌──────────────────────────────────────┐
+│ Cephalon host: 'Storefront'          │
+│   modules: Catalog, Orders, Pricing  │
+└────────┬─────────────────────────────┘
+         │ events
+         ▼
+   ┌──────────┐    ┌──────────┐
+   │ Billing  │    │ Search   │
+   │ (service)│    │ (service)│
+   └──────────┘    └──────────┘
+```
+
+## Status
+
+Full step-by-step lands in the next docs push.

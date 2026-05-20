@@ -1,0 +1,115 @@
+---
+title: Compatibility
+description: Supported .NET versions, deployment modes, trim and AOT posture, and the CephalonEngine stability contract.
+sidebar:
+  order: 8
+editUrl: false
+---
+
+CephalonEngine ships with an explicit compatibility contract. The point of this page is to give you a single answer to "is this combination supported?" before you commit to it.
+
+## Shipping baseline
+
+| Item | Status |
+| --- | --- |
+| **.NET 10** | `supported` — the shipping baseline. |
+| **.NET 11** | `assessment-only` readiness lane. Tracked publicly, not yet a support claim. |
+| **.NET 9 and earlier** | unsupported. The engine API surface uses .NET 10 features. |
+
+`cephalon doctor` always prints the active shipping baseline plus the readiness lane status, so build agents and developer machines see the same truth.
+
+## Deployment modes
+
+Each deployment mode has its own support claim, regardless of the .NET runtime version:
+
+| Mode | Status | Notes |
+| --- | --- | --- |
+| **Standard self-contained / framework-dependent** | `supported` | The default. Every shipped sample runs in this mode. |
+| **Single-file** | `warn — outside support contract` | Generated apps will publish, but reflection-based discovery requires extra config. |
+| **ReadyToRun** | `experimental` | Not blocked, not blessed. |
+| **Trimming** | `warn — outside support contract` | Several companion packages use unbounded reflection (EF Core, message-pipeline source-gen alternatives). |
+| **Native AOT** | `warn — outside support contract` | Same constraints as trimming, plus source-generation gaps. |
+
+> The intent is to graduate trim and AOT as packages adopt source-generated alternatives. The current per-package posture is tracked in **[Engine surface maturity audit](/0-1-0-preview/reference/architecture/maturity/)**.
+
+## Host compatibility
+
+| Host package | .NET target | Status |
+| --- | --- | --- |
+| `Cephalon.AspNetCore` | `net10.0` | `M3` |
+| `Cephalon.AspNetCore.GraphQL` | `net10.0` | `M2` |
+| `Cephalon.AspNetCore.Grpc` | `net10.0` | `M2` |
+| `Cephalon.AspNetCore.JsonRpc` | `net10.0` | `M2` |
+| `Cephalon.Worker` | `net10.0` | `M3` |
+
+## Data backend compatibility
+
+The data abstractions are runtime-neutral; concrete adapters carry their own minimum-version claim:
+
+| Backend | Adapter | Min version |
+| --- | --- | --- |
+| PostgreSQL | `Cephalon.Data` + Npgsql | 14+ |
+| SQL Server | `Cephalon.Data` + Microsoft.Data.SqlClient | 2019+ |
+| MySQL / MariaDB | `Cephalon.Data` + MySqlConnector | 8.0 / 10.6+ |
+| Oracle Database | `Cephalon.Data` + Oracle.ManagedDataAccess | 19c+ |
+| MongoDB | `Cephalon.Data` + Mongo.Driver | 6.0+ |
+| Cassandra | `Cephalon.Data.Cassandra` | 4.0+ |
+| ClickHouse | `Cephalon.Data.ClickHouse` | 23.8+ |
+| Redis | `Cephalon.Data.Redis` | 6.2+ |
+| Elasticsearch | `Cephalon.Data.Elasticsearch` | 8.x |
+| OpenSearch | `Cephalon.Data.OpenSearch` | 2.x |
+| Neo4j | `Cephalon.Data.Neo4j` | 5.x |
+| Qdrant | `Cephalon.Data.Qdrant` | 1.7+ |
+| NATS JetStream | `Cephalon.Data.Nats` | 2.10+ |
+
+The dependency-health probes follow the same minimums.
+
+## Operating systems
+
+| OS | Status |
+| --- | --- |
+| **Windows Server 2022 / 2025** | `supported`, including Windows Service deploy target. |
+| **Windows 11 24H2+** (dev) | `supported`. |
+| **Ubuntu 22.04 / 24.04 LTS** | `supported`, including systemd deploy target. |
+| **Debian 12** | `supported`. |
+| **Alpine 3.20+** | `supported`, used by the default container image. |
+| **RHEL 9 / Rocky 9** | `supported`. |
+| **macOS 14+** (dev) | `supported` for development; not a deployment target. |
+
+## Stability contract
+
+Within a **minor** release of the engine (e.g. `0.1.x`):
+
+- Public API on `Cephalon.Abstractions` is additive.
+- Companion-package public API is additive within the same `M*` level.
+- Manifest schema bumps come with a manifest schema version increment and a migration note.
+- `Engine:*` configuration keys are stable; new keys are additive with safe defaults.
+
+Across **minor** releases (e.g. `0.1.x` → `0.2.x`):
+
+- The engine version bumps. Compatibility metadata enforces that companion packages built against `0.1.x` are flagged at composition time.
+- Breaking changes are documented in **[Migration → Breaking changes](/0-1-0-preview/migration/breaking-changes/)** with a "before / after" snippet for each affected API.
+- The `engineering-standards` doc reviews acceptable breakage when it lands.
+
+## How to check compatibility programmatically
+
+The runtime exposes the active contract via `IRuntimeManifest` and `snapshot.*` configuration keys:
+
+```csharp title="Program.cs" {2-4}
+var manifest = runtime.GetManifest();
+Console.WriteLine(manifest.EngineVersion);          // "0.1.0-preview"
+Console.WriteLine(manifest.ManifestSchemaVersion);  // "v2"
+Console.WriteLine(manifest.DeploymentMode.Baseline); // "net10.0"
+```
+
+And from the CLI:
+
+```powershell frame="terminal"
+cephalon doctor --json | jq '.deploymentMode'
+```
+
+## Where to go next
+
+- **[Migration → .NET versions](/0-1-0-preview/migration/dotnet-versions/)** — the `.NET 11` readiness lane in detail.
+- **[Reference → Architecture → Conformance matrix](/0-1-0-preview/reference/architecture/conformance-matrix/)** — the per-package source of truth.
+- **[Guide → Operations](/0-1-0-preview/guide/operations/)** — what to monitor in production.

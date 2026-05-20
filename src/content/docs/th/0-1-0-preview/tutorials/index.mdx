@@ -1,0 +1,44 @@
+---
+title: บทเรียน
+description: บทเรียน end-to-end สำหรับสร้างแอปจริงบน CephalonEngine — โมดูลาร์โมโนลิธ, ไมโครเซอร์วิส, multi-tenant SaaS, gRPC, eventing, observability stack
+sidebar:
+  order: 0
+  label: ภาพรวม
+editUrl: false
+---
+
+บทเรียนพาคุณสร้างของจริง ทุกบทเรียนในที่นี้:
+
+- เริ่มจาก `cephalon new` และจบที่แอปที่รันได้ มี observability และดีพลอยได้
+- แสดง diff เต็มของแต่ละขั้น ไม่ใช่แค่ snippet ของ happy path
+- อธิบาย **เหตุผล** ของการตัดสินใจ ไม่ใช่แค่ **วิธี**
+- จบด้วยเช็คลิสต์ว่าจะทำอะไรต่อหลังจากบทเรียนนี้
+
+ถ้าเพิ่งเริ่มใช้ CephalonEngine ให้เริ่มที่ **[สร้างแอปแรก](/th/0-1-0-preview/tutorials/first-app/)**
+
+## หัวข้อบทเรียน
+
+- **[สร้างแอปแรก](/th/0-1-0-preview/tutorials/first-app/)** — series 8 ตอน: สเกฟโฟลด์โมโนลิธ, เพิ่ม domain module, ต่อ EF Core, observability, เทสต์, deploy
+- **[ระบบไมโครเซอร์วิส](/th/0-1-0-preview/tutorials/microservice-suite/)** — แยก domain ข้าม host หลายตัวพร้อม eventing
+- **[Multi-tenant SaaS](/th/0-1-0-preview/tutorials/multi-tenant-saas/)** — tenant resolution, governance, domain ownership
+- **[gRPC service](/th/0-1-0-preview/tutorials/grpc-service/)** — unary + streaming + trace ข้าม wire
+- **[GraphQL API](/th/0-1-0-preview/tutorials/graphql-api/)** — federated schema ข้ามโมดูล
+- **[Event-driven pipeline](/th/0-1-0-preview/tutorials/event-driven/)** — outbox, scheduled delivery, DLQ replay
+- **[Observability stack เต็มรูปแบบ](/th/0-1-0-preview/tutorials/observability-stack/)** — OTLP + Grafana + Tempo + Loki
+- **[กลยุทธ์การเทสต์](/th/0-1-0-preview/tutorials/testing-strategy/)** — composition + behavior + integration + contract
+- **[CI/CD pipeline](/th/0-1-0-preview/tutorials/ci-cd-pipeline/)** — GitHub Actions pipeline สำเร็จรูป
+- **[Edge-native delivery](/th/0-1-0-preview/tutorials/edge-native/)** — Traefik / Kubernetes Gateway
+- **[Retrieval RAG service](/th/0-1-0-preview/tutorials/retrieval-rag/)** — Qdrant + pgvector
+- **[Agentic workload](/th/0-1-0-preview/tutorials/agentic-workload/)** — task graph + tool registry
+
+## ข้อตกลงในบทเรียน
+
+| ข้อตกลง | ความหมาย |
+| --- | --- |
+| **หัวข้อต่อขั้น** | แต่ละขั้นรันได้อิสระ หยุดที่ขั้นไหนก็ได้ |
+| **diff เต็ม** | เราแสดงไฟล์ก่อนและหลังการเปลี่ยนแปลง |
+| **"ทำไมถึงได้ผล"** | คำอธิบายเชิงสถาปัตยกรรมของแต่ละการเปลี่ยนแปลง |
+| **"จุดที่พลาดได้"** | ความผิดพลาดที่เราเจอ เพื่อให้คุณไม่ต้องเจอซ้ำ |
+| **"ทำต่ออะไร"** | ลิงก์ไปยังหน้า Guide / Reference ที่เกี่ยวข้อง |
+
+> หมายเหตุ: หน้าบทเรียนส่วนใหญ่ในภาษาไทยกำลังทยอยแปล หน้าใดที่ยังไม่ได้แปลจะแสดงเป็นภาษาอังกฤษอัตโนมัติ — เนื้อหายังคงครบถ้วน

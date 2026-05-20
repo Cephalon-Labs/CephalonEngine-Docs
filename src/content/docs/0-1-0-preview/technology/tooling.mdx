@@ -1,0 +1,345 @@
+---
+title: CLI & scaffolding
+description: Cephalon.Cli, Cephalon.Scaffolding, Cephalon.TemplatePack, and Cephalon.ReferenceDocs — what each package does, when to use it, and how to compose them in CI / dev workflows.
+sidebar:
+  order: 11
+editUrl: false
+---
+
+The tooling domain is the **out-of-process** half of CephalonEngine — the executable + libraries that run *outside* your host to scaffold code, validate environments, generate docs, and stage packages. Nothing here is required to use the engine; it's all opt-in convenience.
+
+## Packages
+
+| Package | Maturity | What it ships | Required for |
+| --- | --- | --- | --- |
+| **`Cephalon.Cli`** | `M3` | The `cephalon` command-line surface — `doctor`, `new`, `stage-packages`, `reference-docs`, … Stable entry point is `CliApplication`. | Scaffolding new apps; running health checks |
+| **`Cephalon.Scaffolding`** | `M3` | The scaffold generator that powers `cephalon new`. Turns app profiles into solutions, projects, and files. | Used by `Cephalon.Cli` internally; rarely consumed directly |
+| **`Cephalon.TemplatePack`** | `M3` | `dotnet new` template pack registering the `cephalon-app` blueprint. | When you want IDE-driven scaffolding (Visual Studio "New Project" wizard, Rider templates) |
+| **`Cephalon.ReferenceDocs`** | `M2` | Optional reference-doc tooling that turns XML comments into Markdown for docs sites. | Generating API reference docs |
+
+## Cephalon.Cli — the CLI tool
+
+### How to install
+
+```powershell frame="terminal"
+dotnet tool install -g Cephalon.Cli --prerelease
+```
+
+Full install paths (corporate feed, Azure Artifacts, air-gapped, local manifest): **[Installation → CLI install](/0-1-0-preview/guide/installation/cli/)**.
+
+### Command surface
+
+| Command | Purpose | Output |
+| --- | --- | --- |
+| `cephalon doctor` | First-run baseline check. SDK, runtimes, template pack, deployment mode. | Console table + exit code 0/1. With `--json`, machine-readable. |
+| `cephalon new <name>` | Scaffold a host project (or solution). | Files on disk under `--output` or `./<name>`. |
+| `cephalon stage-packages <path>` | Copy local Cephalon packages into the generated app's `.cephalon/packages/` feed. | Files copied. Useful when developing against an unreleased engine version. |
+| `cephalon reference-docs <project>` | Generate XML-comment-driven reference Markdown. | `*.md` files in `--output` directory. |
+| `cephalon --version` | Print the CLI version. | Single line. |
+| `cephalon --help` | Print all commands and flags. | Help text. |
+
+### Use case 1 — daily dev workflow
+
+```powershell frame="terminal"
+# After installing the CLI once globally:
+cd C:\code
+
+# Scaffold a new app
+cephalon new Acme.Store --output ./Acme.Store
+cd ./Acme.Store
+
+# Verify toolchain
+cephalon doctor
+
+# Build and run
+dotnet run --project src/Acme.Store.Host
+```
+
+### Use case 2 — CI gate
+
+Run `cephalon doctor` on every PR to catch SDK / runtime drift before it hits production. The `--json` flag makes it script-friendly:
+
+```yaml title=".github/workflows/build.yml"
+- run: dotnet tool restore
+- run: |
+    dotnet tool run cephalon doctor --json > doctor.json
+    jq -e '.result == "ok"' doctor.json
+```
+
+Returns exit code `0` if all required checks pass; non-zero if anything is wrong.
+
+### Use case 3 — staging an unreleased engine build
+
+When you're working with engine packages built locally (a fork, an unreleased preview, debugging):
+
+```powershell frame="terminal"
+# Build the engine repo's packages first
+pwsh ./scripts/publish-package-artifacts.ps1 -Configuration Release
+
+# Stage them into a generated app
+cephalon stage-packages C:\code\Acme.Store
+```
+
+This copies `*.nupkg` files into `./.cephalon/packages/` and adds a `nuget.config` source. Your app now restores from local artifacts.
+
+### Use case 4 — generating API reference Markdown
+
+Pipe your `Cephalon.*` XML comments into Markdown for docs sites:
+
+```powershell frame="terminal"
+cephalon reference-docs ./src/Acme.Store.Modules.Products --output ./docs/reference/api
+```
+
+Output structure: one Markdown file per namespace + per type, with cross-links between them.
+
+### Configuration
+
+The CLI honours `cephalon.json` in the working directory (or the closest parent) for defaults:
+
+```jsonc title="cephalon.json"
+{
+  "doctor": {
+    "deploymentMode": "Default",        // Default | SelfContained | Trimmed | Aot | SingleFile
+    "checkProfiles": ["default"]
+  },
+  "stagePackages": {
+    "source": "./artifacts/packages-release"
+  }
+}
+```
+
+This is also where you can pin a custom local-feed path, custom template path, or doctor profile.
+
+## Cephalon.Scaffolding — the scaffold generator
+
+You rarely consume `Cephalon.Scaffolding` directly. It's the engine inside `cephalon new` that turns an **app profile** (a typed selection of capabilities, transports, deployment targets) into actual files.
+
+### Use case — embedded scaffolding
+
+If you're building an internal "platform CLI" for your team that wraps `cephalon new` + your team's conventions, you can call the scaffolding library directly:
+
+```csharp title="AcmePlatformCli.cs"
+using Cephalon.Scaffolding;
+
+var plan = ScaffoldPlan.Default("Acme.Store")
+    .WithCapability(Capability.Data, Capability.Eventing, Capability.Identity)
+    .WithTransport(Transport.RestApi)
+    .WithDeploymentTarget(DeploymentTarget.AzureContainerApps);
+
+var scaffolder = new ScaffoldService();
+await scaffolder.MaterializeAsync(plan, outputDir: "./Acme.Store");
+```
+
+The library API is `M3` stable — safe to call from internal tools.
+
+### Configuration
+
+Scaffolding behaviour is driven by the `Cephalon.Abstractions.AppModel.*` types — see the **[API Reference → Cephalon.Abstractions.AppModel](/0-1-0-preview/reference/api/cephalon-abstractions-appmodel/)** for the typed surface.
+
+## Cephalon.TemplatePack — `dotnet new` integration
+
+The template pack registers the `cephalon-app` template with `dotnet new`, so IDEs can offer it from their "New Project" wizards.
+
+### How to install
+
+```powershell frame="terminal"
+dotnet new install Cephalon.TemplatePack --prerelease
+```
+
+### How to use
+
+```powershell frame="terminal"
+dotnet new cephalon-app -n Acme.Store -o ./Acme.Store
+
+# Equivalent to:
+cephalon new Acme.Store --output ./Acme.Store
+```
+
+The output is **identical** between `cephalon new` and `dotnet new cephalon-app`. Pick the path that fits your tooling.
+
+### Use case — IDE-driven scaffolding
+
+In **Visual Studio 2026**, after installing the pack, the "New Project" wizard surfaces "CephalonEngine App" as a template (alongside "ASP.NET Core Web App" etc.).
+
+In **JetBrains Rider 2026.1+**, similarly under "New Solution from Template" → "CephalonEngine".
+
+In **VS Code**, the template surfaces in `dotnet new list` and via the `.NET Install Tool` extension's template picker.
+
+### Template options
+
+Pass options after the template name:
+
+```powershell frame="terminal"
+dotnet new cephalon-app -n Acme.Store \
+  --include-eventing true \
+  --include-identity true \
+  --deployment-target azure-container-apps \
+  --transport rest-api,grpc
+```
+
+`dotnet new cephalon-app --help` shows every available option.
+
+### Uninstall
+
+```powershell frame="terminal"
+dotnet new uninstall Cephalon.TemplatePack
+```
+
+## Cephalon.ReferenceDocs — XML-comment → Markdown
+
+Generates docs-site-ready Markdown from `///` XML comments in your code.
+
+### When to use it
+
+- You're publishing internal `Cephalon.*`-flavoured modules as NuGet packages and want browsable API docs.
+- You're contributing to CephalonEngine itself.
+- You want a self-hosted alternative to **[learn.microsoft.com](https://learn.microsoft.com)**-style docs for your modules.
+
+### How to use
+
+```powershell frame="terminal"
+cephalon reference-docs ./src/Acme.Store.Modules.Products \
+  --output ./docs/reference/api \
+  --format starlight
+```
+
+Available formats:
+
+| Format | Output shape |
+| --- | --- |
+| `starlight` *(default)* | Astro/Starlight-compatible Markdown with frontmatter. Used by the docs site you're reading right now. |
+| `docfx` | DocFX-flavoured Markdown for the older DocFX renderer. |
+| `vitepress` | VitePress-compatible. |
+| `mdbook` | mdBook-compatible. |
+
+### Configuration
+
+```jsonc title="cephalon.json"
+{
+  "referenceDocs": {
+    "format": "starlight",
+    "namespacePrefix": "Acme.Store",      // only include types starting with this prefix
+    "excludeNamespaces": ["Acme.Store.Internal.*"]
+  }
+}
+```
+
+## Use-case scenarios
+
+### Scenario 1: solo developer
+
+```powershell frame="terminal"
+dotnet tool install -g Cephalon.Cli --prerelease
+cephalon doctor
+cephalon new Acme.Store
+```
+
+That's the whole tooling story for one person.
+
+### Scenario 2: team with shared CI
+
+Pin the CLI per-repo via a local tool manifest:
+
+```powershell frame="terminal"
+dotnet new tool-manifest
+dotnet tool install Cephalon.Cli --prerelease
+```
+
+Commit `.config/dotnet-tools.json`. Everyone — developers + CI — runs the same version:
+
+```yaml title=".github/workflows/build.yml"
+- run: dotnet tool restore
+- run: dotnet tool run cephalon doctor
+```
+
+### Scenario 3: enterprise platform engineering
+
+Wrap the scaffolding library in your own CLI:
+
+```csharp title="AcmePlatformCli/Program.cs"
+using Cephalon.Scaffolding;
+
+// ... command parser ...
+
+var plan = ScaffoldPlan
+    .Default(args.Name)
+    .WithCapability(/* team-mandated capabilities */)
+    .WithDeploymentTarget(team.DeploymentTarget)
+    .WithExtraFile("README.md", AcmeTemplates.ReadmeTemplate(args));
+
+await new ScaffoldService().MaterializeAsync(plan, args.Output);
+```
+
+Distribute as your own internal global tool (`Acme.PlatformCli`). Developers get one CLI that always produces conformant apps.
+
+### Scenario 4: air-gapped CI
+
+```powershell frame="terminal"
+# On a connected box:
+pwsh ./scripts/publish-package-artifacts.ps1 -Configuration Release
+# This writes ./artifacts/packages-release + ./artifacts/tool-packages
+
+# Ship both folders to the air-gapped target.
+
+# On the air-gapped target:
+dotnet tool install -g Cephalon.Cli \
+  --add-source /path/to/tool-packages \
+  --prerelease
+```
+
+See **[Installation → CLI → Air-gapped install](/0-1-0-preview/guide/installation/cli/#air-gapped-install)** for the full flow.
+
+## Limits & gotchas
+
+- **The CLI is required for `cephalon new`.** Scaffolding without it is not supported (`Cephalon.Scaffolding` is also consumable, but the typed integration with deployment targets / capability discovery is what `Cephalon.Cli` orchestrates).
+- **`Cephalon.TemplatePack`** registers a single template family (`cephalon-app`). It doesn't support per-feature templates yet (e.g. there's no `cephalon-module`).
+- **`cephalon stage-packages`** copies files; it doesn't symlink. Re-stage after every local engine rebuild.
+- **`Cephalon.ReferenceDocs`** is `M2` — narrow surface. The current generators produce static Markdown; live-doc-server scenarios (search, version-switcher) are out of scope.
+- **Tool-manifest tool versions are independent from engine package versions.** Bumping the CLI doesn't bump engine packages in already-generated apps — that lives in `Directory.Packages.props`.
+
+## Tips & tricks
+
+### CLI tips
+
+- **Use `cephalon doctor --json | jq`** in scripts. The JSON shape is stable within a minor version.
+- **`cephalon new --dry-run`** prints the file plan without writing. Useful for verifying flag combinations.
+- **`cephalon doctor --deployment-mode <mode>`** checks against a specific deployment-mode contract (SelfContained, Trimmed, Aot, SingleFile, Default).
+- **Run `cephalon doctor` in your container build's first stage.** Catches missing SDK / runtime before downstream layers fail.
+
+### Scaffolding tips
+
+- **Custom scaffolds belong in a wrapper, not a fork.** Wrap `Cephalon.Scaffolding` calls in your own internal CLI. Don't fork the CLI just to change defaults.
+- **Profile up front, not at materialise time.** Build a `ScaffoldPlan` from typed selections; don't string-template files.
+- **Run a composition smoke test on every generated app in CI.** Generated → composes successfully → reduces "scaffold drift" issues.
+
+### Template pack tips
+
+- **For IDE consumers**, the template pack is friendlier than the CLI. For CI / scripts, the CLI is friendlier than the template pack. Many teams install both.
+- **Pin the template-pack version** (`dotnet new install Cephalon.TemplatePack::0.1.0-preview.42`) to match your engine packages.
+
+### ReferenceDocs tips
+
+- **Generate during release, not every build.** API docs are slow to generate and stable per release; rebuild them on tag, not on `main` push.
+- **The `starlight` format expects you to render with Starlight / Astro.** It uses Starlight's frontmatter shape (`title`, `description`, `sidebar.label`).
+- **Exclude `Internal.*` namespaces** unless you actually want to publish internal API.
+
+### Anti-patterns
+
+| Don't | Do |
+| --- | --- |
+| `dotnet tool install -g` for every developer | Per-repo manifest, `dotnet tool restore` in CI |
+| Fork the CLI to add team-specific scaffolding | Wrap `Cephalon.Scaffolding` in your own internal tool |
+| Generate reference docs as part of every PR | Generate on release tags; reference docs are stable per release |
+| Hand-edit generated scaffold output and lose it on re-scaffold | Re-scaffold into a sibling folder, diff, port changes |
+
+## Source-doc snapshots
+
+- **[Cephalon.Cli](/0-1-0-preview/source/components/cli/)** — package internals.
+- **[Cephalon.Scaffolding](/0-1-0-preview/source/components/scaffolding/)** — scaffold-generator internals.
+
+## Cross-references
+
+- **[Reference → CLI](/0-1-0-preview/reference/cli/)** — every flag for every command, with examples.
+- **[Guide → Installation → CLI install](/0-1-0-preview/guide/installation/cli/)** — install paths.
+- **[Guide → Installation → CI / build agents](/0-1-0-preview/guide/installation/ci/)** — pipelines using `dotnet tool restore`.
+- **[Tutorial → CI/CD pipeline](/0-1-0-preview/tutorials/ci-cd-pipeline/)** — end-to-end pipeline that exercises the CLI.

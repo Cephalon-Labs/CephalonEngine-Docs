@@ -1,0 +1,39 @@
+---
+title: 'Tutorial: GraphQL API'
+description: 'Federate a GraphQL schema across CephalonEngine modules, with auth, field-level resolvers, and module-owned subschemas.'
+sidebar:
+  order: 5
+editUrl: false
+---
+
+`Cephalon.AspNetCore.GraphQL` is the GraphQL transport adapter. Each module contributes a subschema; the host federates them into a single endpoint. This tutorial walks through standing up a federated schema, wiring auth, and writing module-owned resolvers.
+
+## What you'll build
+
+- a `Products` module that contributes `type Product` and `query products`.
+- an `Orders` module that contributes `type Order` and `query orders`.
+- federation that lets clients query both in one request.
+- field-level authorisation gated by Cephalon identity capabilities.
+
+## Skeleton
+
+```csharp
+public sealed class ProductsGraphQlModule : GraphQlBehaviorModuleBase
+{
+    public override ModuleDescriptor Describe() => new("Acme.Store.GraphQL.Products", "1.0.0", [Capability.Data]);
+
+    protected override void ConfigureGraphQl(IGraphQlBehaviorBuilder builder)
+    {
+        builder.AddType<ProductType>();
+        builder.AddQueryField("products", resolve: async (catalog, ct) => await catalog.ListAsync(ct));
+    }
+}
+```
+
+## Status
+
+Full walkthrough lands in the next docs push. Until then, see:
+
+- **[Technology → Hosts](/0-1-0-preview/technology/hosts/)** — the host catalog covers `Cephalon.AspNetCore.GraphQL`.
+- **[Source → components / aspnetcore-graphql](/0-1-0-preview/source/components/aspnetcore-graphql/)** — engine-source-doc mirror with the canonical package surface.
+- **[Reference → Architecture](/0-1-0-preview/reference/architecture/)** — canonical contracts index (the dedicated *Transport surface* page is planned for `0.2.0-preview`).

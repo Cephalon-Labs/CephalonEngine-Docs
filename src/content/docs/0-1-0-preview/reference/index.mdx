@@ -1,0 +1,56 @@
+---
+title: Reference
+description: Architectural reference docs, configuration schema, CLI surface, and versioned API reference for CephalonEngine.
+sidebar:
+  order: 0
+  label: Overview
+editUrl: false
+---
+
+import PathCards from '../../../../components/PathCards.astro';
+
+Reference is the **source of truth** for everything that has a contract. If the Guide is "how to use it" and Tutorials are "build something with it", Reference is "what the engine actually guarantees".
+
+<PathCards
+  paths={[
+    {
+      badge: 'Architecture',
+      title: 'Architecture',
+      description: 'Runtime contracts, conformance matrix, maturity audit, design patterns. The canonical contract for what the engine guarantees.',
+      href: '/0-1-0-preview/reference/architecture/',
+      cta: 'Open architecture',
+    },
+    {
+      badge: 'Config',
+      title: 'Configuration',
+      description: 'The Engine:* configuration schema, error handling, and per-capability options.',
+      href: '/0-1-0-preview/reference/configuration/',
+      cta: 'Open configuration',
+    },
+    {
+      badge: 'CLI',
+      title: 'CLI',
+      description: 'cephalon doctor / new / stage-packages / reference-docs. Flags, defaults, and exit codes.',
+      href: '/0-1-0-preview/reference/cli/',
+      cta: 'Open CLI',
+    },
+    {
+      badge: 'API',
+      title: 'API reference',
+      description: 'The DocFX-generated API reference per shipped version. Namespace tree, types, members.',
+      href: '/0-1-0-preview/reference/api/',
+      cta: 'Open API reference',
+    },
+  ]}
+/>
+
+## How Reference is organised
+
+- **Architecture** holds the engine's contracts — runtime types, transport surface, capability registry, conformance matrix, maturity ladder. Every public surface has an entry here.
+- **Configuration** is the typed schema for `appsettings.json` and the equivalent environment variables.
+- **CLI** documents every `cephalon` command with flag tables and exit codes.
+- **API reference** is the auto-generated DocFX output, versioned by engine release. Pick the version from the version switcher in the sidebar.
+
+## Versioned API reference
+
+The current preview API reference lives at **[0.1.0-preview / API](/0-1-0-preview/reference/api/)**. Older snapshots are added as new versions ship.

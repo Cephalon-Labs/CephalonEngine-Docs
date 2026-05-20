@@ -1,0 +1,114 @@
+---
+title: Operations
+description: Observability, health, runbooks, benchmarking, and the runtime failure policy you need to operate a CephalonEngine app in production.
+sidebar:
+  order: 6
+editUrl: false
+---
+
+import PathCards from '../../../../components/PathCards.astro';
+
+This section is for the team that owns the on-call pager. Every page here documents a contract the engine guarantees plus the recommended operator posture.
+
+<PathCards
+  paths={[
+    {
+      badge: 'Telemetry',
+      title: 'Observability',
+      description: 'OpenTelemetry-native logs, metrics, traces. Provider adapters for every major cloud. OTLP collector defaults shipped with the scaffold.',
+      href: '/0-1-0-preview/technology/observability/',
+      cta: 'Wire up telemetry',
+    },
+    {
+      badge: 'Health',
+      title: 'Dependency health',
+      description: 'Per-backend readiness probes for 18+ backends. Health is host-agnostic and composes into the runtime catalog.',
+      href: '/0-1-0-preview/guide/operations/#dependency-health',
+      cta: 'Configure probes',
+    },
+    {
+      badge: 'Reliability',
+      title: 'Runtime failure policy',
+      description: 'The engine\'s contract for transient errors, terminal failures, and graceful shutdown.',
+      href: '/0-1-0-preview/source/runtime-failure-policy/',
+      cta: 'Read the policy',
+    },
+    {
+      badge: 'Performance',
+      title: 'Benchmarking',
+      description: 'The BenchmarkDotNet suite that gates hot-path regressions on composition, runtime lifecycle, AspNetCore, and scaffolding.',
+      href: '/0-1-0-preview/source/benchmarking/',
+      cta: 'Open the benchmarks',
+    },
+    {
+      badge: 'Gap inventory',
+      title: 'Operational hardening',
+      description: 'The known gap inventory — what is still in flight before adoption-ready status.',
+      href: '/0-1-0-preview/source/operational-hardening-gap-inventory/',
+      cta: 'Review the gaps',
+    },
+    {
+      badge: 'Container ops',
+      title: 'Container image publishing',
+      description: 'How to build and publish the runtime image, including air-gapped flows.',
+      href: '/0-1-0-preview/source/container-image-publishing/',
+      cta: 'Publish images',
+    },
+  ]}
+/>
+
+## The mental model
+
+A CephalonEngine app exposes operational truth through three surfaces:
+
+1. **`/engine/*` routes** — manifest, runtime, health, telemetry summary. Always on for ASP.NET Core hosts.
+2. **`snapshot.*` configuration keys** — runtime-resolved configuration, including deployment-mode posture.
+3. **OTLP telemetry** — logs, metrics, traces. Every module's telemetry shares the same resource attributes (`cephalon.engine.id`, `cephalon.module.name`, etc.).
+
+Whoever is on-call should have those three surfaces dashboarded.
+
+## Runtime failure policy at a glance
+
+- **Composition failure** is fatal. The host fails to start, prints the failing module, and exits non-zero.
+- **Lifecycle failure** during `OnStart` is fatal. Hosts crash so orchestrators see the failure.
+- **Transient runtime failures** are caller-policy. The engine does not retry on the caller's behalf.
+- **Graceful shutdown** runs lifecycle hooks in reverse order. The host waits for an explicit drain interval (default `30s`).
+
+Full contract: **[Source → Runtime failure policy](/0-1-0-preview/source/runtime-failure-policy/)**.
+
+## Observability defaults
+
+The generated scaffold ships:
+
+- An OTLP-ready collector config (`otel-collector-config.yaml`).
+- A `Engine:Observability` section with safe defaults.
+- Per-module log scopes carrying `cephalon.module.name`, `cephalon.module.version`, `cephalon.engine.id`.
+- Resource attributes derived from the manifest, so traces always identify their origin.
+
+Provider-specific guidance for Alibaba Cloud, AWS, Azure Monitor, DigitalOcean, GCP, Grafana Cloud, Huawei Cloud, Kubernetes, New Relic, OpenShift, Oracle Cloud, Serilog, and Tanzu lives in the **[Technology → Observability](/0-1-0-preview/technology/observability/)** catalog.
+
+## Dependency health
+
+CephalonEngine ships probes for 18+ backends. Each probe:
+
+- declares a typed status (`Healthy`, `Degraded`, `Unhealthy`).
+- reports latency, last-error, and any backend-specific metadata.
+- composes into the runtime catalog so the host can publish `/health`.
+- runs on a configurable interval.
+
+Backends covered today: Cassandra, ClickHouse, Consul, Elasticsearch, HTTP, Kafka, Memcached, MongoDB, MQTT, MySQL, NATS, Neo4j, OpenSearch, Oracle, Postgres, RabbitMQ, Redis, SQL Server.
+
+## Production readiness checklist
+
+Before flipping traffic, confirm:
+
+- [ ] `cephalon doctor` is clean on the target.
+- [ ] Composition smoke test passes against production config (`dotnet test ... --filter Category=Composition`).
+- [ ] `/health` returns `200` end-to-end (with dependencies wired).
+- [ ] `/engine/manifest` returns the expected module set + capabilities.
+- [ ] OTLP traffic reaches the observability backend.
+- [ ] Dependency-health probes show `Healthy` for every required backend.
+- [ ] Rollback path is documented in the deployment runbook.
+- [ ] On-call documentation references the engine id and the manifest schema version.
+
+The deeper-rationale walkthrough is mirrored at **[Source → Operations](/0-1-0-preview/source/operations/)** (planned to graduate into a dedicated *Operations → Production readiness* page for `0.2.0-preview`).

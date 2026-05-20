@@ -1,0 +1,149 @@
+---
+title: Installation
+description: Pick the right install path — CLI tool, manual NuGet package install, IDE setup, or CI. Prerequisites, decision tree, quick verification, and links to deeper how-tos.
+sidebar:
+  order: 0
+  label: Overview
+editUrl: false
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+This section is the **toolchain reference** — everything a developer machine, build agent, or restricted environment needs to use CephalonEngine.
+
+**The [Quickstart](/0-1-0-preview/guide/quickstart/)** walks through the happy path end-to-end. **This section** is what you reach for when the happy path doesn't apply (existing app, no global tools, corporate proxy, air-gapped, IDE quirks).
+
+## Prerequisites
+
+| Requirement | Version | Notes |
+| --- | --- | --- |
+| **.NET SDK** | `10.x` | The shipping baseline. The active `dotnet --version` should resolve to a 10.x SDK. SDK bundle includes both `Microsoft.NETCore.App` and `Microsoft.AspNetCore.App` runtimes. Download: **[dotnet.microsoft.com](https://dotnet.microsoft.com/download/dotnet/10.0)**. |
+| `Microsoft.NETCore.App` | `10.x` | Base runtime — needed by every host. |
+| `Microsoft.AspNetCore.App` | `10.x` | Required for `Cephalon.AspNetCore` hosts (REST, GraphQL, gRPC, JSON-RPC). |
+| **PowerShell 7+** *or* **Bash 5+** | `pwsh >= 7.4` / `bash >= 5` | Used by the generated `deploy/*` scripts. The dotnet CLI itself works in any shell. |
+| Optional: **Docker** / **Podman** | latest stable | Only needed if you publish container images or run integration tests with Testcontainers. |
+| Optional: **`Cephalon.TemplatePack`** | matches CLI version | Registers the `cephalon-app` blueprint with `dotnet new`. Lets you use `dotnet new cephalon-app -n …` instead of `cephalon new …`. Both produce identical output. |
+
+<div class="ce-callout ce-callout--warn">
+<span class="ce-callout__icon" aria-hidden="true">⚠️</span>
+<div>**.NET 11 readiness lane.** CephalonEngine tracks .NET 11 in <code>assessment-only</code> mode — the engine doesn't yet ship on .NET 11. You can experiment by installing the .NET 11 SDK alongside .NET 10 and pinning <code>global.json</code> to <code>11.0.x</code>, but anything you build won't be supported by CI gates. Track progress at <a href="/0-1-0-preview/migration/dotnet-versions/">Migration → .NET versions</a>.</div>
+</div>
+
+## Pick your install path
+
+Three supported paths, each optimised for a different audience. **Pick one — they're not exclusive but you don't need to combine them on the same machine.**
+
+<CardGrid>
+  <LinkCard
+    title="① CLI install — recommended"
+    href="/0-1-0-preview/guide/installation/cli/"
+    description="dotnet tool install Cephalon.Cli. Scaffolds new apps, runs cephalon doctor health checks, stages local packages. Covers corporate feeds, Azure Artifacts, GitHub Packages, behind-proxy, air-gapped."
+  />
+  <LinkCard
+    title="② Manual install — no CLI"
+    href="/0-1-0-preview/guide/installation/manual/"
+    description="Add Cephalon.* packages to an existing or fresh project. No global tools required. Full Program.cs + module + appsettings.json walkthrough — same shape cephalon new produces."
+  />
+  <LinkCard
+    title="③ IDE setup"
+    href="/0-1-0-preview/guide/installation/ide/"
+    description="Visual Studio 2026, JetBrains Rider, VS Code + C# Dev Kit — feed configuration, recommended extensions, tasks.json, productivity flags."
+  />
+  <LinkCard
+    title="④ CI / build agents"
+    href="/0-1-0-preview/guide/installation/ci/"
+    description="GitHub Actions, Azure Pipelines, local Docker build — minimal pipeline shapes, base-image choices, cache strategy."
+  />
+</CardGrid>
+
+### Decision tree
+
+```text
+Are you starting a new CephalonEngine app from scratch?
+│
+├── YES ─ Do you (or your CI) allow installing a global .NET tool?
+│         │
+│         ├── YES ─→ ① CLI install + cephalon new       (fastest path)
+│         │
+│         └── NO  ─→ ② Manual install                    (no global tools)
+│
+└── NO ── You're adding CephalonEngine to an existing ASP.NET Core app
+          │
+          └─────→ ② Manual install                        (drop packages in)
+```
+
+### Side-by-side comparison
+
+| What you want | CLI (`Cephalon.Cli`) | Manual install |
+| --- | --- | --- |
+| Scaffold a new app shape (`Dockerfile`, `deploy/*`, `Directory.Build.props`, smoke tests) | ✅ `cephalon new` | ❌ hand-write (or copy from `cephalon new` once) |
+| Add `Cephalon.*` packages to an existing project | ✅ works too | ✅ canonical path |
+| Run pre-flight health checks (`cephalon doctor`) | ✅ built-in | ⚠️ run `dotnet --list-sdks` manually |
+| Stage local-engine builds (`cephalon stage-packages`) | ✅ built-in | ⚠️ manage `NuGet.config` sources yourself |
+| Generated app interoperates with engine | ✅ identical | ✅ identical — engine doesn't care how packages got there |
+| Survives CI without internet access | ⚠️ needs `--add-source` or tool-package folder | ⚠️ needs an internal feed |
+| Required for production engine usage | ❌ no — it's a convenience tool | ❌ — same answer |
+
+Both paths produce engine-identical apps. The CLI is **strictly additive convenience**; nothing the CLI does is privileged.
+
+## Quick verify
+
+After installing via any path, verify your toolchain is wired correctly:
+
+```powershell frame="terminal"
+dotnet --version                  # should report 10.x
+dotnet --list-sdks                # confirm a 10.x SDK is present
+dotnet --list-runtimes            # confirm Microsoft.NETCore.App 10.x + Microsoft.AspNetCore.App 10.x
+```
+
+If you went the **CLI** path, also:
+
+```powershell frame="terminal"
+cephalon --version                # confirms the CLI is on PATH
+cephalon doctor                   # full health check — see CLI page for output guide
+```
+
+If you went the **Manual** path, build the host project to verify packages restore cleanly:
+
+```powershell frame="terminal"
+dotnet restore
+dotnet build -c Release
+```
+
+## Common toolchain tips
+
+- **One `global.json` per repo, not per project.** Place it at the repo root so every project shares the same SDK band. Bump the version field with intention — the `rollForward` policy decides what auto-applies.
+- **Use `rollForward: "latestFeature"`** in `global.json` so patch / feature updates are picked up but major versions aren't. Example:
+  ```json title="global.json"
+  { "sdk": { "version": "10.0.100", "rollForward": "latestFeature" } }
+  ```
+- **`appsettings.Development.json` is committed; `appsettings.Production.json` has placeholders.** Production fills in secrets via env vars or Key Vault.
+- **Pin tool versions per repo.** A local tool manifest (`dotnet new tool-manifest` + `.config/dotnet-tools.json`) means developers + CI agents share the same CLI version. See **[CLI install → Per-repo install](/0-1-0-preview/guide/installation/cli/#per-repo--local-tool-install)**.
+- **Run `cephalon doctor` on every PR.** Catches SDK drift before it bites in production. See **[CLI install → CI integration](/0-1-0-preview/guide/installation/ci/)**.
+
+## Known limits across all paths
+
+- **The CLI is required for `cephalon new`.** Scaffolding without it is not supported (the underlying `Cephalon.Scaffolding` library is consumed via the CLI; calling it directly is undocumented and may change).
+- **Tool-manifest tool versions are independent from the engine package versions.** If you bump the CLI but not your generated app's `Cephalon.*` package versions, the scaffolds may diverge. Keep them in sync via the same release cadence.
+- **`Cephalon.TemplatePack`** registers a single template family (`cephalon-app`). It doesn't support per-feature templates yet (e.g. there's no `cephalon-module`).
+- **`cephalon stage-packages`** copies files; it doesn't symlink. Re-stage after every local engine rebuild.
+- **`appsettings.json` placeholders are still loaded.** An empty connection string is not the same as a missing one — see **[Configuration → Limits](/0-1-0-preview/reference/configuration/#limits)**.
+
+<div class="ce-callout ce-callout--key">
+<span class="ce-callout__icon" aria-hidden="true">🔑</span>
+<div>**Both install paths are equally supported.** The engine doesn't track how packages arrived at your project. Pick the one that fits your team's tooling and constraints.</div>
+</div>
+
+## Where to go next
+
+- **[① CLI install](/0-1-0-preview/guide/installation/cli/)** — `dotnet tool install Cephalon.Cli`, custom feeds, corporate proxy, air-gapped, template pack.
+- **[② Manual install](/0-1-0-preview/guide/installation/manual/)** — from-scratch package install with full Program.cs + module + appsettings.
+- **[③ IDE setup](/0-1-0-preview/guide/installation/ide/)** — Visual Studio, Rider, VS Code recommended configuration.
+- **[④ CI / build agents](/0-1-0-preview/guide/installation/ci/)** — GitHub Actions, Azure Pipelines, Docker build patterns.
+
+Related reading:
+
+- **[Quickstart](/0-1-0-preview/guide/quickstart/)** — run the install end-to-end.
+- **[Concepts](/0-1-0-preview/guide/concepts/)** — the smallest model you need in your head.
+- **[Compatibility](/0-1-0-preview/guide/compatibility/)** — what's supported on .NET 10, the .NET 11 readiness lane, deployment-mode posture.
+- **[Reference → CLI](/0-1-0-preview/reference/cli/)** — every `cephalon` command with flags and exit codes.

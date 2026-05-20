@@ -1,0 +1,406 @@
+---
+title: 'Engine:Data'
+description: Configure the data layer — id strategy, provider selection, read/write split, connection strings, EF Core options.
+sidebar:
+  order: 2
+editUrl: false
+---
+
+`Engine:Data` controls the engine's data capability — how identifiers are generated, which provider wires the data layer, and how read/write sides are split. **This section is only consumed when at least one module declares `Capability.Data`.**
+
+## Full schema
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Data": {
+      "IdStrategy": "Sfid",                       // "Sfid" | "Guid" | "Long" | "Custom"
+      "Provider":   "EntityFramework",            // "EntityFramework" | "Direct" | null
+      "Migrations": {
+        "Enabled":   true,                        // apply migrations on startup (dev only)
+        "Strategy":  "OnStart",                   // "OnStart" | "Manual" | "External"
+        "FailOnDrift": true                       // crash if schema doesn't match expected
+      },
+      "ReadModel": {
+        "Provider":  "EntityFramework",
+        "ConnectionStringName": "ReadModel"       // looks up ConnectionStrings:ReadModel
+      },
+      "WriteModel": {
+        "Provider":  "EntityFramework",
+        "ConnectionStringName": "WriteModel"
+      },
+      "Outbox": {
+        "Enabled":  true,                         // emit eventing through DbContext outbox table
+        "TableName": "cephalon_eventing_outbox",
+        "BatchSize": 100,                         // drain N rows per polling tick
+        "PollingInterval": "00:00:01"             // TimeSpan
+      },
+      "Inbox": {
+        "Enabled":  true,                         // dedup incoming messages
+        "TableName": "cephalon_eventing_inbox",
+        "RetentionDays": 30                       // entries older than N days are purged
+      },
+      "Sfid": {
+        "EpochUtc": "2024-01-01T00:00:00Z",      // start of Sfid time-component
+        "MachineId": null                         // null = auto-derive from hostname
+      }
+    }
+  }
+}
+```
+
+## Each option in detail
+
+### `IdStrategy`
+
+| Type | Default | Allowed values |
+| --- | --- | --- |
+| enum string | `"Sfid"` | `"Sfid"`, `"Guid"`, `"Long"`, `"Custom"` |
+
+Selects the default identifier strategy for entities. Affects:
+- The base `Id` type on `CephalonDbContext`-derived contexts.
+- Auto-mapping of EF Core key columns.
+- The `IIdGenerator<T>` service registered for DI.
+
+| Value | When to use | Storage |
+| --- | --- | --- |
+| `"Sfid"` | **Default.** K-sortable, URL-safe, 26-char string. Best for most apps. Provided by `Cephalon.Ids.Sfid`. | `char(26)` (Postgres) / `nvarchar(26)` (SQL Server) |
+| `"Guid"` | Interop with systems already using GUIDs. | `uuid` (Postgres) / `uniqueidentifier` (SQL Server) |
+| `"Long"` | Legacy schemas with `INT IDENTITY`. **Forces single-writer DB topology.** | `bigint` |
+| `"Custom"` | You'll register your own `IIdGenerator<T>` via DI. The engine won't generate ids. | whatever you choose |
+
+**Examples:**
+
+```jsonc
+{ "Engine": { "Data": { "IdStrategy": "Sfid" } } }      // default
+{ "Engine": { "Data": { "IdStrategy": "Guid" } } }      // for systems with existing GUIDs
+{ "Engine": { "Data": { "IdStrategy": "Long" } } }      // legacy numeric ids
+```
+
+**Custom strategy** — register the generator before `Build(builder)`:
+
+```csharp title="Program.cs"
+services.AddSingleton<IIdGenerator<MyId>, MyCustomIdGenerator>();
+```
+
+**Limits:**
+- **Changing `IdStrategy` mid-project requires a full data migration.** Existing rows keep the old type. Plan strategy at project start.
+- Sfid is **not cryptographically random** — don't use as anti-enumeration tokens.
+- `Long` strategy + multi-region active-active = id collisions. Use Sfid or Guid for distributed writes.
+
+### `Provider`
+
+| Type | Default | Allowed values |
+| --- | --- | --- |
+| enum string | `null` | `"EntityFramework"`, `"Direct"`, `null` |
+
+The data provider that fulfils the `Capability.Data` requirement.
+
+| Value | What it wires |
+| --- | --- |
+| `"EntityFramework"` | `Cephalon.Data.EntityFramework` — DbContext baseline, migrations, outbox/inbox, value converters. **Recommended.** |
+| `"Direct"` | `Cephalon.Data` raw driver mode — no EF, no migrations, no outbox. For hot-path scenarios where EF overhead is unacceptable. |
+| `null` | No provider. Modules declaring `Capability.Data` will fail composition. |
+
+**Examples:**
+
+```jsonc
+{ "Engine": { "Data": { "Provider": "EntityFramework" } } }
+{ "Engine": { "Data": { "Provider": "Direct" } } }
+```
+
+In `Program.cs` you still must call the provider's `AddXxx` extension:
+
+```csharp
+services.AddData(options => options.UseEntityFramework().UsePostgres(conn));
+```
+
+**Limits:**
+- Mixing `EntityFramework` and `Direct` in the same host is **not supported**. Pick one.
+- `Direct` mode disables the outbox table — you lose at-least-once eventing guarantees.
+
+### `Migrations`
+
+Controls how EF Core migrations are applied.
+
+#### `Migrations.Enabled`
+
+| Type | Default |
+| --- | --- |
+| boolean | `false` |
+
+Whether to automatically apply pending migrations during host startup.
+
+**Use cases:**
+- `true` in `appsettings.Development.json` — fast iteration without manual steps.
+- **`false` in production.** Apply migrations via a dedicated job, not on host boot — see [Operations](/0-1-0-preview/guide/operations/).
+
+```jsonc title="appsettings.Development.json"
+{ "Engine": { "Data": { "Migrations": { "Enabled": true } } } }
+```
+
+```jsonc title="appsettings.Production.json"
+{ "Engine": { "Data": { "Migrations": { "Enabled": false } } } }
+```
+
+#### `Migrations.Strategy`
+
+| Type | Default | Allowed values |
+| --- | --- | --- |
+| enum string | `"OnStart"` | `"OnStart"`, `"Manual"`, `"External"` |
+
+When `Migrations.Enabled` is `true`, controls when migrations run.
+
+| Value | Behaviour |
+| --- | --- |
+| `"OnStart"` | Apply during `OnStart` lifecycle hook. **Default.** Best for dev. |
+| `"Manual"` | Don't auto-apply. Adopter calls `IMigrationRunner.RunAsync()` from custom code. |
+| `"External"` | Don't apply at all. Schema is managed by an external tool (Flyway, Liquibase). The engine still verifies expected schema at startup. |
+
+#### `Migrations.FailOnDrift`
+
+| Type | Default |
+| --- | --- |
+| boolean | `true` |
+
+If `true`, the host fails to start when the database schema doesn't match the expected migration state. Set to `false` only during major refactors.
+
+**Limits:**
+- Schema-drift detection runs **once at startup** — it's not a live check. A migration applied while the host is up won't be re-detected.
+- `External` strategy still requires an empty `__EFMigrationsHistory` table; the runner reads it to verify state.
+
+### `ReadModel` and `WriteModel`
+
+Split read and write sides onto different stores. Useful for CQRS, analytics, or scaling reads independently.
+
+```jsonc
+{
+  "Engine": {
+    "Data": {
+      "WriteModel": {
+        "Provider": "EntityFramework",
+        "ConnectionStringName": "OrdersWrite"
+      },
+      "ReadModel": {
+        "Provider": "EntityFramework",
+        "ConnectionStringName": "OrdersRead"
+      }
+    }
+  },
+  "ConnectionStrings": {
+    "OrdersWrite": "Host=primary-db;Port=5432;Database=orders;Username=writer;Password=…",
+    "OrdersRead":  "Host=read-replica;Port=5432;Database=orders;Username=reader;Password=…"
+  }
+}
+```
+
+| Sub-option | Description |
+| --- | --- |
+| `Provider` | Same values as top-level `Engine:Data:Provider`. |
+| `ConnectionStringName` | Name of the entry in `ConnectionStrings:*`. Resolved via `IConfiguration.GetConnectionString(name)`. |
+
+**When to use:**
+- **Read replicas** — same data, separate physical store for read load.
+- **CQRS** — different schemas optimised per side (write = normalised, read = projections).
+- **OLTP + OLAP** — write to Postgres, read aggregations from ClickHouse.
+
+**Limits:**
+- If `ReadModel` and `WriteModel` are both set, **transactional reads** (within a write transaction) go to the write side. Cross-store consistency is your problem.
+
+### `Outbox`
+
+The transactional outbox pattern: events written into a DB table in the same transaction as domain rows, then drained asynchronously to the broker. **Required for at-least-once eventing guarantees.**
+
+#### `Outbox.Enabled`
+
+| Type | Default |
+| --- | --- |
+| boolean | `true` when `Provider="EntityFramework"`, `false` otherwise |
+
+#### `Outbox.TableName`
+
+| Type | Default |
+| --- | --- |
+| string | `"cephalon_eventing_outbox"` |
+
+Override only if you have a naming convention. Index on `(processed_at, created_at)` is recommended for fast drainer queries.
+
+#### `Outbox.BatchSize`
+
+| Type | Default |
+| --- | --- |
+| integer | `100` |
+
+Rows the drainer reads per polling tick. Trade-off:
+- Higher = better throughput per tick, more memory.
+- Lower = lower latency between commit and broker, more DB round trips.
+
+**Guideline:** 100 for low-throughput apps, 500–1000 for high-throughput.
+
+#### `Outbox.PollingInterval`
+
+| Type | Default |
+| --- | --- |
+| TimeSpan string | `"00:00:01"` (1 second) |
+
+How often the drainer polls. Format is the standard .NET `TimeSpan` string.
+
+```jsonc
+{ "Outbox": { "PollingInterval": "00:00:00.500" } }   // 500 ms
+{ "Outbox": { "PollingInterval": "00:00:05" } }       // 5 seconds
+```
+
+**Limits:**
+- Polling **increases DB load** linearly with interval. < 100ms isn't recommended.
+- The drainer is single-instance per host. Multiple replicas use SKIP LOCKED (Postgres) or row-version (SQL Server) to coordinate.
+
+### `Inbox`
+
+The inbox pattern: incoming messages recorded for deduplication. Pairs with at-least-once delivery to give consumers exactly-once **effects**.
+
+#### `Inbox.Enabled`
+
+| Type | Default |
+| --- | --- |
+| boolean | `true` when `Provider="EntityFramework"`, `false` otherwise |
+
+#### `Inbox.TableName`
+
+| Type | Default |
+| --- | --- |
+| string | `"cephalon_eventing_inbox"` |
+
+#### `Inbox.RetentionDays`
+
+| Type | Default |
+| --- | --- |
+| integer | `30` |
+
+Entries older than this are purged by a background job. Lower = less storage, higher = better dedup window.
+
+**Guideline:** Set retention longer than your maximum broker redelivery window. RabbitMQ default redelivery is 7 days, so 30 days gives plenty of headroom.
+
+### `Sfid`
+
+Configuration for the Sfid identifier strategy. Only applies when `IdStrategy="Sfid"`.
+
+#### `Sfid.EpochUtc`
+
+| Type | Default |
+| --- | --- |
+| ISO-8601 timestamp | `"2024-01-01T00:00:00Z"` |
+
+Start of the Sfid time component. Sfids encode milliseconds since this epoch in the high-order bits. **Don't change this after generating any Sfids** — existing ids would sort wrong.
+
+#### `Sfid.MachineId`
+
+| Type | Default |
+| --- | --- |
+| integer or null | `null` (auto-derived from hostname) |
+
+The 10-bit machine identifier embedded in each Sfid to avoid collisions across processes. Auto-derived from hostname hash by default; set explicitly when:
+- Multiple processes per host (e.g. K8s pods sharing a node).
+- Hostnames are not stable (e.g. ephemeral container names).
+
+```jsonc
+{ "Engine": { "Data": { "Sfid": { "MachineId": 42 } } } }
+```
+
+**Limits:** Must be unique per process within a 1ms window. The 10-bit field allows up to 1024 distinct values per ms.
+
+## Common scenarios
+
+### Scenario 1: simple modular monolith with Postgres
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Data": {
+      "IdStrategy": "Sfid",
+      "Provider": "EntityFramework",
+      "Migrations": { "Enabled": false, "Strategy": "OnStart" }
+    }
+  },
+  "ConnectionStrings": {
+    "Default": "Host=localhost;Port=5432;Database=acmestore;Username=postgres;Password=postgres"
+  }
+}
+```
+
+```jsonc title="appsettings.Development.json"
+{
+  "Engine": {
+    "Data": { "Migrations": { "Enabled": true } }
+  }
+}
+```
+
+### Scenario 2: read/write split for analytics
+
+```jsonc
+{
+  "Engine": {
+    "Data": {
+      "WriteModel": { "Provider": "EntityFramework", "ConnectionStringName": "OrdersWrite" },
+      "ReadModel":  { "Provider": "EntityFramework", "ConnectionStringName": "AnalyticsRead" }
+    }
+  },
+  "ConnectionStrings": {
+    "OrdersWrite":  "Host=primary;…",
+    "AnalyticsRead": "Host=clickhouse;…"
+  }
+}
+```
+
+### Scenario 3: high-throughput outbox tuning
+
+```jsonc
+{
+  "Engine": {
+    "Data": {
+      "Outbox": {
+        "Enabled": true,
+        "BatchSize": 500,
+        "PollingInterval": "00:00:00.250"
+      },
+      "Inbox": { "RetentionDays": 14 }
+    }
+  }
+}
+```
+
+### Scenario 4: external schema management (Flyway)
+
+```jsonc
+{
+  "Engine": {
+    "Data": {
+      "Migrations": {
+        "Enabled": true,
+        "Strategy": "External",
+        "FailOnDrift": true
+      }
+    }
+  }
+}
+```
+
+The engine won't apply migrations; it will verify schema state and crash if Flyway hasn't been run.
+
+## Environment-variable equivalents
+
+```text
+Engine__Data__IdStrategy=Sfid
+Engine__Data__Provider=EntityFramework
+Engine__Data__Migrations__Enabled=true
+Engine__Data__Outbox__BatchSize=500
+Engine__Data__Sfid__MachineId=42
+ConnectionStrings__OrdersWrite=Host=…
+```
+
+## See also
+
+- **[Technology → Data](/0-1-0-preview/technology/data/)** — adapter catalogue and patterns per backend.
+- **[Technology → Identifiers](/0-1-0-preview/technology/identifiers/)** — Sfid in depth.
+- **[Tutorial → First-app step 3: Wire EF Core](/0-1-0-preview/tutorials/first-app/03-add-data/)** — end-to-end walkthrough.
+- **[Reference → Configuration](/0-1-0-preview/reference/configuration/)** — full `Engine:*` schema.

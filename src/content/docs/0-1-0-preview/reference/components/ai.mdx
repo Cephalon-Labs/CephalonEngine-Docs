@@ -1,0 +1,99 @@
+---
+title: Agentics & Retrieval
+description: Cephalon.Agentics (task graph + tool registry) and Cephalon.Retrieval (RAG runtime).
+sidebar:
+  order: 10
+  label: Agentics & Retrieval
+editUrl: false
+---
+
+The AI-flavoured capabilities. **Both are `M2`** — narrow surface still settling. Use for prototypes / non-critical workloads; expect minor breaking changes within preview minors.
+
+## Packages
+
+Click any package name to jump to its **source-doc**.
+
+| Package | NuGet ID | Maturity | Capability |
+| --- | --- | --- | --- |
+| **[Agentics](/0-1-0-preview/source/components/agentics/)** | `Cephalon.Agentics` | `M2` | `Capability.Agentics` |
+| **[Retrieval](/0-1-0-preview/source/components/retrieval/)** | `Cephalon.Retrieval` | `M2` | `Capability.Retrieval` |
+
+## `Cephalon.Agentics`
+
+Agentic workload runtime — task graph, tool registry, scheduled agents.
+
+### What it ships
+
+- `IAgentToolDispatcher` — invoke registered tools from an agent run.
+- `IAgentToolRunCatalog` — list/query tool runs (for observability).
+- `AgentToolExecutionRequest` / `Result` / `Outcome` — typed envelopes.
+- Source generator for `[AgentTool]`-tagged methods → automatic registry registration.
+
+### Use cases
+
+| Use case | Pattern |
+| --- | --- |
+| LLM with tool-use | Register tools with `[AgentTool]`; dispatcher invokes typed methods |
+| Scheduled agent runs | `Cephalon.Worker` + `Cephalon.Agentics` |
+| Multi-step workflow with checkpoints | Process manager (`Cephalon.Behaviors.Patterns`) + tool calls |
+
+### Configuration
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Agentics": {
+      "Enabled": true,
+      "RunHistory": { "Retention": "30.00:00:00" },
+      "Concurrency": 4
+    }
+  }
+}
+```
+
+## `Cephalon.Retrieval`
+
+Retrieval / RAG runtime — vector search, hybrid retrieval, ranking.
+
+### What it ships
+
+- `IRetrievalQuery` — typed retrieval interface.
+- `IEmbeddingProvider` — pluggable embedding generation (no built-in provider; bring your own).
+- Vector store integration via `Cephalon.Data.Qdrant`.
+
+### Use cases
+
+| Use case | Pattern |
+| --- | --- |
+| RAG over docs | Embed documents → store in Qdrant → `IRetrievalQuery` |
+| Hybrid keyword + semantic | Elasticsearch + Qdrant; engine ranks results |
+| Reranking | Plug a `IRetrievalReranker` after initial retrieval |
+
+### Configuration
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Retrieval": {
+      "Enabled": true,
+      "VectorStore": "Qdrant",
+      "Embeddings": { "Provider": "OpenAI" },     // BYO via IEmbeddingProvider
+      "Reranking": { "Enabled": false }
+    }
+  }
+}
+```
+
+### Dependencies
+
+```
+Cephalon.Retrieval  needs  Cephalon.Data + Cephalon.Data.Qdrant
+                    needs  an IEmbeddingProvider implementation (not shipped — you provide)
+```
+
+## See also
+
+- **[Technology → Agentics](/0-1-0-preview/technology/agentics/)** — narrative.
+- **[Technology → Retrieval](/0-1-0-preview/technology/retrieval/)** — narrative.
+- **[Tutorial → Agentic workload](/0-1-0-preview/tutorials/agentic-workload/)** — walkthrough.
+- **[Tutorial → Retrieval / RAG](/0-1-0-preview/tutorials/retrieval-rag/)** — walkthrough.

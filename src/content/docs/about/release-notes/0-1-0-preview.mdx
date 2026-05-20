@@ -1,0 +1,132 @@
+---
+title: 0.1.0-preview · current
+description: Release notes for the 0.1.0-preview track — the initial preview line. Daily-to-weekly additive releases under 0.1.0-preview.N.
+sidebar:
+  order: 1
+  label: 0.1.0-preview · current
+editUrl: false
+---
+
+The initial preview track. Daily-to-weekly additive releases under `0.1.0-preview.N` (where `N` is the patch number). Drops `M3` surface across hosts, data, eventing, identity, multi-tenancy, observability — the minimum production-grade slice.
+
+## Highlights
+
+### Core
+
+- Host-agnostic **module contracts** (`Cephalon.Abstractions`).
+- Dependency-aware **engine composition** with manifest v2 (`Cephalon.Engine`).
+- **Capability negotiation**: modules declare `Capability.Data`, `Capability.Eventing`, etc.; composition fails fast if a declared capability has no provider.
+- **Behavior pipeline**: cross-cutting decorators (`WithLogging`, `WithRequireScope`, `WithRetry`, …) compose around behaviors without modifying their bodies.
+
+### Hosts & transports
+
+- **ASP.NET Core host** (`Cephalon.AspNetCore`) with REST, Server-Sent Events, WebSocket.
+- **GraphQL adapter** (`Cephalon.AspNetCore.GraphQL`).
+- **gRPC adapter** (`Cephalon.AspNetCore.Grpc`).
+- **JSON-RPC adapter** (`Cephalon.AspNetCore.JsonRpc`).
+- **Generic-host worker** (`Cephalon.Worker`) for headless services.
+
+### Data
+
+`Cephalon.Data` + adapters for 15 backends:
+
+| Backend | Adapter | Workload sweet-spot |
+| --- | --- | --- |
+| Postgres | `Cephalon.Data.Postgres` | OLTP, EF Core baseline |
+| SQL Server | `Cephalon.Data.SqlServer` | OLTP, enterprise integrations |
+| MySQL | `Cephalon.Data.MySql` | OLTP, web-scale read replicas |
+| Oracle | `Cephalon.Data.Oracle` | OLTP, legacy interop |
+| MongoDB | `Cephalon.Data.MongoDB` | Document workloads |
+| Cassandra | `Cephalon.Data.Cassandra` | Wide-column, write-heavy |
+| ClickHouse | `Cephalon.Data.ClickHouse` | OLAP, analytics |
+| Elasticsearch | `Cephalon.Data.Elasticsearch` | Full-text search |
+| OpenSearch | `Cephalon.Data.OpenSearch` | Apache-licensed search |
+| Redis | `Cephalon.Data.Redis` | KV cache, ephemerals |
+| Neo4j | `Cephalon.Data.Neo4j` | Graph |
+| Qdrant | `Cephalon.Data.Qdrant` | Vector / retrieval |
+| NATS | `Cephalon.Data.Nats` | KV + JetStream + Object store |
+| Debezium | `Cephalon.Data.Debezium` | CDC capture |
+| EF Core | `Cephalon.Data.EntityFramework` | Generic EF wrapper |
+
+Plus **`Cephalon.Ids.Sfid`** — Sfid.Net identifier integration.
+
+### Eventing
+
+- **Wolverine adapter** (`Cephalon.Eventing.Wolverine`) with outbox, scheduled delivery, DLQ replay, partition affinity, process manager state, broker topology.
+- Transports: in-memory, RabbitMQ, Azure Service Bus, AWS SQS/SNS, Kafka.
+- **Eventing behaviors** (`Cephalon.Eventing.Behaviors`) — handler-side decorators.
+
+### Identity & multi-tenancy
+
+- **`Cephalon.Identity`** — host-agnostic identity capability.
+- **`Cephalon.Identity.AspNetCore`** — ASP.NET Core adapter (Bearer + Cookie schemes).
+- **`Cephalon.Audit`** + **`Cephalon.Audit.EntityFramework`** — audit-history capability.
+- **`Cephalon.MultiTenancy`** + **`Cephalon.MultiTenancy.Governance`** — tenancy primitives + memberships / invitations / domain ownership / approvals.
+
+### Observability
+
+- **`Cephalon.Observability`** + **`Cephalon.Observability.OpenTelemetry`** — OTLP baseline.
+- 13 provider adapters:
+  - Alibaba Cloud, AWS, Azure Monitor, GCP, Grafana Cloud, DigitalOcean, Huawei Cloud, New Relic, Oracle Cloud, Kubernetes, OpenShift, Tanzu, Serilog.
+- **18+ dependency-health probes**: Cassandra, ClickHouse, Consul, Elasticsearch, HTTP, Kafka, Memcached, MongoDB, MQTT, MySQL, NATS, Neo4j, OpenSearch, Oracle, Postgres, RabbitMQ, Redis, SQL Server.
+
+### Edge & agentics & retrieval
+
+- **`Cephalon.Edge`** + Traefik + Kubernetes Gateway adapters.
+- **`Cephalon.Agentics`** — agentic workload runtime services.
+- **`Cephalon.Retrieval`** + Qdrant — retrieval / RAG runtime.
+
+### Tooling
+
+- **`Cephalon.Cli`** — `doctor`, `new`, `stage-packages`, `reference-docs` subcommands.
+- **`Cephalon.Scaffolding`** — scaffold-plan library powering `cephalon new`.
+- **`Cephalon.TemplatePack`** — `dotnet new cephalon-app` blueprint.
+- **`Cephalon.ReferenceDocs`** — XML-comment → Markdown generator.
+
+### Deploy targets
+
+Generated apps ship `deploy/` folders for: Windows Service, IIS, Azure App Service, Azure Container Apps, Kubernetes, Linux systemd, Docker.
+
+## Maturity surface
+
+| Domain | Maturity | Notes |
+| --- | --- | --- |
+| Core (Abstractions, Engine, AspNetCore, Worker) | `M3` | Production-grade slice. |
+| Data | `M3` | All 15 backends operational. |
+| Eventing | `M3` | Wolverine adapter + behaviors. |
+| Identity + Audit + MultiTenancy | `M3` | Including governance flows. |
+| Observability | `M3` | OTLP + 13 provider adapters. |
+| Tooling (Cli, Scaffolding, TemplatePack) | `M3` | All shipping. |
+| Edge | `M2` | Narrow surface, signing flow settling. |
+| Agentics | `M2` | Task graph + tool registry surface only. |
+| Retrieval | `M2` | Qdrant adapter only. |
+| ReferenceDocs | `M2` | Markdown generation; live-doc-server out of scope. |
+| Ids.Sfid | `M3` | EF converter + JSON converter ship. |
+
+## What's *not* shipping in `0.1.0-preview`
+
+- **`reference/architecture` sub-pages** for transports / identity / tenancy / cdc-capture / design-patterns / rest-endpoint-authoring / dotnet-ecosystem / package-discovery. Engine source-doc mirrors carry the canonical material; dedicated docs land in `0.2.0-preview`.
+- **`Error handling` configuration page** — the contract works; the explainer page is planned.
+- **Per-feature templates** (`cephalon-module`) — only `cephalon-app` ships.
+- **Identity tutorial** for service-to-service tokens — planned for `0.2.0-preview`.
+
+## Upgrade notes
+
+Within the `0.1.0-preview` track, every release is **additive**. Bump `Cephalon.*` package versions in `Directory.Packages.props` and bump `Cephalon.Cli` (via `dotnet tool update` or local manifest). No code changes required.
+
+Cross-version upgrades (when `0.2.0-preview` lands) follow **[Migration → Version upgrades](/0-1-0-preview/migration/version-upgrades/)**.
+
+## Known limits
+
+- **.NET 11 is `assessment-only`.** Engine still targets `net10.0`. Track .NET 11 readiness in **[Migration → .NET versions](/0-1-0-preview/migration/dotnet-versions/)**.
+- **Trim / AOT / SingleFile** are outside the support contract. `cephalon doctor` warns; behaviors compose but startup-time analysers may surface false positives. Re-evaluated for `0.2.0-preview`.
+- **`Cephalon.TemplatePack`** registers only one template (`cephalon-app`). No per-feature templates.
+- **`cephalon stage-packages`** copies files; doesn't symlink. Re-run after every engine rebuild.
+
+## Where to go next
+
+- **[Guide → Quickstart](/0-1-0-preview/guide/quickstart/)** — install + scaffold + run in 8 minutes.
+- **[Guide → Installation](/0-1-0-preview/guide/installation/)** — CLI / Manual / IDE / CI install paths.
+- **[Technology overview](/0-1-0-preview/technology/)** — every shipped companion package.
+- **[Tutorial → First-app](/0-1-0-preview/tutorials/first-app/)** — end-to-end walkthrough.
+- **[Reference → Configuration](/0-1-0-preview/reference/configuration/)** — every `Engine:*` option documented.

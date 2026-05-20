@@ -1,0 +1,62 @@
+---
+title: FAQ
+description: Frequently asked questions about scope, performance, licensing, and adoption.
+sidebar:
+  order: 5
+editUrl: false
+---
+
+## Is CephalonEngine production-ready?
+
+CephalonEngine is on the `0.1.0-preview` track. The core (`Cephalon.Engine`, `Cephalon.Abstractions`, `Cephalon.AspNetCore`, `Cephalon.Worker`) is at `M3` — broad execution, used by sample apps and the playground. Most companion packages are at `M2` — narrow execution, single-vertical proofs. See the **[Maturity audit](/0-1-0-preview/reference/architecture/maturity/)** for the per-package picture.
+
+> Practical answer: yes for early adopters who are happy with explicit maturity labels; not yet for risk-averse teams that need a frozen contract.
+
+## How does it compare to ASP.NET Core / MediatR / Modular Architecture?
+
+CephalonEngine sits on top of .NET 10 and ASP.NET Core. It is **not** a replacement for them — it is a higher-level engine that:
+
+- assumes you'll compose modules deterministically.
+- provides a typed manifest of what's loaded.
+- ships capability contracts (data, eventing, identity, …) so modules stay transport- and provider-neutral.
+- provides scaffolding, deploy folders, and operational defaults.
+
+Compared with MediatR: CephalonEngine's behaviors are typed at the transport level. Compared with hand-rolled modular architectures: CephalonEngine ships the engine you would have had to build anyway.
+
+## What about performance?
+
+The engine is benchmarked. Hot paths (composition, runtime lifecycle, REST mapping) are gated against regressions of more than ~5%. See **[Benchmarking](/0-1-0-preview/contributing/benchmarking/)**.
+
+## Is it free?
+
+Yes. CephalonEngine is MIT-licensed. See **[License](/about/license/)**.
+
+## Can I use it for commercial work?
+
+Yes. MIT is permissive.
+
+## Does it support AOT / trimming / single-file?
+
+Currently outside the support contract (`warn`). The intent is to graduate as packages adopt source-generated alternatives. See **[Compatibility](/0-1-0-preview/guide/compatibility/)**.
+
+## Why .NET 10?
+
+LTS, mature `AppDomain.CurrentDomain` and reflection APIs that the manifest model needs, and the configuration features the typed `Engine:*` schema relies on.
+
+## What about .NET 11?
+
+Tracked in `assessment-only` mode. See **[.NET versions](/0-1-0-preview/migration/dotnet-versions/)**.
+
+## How do I get help?
+
+- GitHub Discussions on the repo.
+- GitHub Issues for bugs.
+- Email the maintainers via the contact info in [LICENSE.txt](https://github.com/Cephalon-Labs/CephalonEngine/blob/main/LICENSE.txt).
+
+## How do I contribute?
+
+Start at **[Contributing](/0-1-0-preview/contributing/)**. The PR process is light; the engineering standards are not.
+
+## Why "Cephalon"?
+
+A cephalon is the head — the part of a creature that integrates its senses and coordinates the rest. Felt right for an engine that integrates capabilities and coordinates modules.

@@ -1,0 +1,49 @@
+---
+import { Icon } from 'astro-icon/components';
+import {
+  currentVersion,
+  detectVersion,
+  stripBase,
+  stripLocale,
+  switchVersionHref,
+  versions,
+} from '../lib/version-routing';
+
+const { lang } = Astro.locals.starlightRoute;
+const locale: 'en' | 'th' = lang === 'th' ? 'th' : 'en';
+const isThai = locale === 'th';
+
+const { path: stripped } = stripLocale(stripBase(Astro.url.pathname));
+const activeVersion = detectVersion(stripped) ?? currentVersion;
+
+const labels = isThai
+  ? { srLabel: 'เลือกเวอร์ชันเอกสาร', heading: 'Version', current: 'ปัจจุบัน' }
+  : { srLabel: 'Select documentation version', heading: 'Version', current: 'Current' };
+---
+
+<details class="ce-version-switcher" aria-label={labels.srLabel}>
+  <summary class="ce-version-switcher__trigger" aria-haspopup="listbox">
+    <span class="ce-version-switcher__heading">{labels.heading}</span>
+    <span class="ce-version-switcher__value">{activeVersion.label}</span>
+    <Icon name="bi:chevron-down" class="ce-version-switcher__chevron" size={12} aria-hidden="true" />
+  </summary>
+  <ul class="ce-version-switcher__panel" role="listbox" aria-label={labels.srLabel}>
+    {versions.map((v) => (
+      <li role="presentation">
+        <a
+          role="option"
+          aria-selected={v.id === activeVersion.id ? 'true' : 'false'}
+          href={switchVersionHref(v.id, Astro.url.pathname, locale)}
+          class={`ce-version-switcher__option${v.id === activeVersion.id ? ' is-active' : ''}`}
+        >
+          <span class="ce-version-switcher__option-label">{v.label}</span>
+          {v.status === 'current' && (
+            <span class="ce-version-switcher__badge">{labels.current}</span>
+          )}
+        </a>
+      </li>
+    ))}
+  </ul>
+</details>
+
+{/* Click-outside + Escape handlers live in /public/scripts/site-ui.js — see Head.astro */}

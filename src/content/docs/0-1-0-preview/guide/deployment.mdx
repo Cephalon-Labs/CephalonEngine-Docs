@@ -1,0 +1,140 @@
+---
+title: Deployment
+description: Deploy generated CephalonEngine apps to Windows Service, IIS, Azure App Service, Azure Container Apps, Kubernetes, Linux systemd, or Docker.
+sidebar:
+  order: 5
+editUrl: false
+---
+
+import PathCards from '../../../../components/PathCards.astro';
+
+Every app scaffolded by `cephalon new` ships with first-class deployment artefacts for seven targets. This page is the index — pick a target and follow the dedicated page.
+
+<PathCards
+  paths={[
+    {
+      badge: 'Windows',
+      title: 'Windows Service',
+      description: 'install-service.ps1 + remove-service.ps1. Suitable for on-prem Windows Server, behind ARR or IIS reverse proxy.',
+      href: '/0-1-0-preview/source/windows-service-deployment/',
+      cta: 'Open Windows Service guide',
+    },
+    {
+      badge: 'Windows',
+      title: 'IIS',
+      description: 'install-site.ps1 + remove-site.ps1 wraps the host with the AspNetCoreModuleV2 handler.',
+      href: '/0-1-0-preview/source/iis-deployment/',
+      cta: 'Open IIS guide',
+    },
+    {
+      badge: 'Azure',
+      title: 'Azure App Service',
+      description: 'ZIP deploy via deploy-zip.ps1. Works with consumption-style App Service plans and slot swaps.',
+      href: '/0-1-0-preview/source/azure-app-service-deployment/',
+      cta: 'Open Azure App Service guide',
+    },
+    {
+      badge: 'Azure',
+      title: 'Azure Container Apps',
+      description: 'Container build + az containerapp up via deploy-up.ps1. Includes revision-based rollout.',
+      href: '/0-1-0-preview/source/azure-container-apps-deployment/',
+      cta: 'Open ACA guide',
+    },
+    {
+      badge: 'Kubernetes',
+      title: 'Kubernetes',
+      description: 'kustomization.yaml + deployment.yaml + service.yaml + namespace.yaml + apply.ps1.',
+      href: '/0-1-0-preview/source/kubernetes-deployment/',
+      cta: 'Open Kubernetes guide',
+    },
+    {
+      badge: 'Linux',
+      title: 'Linux systemd',
+      description: '<App>.service + <App>.env units. Designed for Ubuntu 22.04/24.04, Debian 12, RHEL 9.',
+      href: '/0-1-0-preview/source/linux-systemd-deployment/',
+      cta: 'Open systemd guide',
+    },
+    {
+      badge: 'Container',
+      title: 'Container image',
+      description: 'Dockerfile + publish-image.ps1 producing a runtime-only image with OTLP-friendly defaults.',
+      href: '/0-1-0-preview/source/container-image-publishing/',
+      cta: 'Open container guide',
+    },
+  ]}
+/>
+
+## How the generated `deploy/` folder is structured
+
+Every scaffolded app gets one folder per target:
+
+```text
+deploy/
+├── windows-service/
+│   ├── README.md
+│   ├── install-service.ps1
+│   └── remove-service.ps1
+├── iis/
+│   ├── README.md
+│   ├── install-site.ps1
+│   └── remove-site.ps1
+├── azure-app-service/
+│   ├── README.md
+│   └── deploy-zip.ps1
+├── azure-container-apps/
+│   ├── README.md
+│   └── deploy-up.ps1
+├── container-image/
+│   ├── README.md
+│   └── publish-image.ps1
+├── kubernetes/
+│   ├── README.md
+│   ├── apply.ps1
+│   ├── kustomization.yaml
+│   ├── namespace.yaml
+│   ├── deployment.yaml
+│   └── service.yaml
+└── linux/
+    └── systemd/
+        ├── README.md
+        ├── <App>.service
+        └── <App>.env
+```
+
+The `README.md` inside each folder explains the assumptions, the required identity, and the rollback path.
+
+## Choosing a target
+
+| If your team runs… | Pick |
+| --- | --- |
+| Windows Server, on-prem | **Windows Service** or **IIS** (IIS if you already terminate TLS there) |
+| Azure with serverless billing | **Azure App Service** |
+| Azure with container-first ops | **Azure Container Apps** |
+| Any Kubernetes cluster | **Kubernetes** |
+| Ubuntu/RHEL VMs | **Linux systemd** |
+| Anywhere container images run | **Container image** |
+
+> If you're not sure, ship Container image. Most other targets accept a container image too, and the deploy scripts for ACA/Kubernetes presume one.
+
+## Common runtime configuration
+
+Regardless of the target, the generated host reads the same `appsettings.json` schema. Per-target overrides go in:
+
+- environment variables (`Engine__Data__Provider=Postgres`), or
+- target-specific config files (`appsettings.Production.json`, `appsettings.Container.json`).
+
+The deploy scripts wire environment variables in a target-idiomatic way (Windows Service `Environment=` lines, systemd `EnvironmentFile=`, Container Apps `--env-vars`, etc.).
+
+## Observability defaults
+
+The scaffold drops an `otel-collector-config.yaml` next to `Dockerfile`. When you enable observability, the host emits OTLP to `OTEL_EXPORTER_OTLP_ENDPOINT` if set, otherwise falls back to the collector at `http://localhost:4317`. See **[Operations → Observability defaults](/0-1-0-preview/guide/operations/#observability-defaults)** + **[Reference → Configuration → Observability](/0-1-0-preview/reference/configuration/observability/)**.
+
+## What you should test before going to production
+
+- The `composition smoke test` passes against the production configuration. (`tests/<App>.Host.Tests/Architecture/CompositionSmokeTests.cs`.)
+- `cephalon doctor` runs clean on the target machine or container image.
+- The `/health` endpoint returns `200` once dependencies are reachable.
+- The `/engine/manifest` route returns the expected module set.
+- Logs flow into your observability backend (look for `cephalon.engine.started` log event).
+
+A full preflight checklist lives in **[Operations → Production readiness checklist](/0-1-0-preview/guide/operations/#production-readiness-checklist)**.

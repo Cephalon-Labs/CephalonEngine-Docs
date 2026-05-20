@@ -1,0 +1,43 @@
+---
+title: Roadmap
+description: The next several CephalonEngine minors, the long-range direction, and the .NET 11 readiness lane.
+sidebar:
+  order: 1
+editUrl: false
+---
+
+The CephalonEngine roadmap is split into three horizons.
+
+## Now (`0.1.0-preview`)
+
+- Continuous, additive shipping inside the preview minor.
+- Eventing track: broker topology, partition behaviour, scheduled delivery, DLQ replay, process manager state.
+- Data track: graduate the most-used adapters from `M2 → M3`.
+- Observability track: add remaining provider companions; graduate dependency-health probes to `M3`.
+- Multi-tenancy track: durable governance + email-delivery adapters at `M3`.
+
+## Next (`0.2.0-preview`)
+
+- First minor with a managed migration story.
+- Graduate the engine core + AspNetCore host + Worker to `M4`.
+- Manifest schema review — bump to `v3` if needed.
+- Identity, audit, and tenancy graduate to `M3`.
+- `Cephalon.MigrationAssistant` tool ships.
+
+## Later (1.0)
+
+- Stable `1.0.0` release.
+- Frozen runtime contract.
+- Multi-version docs with snapshot-based version switcher.
+- Plugin-ready modular composition model.
+- .NET 11 readiness lane lands as supported (subject to readiness audit findings).
+
+## .NET 11 readiness lane
+
+Tracked in **[.NET 11 readiness](/0-1-0-preview/source/dotnet11-readiness/)**. Status today: `assessment-only`.
+
+## Source-doc snapshots
+
+- [Engine roadmap](/0-1-0-preview/source/engine-roadmap/)
+- [Engine backlog](/0-1-0-preview/source/engine-backlog/)
+- [Long-range direction](/0-1-0-preview/source/long-range-direction/)

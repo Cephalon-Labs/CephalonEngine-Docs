@@ -1,0 +1,499 @@
+---
+title: Data
+description: Cephalon.Data + the full adapter catalogue (Postgres, SQL Server, MongoDB, Cassandra, ClickHouse, Redis, …) with per-backend recipes, common patterns, and gotchas.
+sidebar:
+  order: 3
+editUrl: false
+---
+
+`Cephalon.Data` is the **runtime-neutral data layer** for CephalonEngine apps. It defines read/write store contracts, command/query separation, and integration points; concrete adapters bring specific backends.
+
+This page is the **decision guide + recipe book** for choosing and using a data adapter. Each backend has a "when to choose", "how to enable", an end-to-end example, and known limits.
+
+## Packages overview
+
+| Package | Maturity | What it brings |
+| --- | --- | --- |
+| **`Cephalon.Data`** | `M3` | Runtime-neutral data abstractions. Read/write store contracts, command/query split, outbox interface. |
+| **`Cephalon.Data.EntityFramework`** | `M3` | EF Core integration — DbContext baseline, inbox/outbox storage, `Sfid.EntityFramework` value converter. |
+| `Cephalon.Data.Postgres` | `M2` | Postgres-specific helpers via Npgsql (JSONB columns, hstore, listen/notify). |
+| `Cephalon.Data.SqlServer` | `M2` | SQL Server / Azure SQL helpers (rowversion, temporal tables). |
+| `Cephalon.Data.MySql` | `M2` | MySQL / MariaDB adapter (uses `MySqlConnector`). |
+| `Cephalon.Data.Oracle` | `M2` | Oracle Database adapter (uses `Oracle.ManagedDataAccess`). |
+| `Cephalon.Data.MongoDb` | `M2` | MongoDB adapter for document workloads. |
+| `Cephalon.Data.Cassandra` | `M2` | Cassandra adapter (4.x+). |
+| `Cephalon.Data.ClickHouse` | `M2` | ClickHouse analytics-database adapter. |
+| `Cephalon.Data.Elasticsearch` | `M2` | Elasticsearch 8.x adapter. |
+| `Cephalon.Data.OpenSearch` | `M2` | OpenSearch 2.x adapter. |
+| `Cephalon.Data.Redis` | `M2` | Redis adapter (cache, sets, sorted sets, streams). |
+| `Cephalon.Data.Neo4j` | `M2` | Neo4j graph adapter. |
+| `Cephalon.Data.Qdrant` | `M2` | Qdrant vector-database adapter (used by `Cephalon.Retrieval`). |
+| `Cephalon.Data.Nats` | `M2` | NATS JetStream stream / KV adapter. |
+| `Cephalon.Data.Debezium` | `M2` | Debezium CDC source adapter. |
+
+Maturity reference: **[Reference → Architecture → Maturity audit](/0-1-0-preview/reference/architecture/maturity/)**.
+
+## How to enable
+
+The default flow uses **EF Core + Postgres**. Set in two places: `Program.cs` and `appsettings.json`.
+
+```csharp title="src/Acme.Store.Host/Program.cs" {3-9}
+builder.Services
+    .AddCephalonAspNetCore()
+    .AddData(options =>
+    {
+        options.UseEntityFramework();         // engine-wide EF default
+        options.UsePostgres(builder.Configuration.GetConnectionString("Default")!);
+        options.IdStrategy = IdStrategy.Sfid;  // Sfid (default), Guid, or Long
+    })
+    .AddModulesFromAssemblies(/* ... */);
+```
+
+```jsonc title="appsettings.json" {3-8}
+{
+  "Engine": {
+    "Data": {
+      "IdStrategy": "Sfid",
+      "Provider": "Postgres",
+      "ReadModel": { "Provider": "Postgres" },
+      "WriteModel": { "Provider": "Postgres" }
+    }
+  },
+  "ConnectionStrings": {
+    "Default": "Host=localhost;Port=5432;Database=acmestore;Username=postgres;Password=postgres"
+  }
+}
+```
+
+## Choosing a backend
+
+| Workload | Recommended | Why |
+| --- | --- | --- |
+| OLTP, relational with strong consistency | Postgres / SQL Server | ACID, mature EF Core support, broad tooling |
+| Multi-tenant SaaS with row-level isolation | Postgres + RLS | Postgres row-level security beats application-only enforcement |
+| Document-shaped data (variable schemas) | MongoDB | Native JSON, flexible indexes, change streams |
+| Analytics / reporting / OLAP | ClickHouse | Columnar storage, fast aggregations |
+| Full-text search | Elasticsearch / OpenSearch | Inverted indexes, scoring, faceted search |
+| Cache layer | Redis | Sub-ms latency, pub/sub, atomic ops |
+| Time-series (metrics, IoT) | ClickHouse + TimescaleDB | Both work; ClickHouse for write-heavy, Postgres+Timescale for SQL access |
+| Graph relationships | Neo4j | Native graph queries (Cypher) |
+| Vector search / embeddings | Qdrant | Purpose-built for similarity search |
+| Distributed write-heavy | Cassandra | Tunable consistency, multi-region |
+| Event sourcing | Postgres + EF Core outbox + Kafka/NATS | Aggregate-root pattern + reliable delivery |
+| CDC source for downstream | Debezium + Postgres / SQL Server | Battle-tested change capture |
+
+For multi-backend apps (write-side OLTP + read-side OLAP), use the **read/write split** pattern below.
+
+## Common patterns
+
+### Pattern 1: simple EF Core + Postgres CRUD
+
+```csharp title="src/Acme.Store.Modules.Products/Data/ProductsDbContext.cs"
+using Cephalon.Data.EntityFramework;
+using Microsoft.EntityFrameworkCore;
+
+public sealed class ProductsDbContext(DbContextOptions<ProductsDbContext> options)
+    : CephalonDbContext(options)
+{
+    public DbSet<Product> Products => Set<Product>();
+
+    protected override void OnModelCreating(ModelBuilder b)
+    {
+        base.OnModelCreating(b);
+        b.Entity<Product>(e =>
+        {
+            e.ToTable("products");
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            e.Property(p => p.Sku).HasMaxLength(64).IsRequired();
+            e.HasIndex(p => p.Sku).IsUnique();
+            e.Property(p => p.Price).HasColumnType("numeric(12,2)");
+        });
+    }
+}
+```
+
+```csharp title="src/Acme.Store.Modules.Products/ProductsModule.cs"
+public sealed class ProductsModule : RestBehaviorModuleBase
+{
+    public override ModuleDescriptor Describe() => new(
+        "Acme.Store.Modules.Products", "1.0.0", [Capability.Data]);
+
+    public override void RegisterServices(IServiceCollection services)
+    {
+        services.AddCephalonEntityFramework<ProductsDbContext>((sp, opts) =>
+        {
+            var conn = sp.GetRequiredService<IConfiguration>().GetConnectionString("Products");
+            opts.UseNpgsql(conn);
+        });
+        services.AddScoped<IProductCatalog, EfProductCatalog>();
+    }
+    /* ... */
+}
+```
+
+Full walkthrough: **[Tutorial → First-app step 3: Wire EF Core](/0-1-0-preview/tutorials/first-app/03-add-data/)**.
+
+### Pattern 2: read/write split (OLTP + OLAP)
+
+Write goes to Postgres; reads come from ClickHouse. Module code uses two services with clear intent.
+
+```csharp title="src/Acme.Store.Modules.Reports/ReportsModule.cs"
+public override void RegisterServices(IServiceCollection services)
+{
+    // Write-side (Postgres) for transactional operations
+    services.AddCephalonEntityFramework<OrdersDbContext>((sp, opts) =>
+        opts.UseNpgsql(sp.GetRequiredService<IConfiguration>().GetConnectionString("OrdersWrite")));
+
+    // Read-side (ClickHouse) for analytics queries
+    services.AddCephalonClickHouse((sp, opts) =>
+        opts.UseConnection(sp.GetRequiredService<IConfiguration>().GetConnectionString("Analytics")));
+
+    services.AddScoped<IOrderWriter, EfOrderWriter>();
+    services.AddScoped<IOrderAnalytics, ClickHouseOrderAnalytics>();
+}
+```
+
+A separate background job (or CDC pipeline via Debezium) keeps ClickHouse fed from Postgres.
+
+### Pattern 3: cache-aside with Redis
+
+Decorate a slow query with a Redis cache layer:
+
+```csharp title="CachedProductCatalog.cs"
+public sealed class CachedProductCatalog(
+    EfProductCatalog inner,
+    IRedisCache cache) : IProductCatalog
+{
+    public async Task<Product?> FindAsync(Sfid id, CancellationToken ct)
+    {
+        var key = $"products:{id}";
+        if (await cache.GetAsync<Product>(key, ct) is { } cached) return cached;
+
+        var product = await inner.FindAsync(id, ct);
+        if (product is not null)
+            await cache.SetAsync(key, product, TimeSpan.FromMinutes(10), ct);
+
+        return product;
+    }
+}
+
+// Register the decorator
+services.AddScoped<EfProductCatalog>();
+services.Decorate<IProductCatalog, CachedProductCatalog>();
+```
+
+### Pattern 4: tenant-scoped DbContext
+
+Inject the tenant into `DbContextOptions` so EF Core applies row-level filters automatically.
+
+```csharp
+services.AddCephalonEntityFramework<AppDb>((sp, opts) =>
+{
+    var tenant = sp.GetRequiredService<ITenantContext>();
+    var conn   = sp.GetRequiredService<ITenantConnectionResolver>().Resolve(tenant);
+    opts.UseNpgsql(conn);
+    opts.AddInterceptor(new TenantRlsInterceptor(tenant));   // injects tenant_id into every query
+});
+```
+
+See **[Tutorial → Multi-tenant SaaS](/0-1-0-preview/tutorials/multi-tenant-saas/)** for the full pattern.
+
+### Pattern 5: outbox + eventing
+
+EF Core writes domain rows + outbox rows in the same transaction; Wolverine drains the outbox.
+
+```csharp
+public async Task<Order> PlaceOrderAsync(PlaceOrderInput input, CancellationToken ct)
+{
+    var order = new Order { /* … */ };
+    db.Orders.Add(order);
+
+    await publisher.PublishAsync(
+        new OrderPlaced(order.Id, order.CustomerId, order.Total),
+        ct);   // goes into outbox, not the bus directly
+
+    await db.SaveChangesAsync(ct);  // single transaction: order row + outbox row
+    return order;
+}
+```
+
+The outbox guarantees at-least-once delivery even if the broker is down during commit. See **[Technology → Eventing](/0-1-0-preview/technology/eventing/)**.
+
+### Pattern 6: integration-testing with Testcontainers
+
+```csharp
+public sealed class PostgresFixture : IAsyncLifetime
+{
+    public string ConnectionString { get; private set; } = string.Empty;
+    private PostgreSqlContainer _container = null!;
+
+    public async Task InitializeAsync()
+    {
+        _container = new PostgreSqlBuilder()
+            .WithImage("postgres:16-alpine")
+            .WithDatabase("acmestore")
+            .Build();
+        await _container.StartAsync();
+        ConnectionString = _container.GetConnectionString();
+    }
+
+    public Task DisposeAsync() => _container.DisposeAsync().AsTask();
+}
+```
+
+Full walkthrough: **[Tutorial → First-app step 7: Tests](/0-1-0-preview/tutorials/first-app/07-tests/)**.
+
+## Per-backend notes
+
+### Postgres (`Cephalon.Data` + Npgsql)
+
+| Aspect | Detail |
+| --- | --- |
+| **Min version** | 14+ (uses `INCLUDE` indexes, generated columns; older versions may work but aren't gated by CI). |
+| **Driver** | `Npgsql.EntityFrameworkCore.PostgreSQL` (community-maintained). |
+| **JSONB** | EF Core supports `Property<JsonDocument>(…)` mapping. |
+| **Gotchas** | <ul><li>Connection-pooling defaults are conservative; bump `Maximum Pool Size` for high concurrency.</li><li>`Sfid` keys map to `char(26)` or `text` — index them.</li><li>Migrations need explicit `AddColumn → CopyData → DropColumn` for non-nullable column adds on big tables.</li></ul> |
+| **Limits** | `Cephalon.Data.Postgres` JSONB query helpers are `M2` — they work but may evolve. |
+
+### SQL Server (`Cephalon.Data` + `Microsoft.Data.SqlClient`)
+
+| Aspect | Detail |
+| --- | --- |
+| **Min version** | 2019+ for full feature set. Azure SQL fully supported. |
+| **Driver** | `Microsoft.EntityFrameworkCore.SqlServer`. |
+| **Temporal tables** | EF Core 8+ supports `entity.ToTable(b => b.IsTemporal())` — works with CephalonEngine. |
+| **Gotchas** | <ul><li>Sfid stored as `nvarchar(26)` performs slightly worse than Postgres `char(26)`; use clustered key on Sfid only if access pattern is order-by-id.</li><li>SQL Server's `MERGE` has known concurrency bugs — prefer explicit `INSERT`/`UPDATE` paths.</li></ul> |
+| **Limits** | Native row-level security needs SQL Server `2016+` or Azure SQL. |
+
+### MySQL / MariaDB (`Cephalon.Data.MySql`)
+
+| Aspect | Detail |
+| --- | --- |
+| **Min version** | MySQL 8.0+, MariaDB 10.6+. |
+| **Driver** | `MySqlConnector` (recommended) or Oracle's `MySql.Data` (legacy). |
+| **JSON columns** | Supported via `Property<JsonElement>(…)` mapping. |
+| **Gotchas** | <ul><li>Default collation in MySQL 8 is `utf8mb4_0900_ai_ci` — case- and accent-insensitive. Use `utf8mb4_bin` for case-sensitive identifiers.</li><li>Window functions require 8.0+.</li></ul> |
+
+### MongoDB (`Cephalon.Data.MongoDb`)
+
+| Aspect | Detail |
+| --- | --- |
+| **Min version** | 6.0+ for full transaction support. |
+| **Driver** | `MongoDB.EntityFrameworkCore` (official, in preview) or raw `MongoDB.Driver`. |
+| **Pattern** | Use Mongo for document-shaped data; relational data still belongs in Postgres / SQL Server. |
+| **Gotchas** | <ul><li>EF Core integration is preview-quality. Raw driver is more stable.</li><li>Sfid serializes as `string` — index it like any other id.</li><li>Multi-document transactions require a replica set, not standalone Mongo.</li></ul> |
+
+### Redis (`Cephalon.Data.Redis`)
+
+| Aspect | Detail |
+| --- | --- |
+| **Min version** | 6.2+ (ACL support, sorted-set commands). |
+| **Driver** | `StackExchange.Redis`. |
+| **Use for** | Cache, distributed locks, rate limiting, pub/sub, leaderboards. |
+| **Not for** | Long-term storage. Treat Redis as ephemeral. |
+| **Gotchas** | <ul><li>`StackExchange.Redis` multiplexer should be `Singleton`-scoped, not per-request.</li><li>Avoid `KEYS *` in production — it blocks. Use `SCAN`.</li></ul> |
+
+### Cassandra (`Cephalon.Data.Cassandra`)
+
+| Aspect | Detail |
+| --- | --- |
+| **Min version** | 4.0+. |
+| **Driver** | `CassandraCSharpDriver`. |
+| **Use for** | Distributed write-heavy workloads where eventual consistency is acceptable. |
+| **Gotchas** | <ul><li>Schema design ≠ relational. Model around your queries, not your domain.</li><li>No joins — denormalize aggressively.</li><li>Tunable consistency (`ONE`, `QUORUM`, `ALL`) — pick per query, not globally.</li></ul> |
+
+### ClickHouse (`Cephalon.Data.ClickHouse`)
+
+| Aspect | Detail |
+| --- | --- |
+| **Min version** | 23.8+. |
+| **Driver** | `ClickHouse.Client`. |
+| **Use for** | Analytics, time-series, write-heavy logging. |
+| **Pattern** | Pair with Postgres for OLTP write side; ClickHouse as the read-side analytics store. |
+| **Gotchas** | <ul><li>Inserts are batch-oriented — accumulate before flushing; single-row inserts are slow.</li><li>ClickHouse doesn't have classic UPDATE semantics — use `ReplacingMergeTree` engine if you need updates.</li></ul> |
+
+### Elasticsearch / OpenSearch (`Cephalon.Data.Elasticsearch`, `Cephalon.Data.OpenSearch`)
+
+| Aspect | Detail |
+| --- | --- |
+| **Min version** | Elasticsearch 8.x, OpenSearch 2.x. |
+| **Driver** | `Elastic.Clients.Elasticsearch` for ES; `OpenSearch.Client` for OS. |
+| **Use for** | Full-text search, faceted queries, log aggregation. |
+| **Pattern** | Source of truth in Postgres / SQL Server; project into ES/OS via background indexer or CDC. |
+| **Gotchas** | <ul><li>Schema (mapping) is mostly fixed — design carefully; reindexing is expensive.</li><li>Refresh interval defaults to 1s; tune it (e.g. 30s) for write-heavy use.</li></ul> |
+
+### Neo4j (`Cephalon.Data.Neo4j`)
+
+| Aspect | Detail |
+| --- | --- |
+| **Min version** | 5.x. |
+| **Driver** | `Neo4j.Driver`. |
+| **Use for** | Relationship-heavy queries (recommendation, fraud, social, dependency analysis). |
+| **Pattern** | Replicate identifiers from your relational DB; store only the graph relationships in Neo4j. |
+
+### Qdrant (`Cephalon.Data.Qdrant`)
+
+| Aspect | Detail |
+| --- | --- |
+| **Min version** | 1.7+. |
+| **Driver** | `Qdrant.Client`. |
+| **Use for** | Vector search, semantic retrieval (RAG), recommendation. |
+| **Pattern** | Used by `Cephalon.Retrieval`. Pair with embeddings from OpenAI / Cohere / local models. |
+| **Gotchas** | <ul><li>Vectors must match the embedding model's dimension (e.g. 1536 for `text-embedding-3-small`).</li><li>Use scalar quantization for large collections (>1M vectors) — saves memory at ~2% recall cost.</li></ul> |
+
+### NATS / JetStream (`Cephalon.Data.Nats`)
+
+| Aspect | Detail |
+| --- | --- |
+| **Min version** | NATS 2.10+ with JetStream enabled. |
+| **Driver** | `NATS.Client.Core` + `NATS.Client.JetStream`. |
+| **Use for** | Persistent streams, KV store, eventing with replay. |
+| **Pattern** | Can serve as the eventing transport (alternative to RabbitMQ / Kafka). |
+
+### Debezium (`Cephalon.Data.Debezium`)
+
+| Aspect | Detail |
+| --- | --- |
+| **Min version** | Debezium 2.x. |
+| **Use for** | Reliably capturing changes from existing databases into a stream (Kafka / Pulsar / NATS). |
+| **Pattern** | Set up Debezium connector against Postgres logical replication slot → Kafka topic → Wolverine consumer. |
+| **Limits** | Debezium runs **outside** the engine — `Cephalon.Data.Debezium` provides the consumer side for the events Debezium emits. |
+
+## Migrations
+
+EF Core migrations are the standard path:
+
+```powershell frame="terminal"
+# Add a migration
+cd src/Acme.Store.Modules.Products
+dotnet ef migrations add AddProducts --context ProductsDbContext --output-dir Data/Migrations
+
+# Apply migrations (dev)
+dotnet ef database update --context ProductsDbContext
+```
+
+In production, **don't apply migrations on startup**. Use a dedicated migrator job:
+
+```powershell frame="terminal"
+dotnet ef migrations script --idempotent --output ./migrations/products-v1.2.0.sql
+```
+
+…then run that SQL through your normal deploy pipeline (Flyway, Liquibase, or a sidecar job in Kubernetes).
+
+## Limits & gotchas (cross-cutting)
+
+- **`Cephalon.Data` itself doesn't ship a connection pool.** That's the driver's job; tune at the connection-string level.
+- **Mixed `Sfid` and `Guid` columns in the same DbContext** is not recommended — pick one strategy per DbContext.
+- **The data-layer's outbox is EF-specific.** If you don't use EF Core, you need to bring your own outbox table and the eventing layer's `IOutboxStore` implementation.
+- **No multi-master writes.** The engine assumes a primary-write topology. Multi-region active-active needs Cassandra or a custom approach.
+- **Tenant sharding** (one DB per tenant) is supported via the `ITenantConnectionResolver` pattern but not via a built-in router — you wire it.
+- **`Cephalon.Data.*` adapters are `M2`.** They work for the documented happy paths; edge cases (cross-database transactions, exotic types) may not be covered. Track maturity per package in **[Reference → Maturity audit](/0-1-0-preview/reference/architecture/maturity/)**.
+
+## Tips & tricks
+
+Practical data-layer guidance from production usage.
+
+### EF Core tips
+
+- **Always `AsNoTracking()` for read-only queries.** Tracking is expensive for projections; turn it off explicitly.
+  ```csharp
+  await db.Products.AsNoTracking().Where(p => p.Active).ToListAsync(ct);
+  ```
+- **Use `IExecutionStrategy` for transient retries on cloud DBs.** Azure SQL / AWS RDS occasionally drop connections; EF Core's strategy hides the retry from your handler code.
+- **Project to DTOs in the database**, not in memory. `Select(p => new ProductDto(p.Id, p.Name))` runs as SQL; `ToList().Select(...)` fetches every column.
+- **Cache compiled queries** for hot paths. EF compiles + caches automatically, but `dotnet ef dbcontext optimize` generates a compiled model that's faster still — worth it for high-QPS apps.
+- **Use `ChangeTracker.AutoDetectChangesEnabled = false`** inside bulk-import loops; toggle back on at the end.
+
+### Connection pooling
+
+- **Set `Maximum Pool Size` on the connection string** to a value that matches your concurrency. Default is 100 for Npgsql; bump if you see "timeout exhausted" errors.
+- **Pool warmup at startup**: open and immediately close a connection in `OnStart`. First request doesn't pay the TLS-handshake tax.
+- **Watch for connection leaks** — every `DbContext` that's `new`'d without `Dispose` holds a connection. Use DI scoping (`AddDbContext`) so the container handles lifetime.
+
+### Migrations in production
+
+- **Never run `dotnet ef database update` in production.** Generate idempotent SQL scripts: `dotnet ef migrations script --idempotent` and apply via your normal SQL deploy pipeline.
+- **Separate "schema migration" from "data migration".** Schema migrations are reversible; data migrations often aren't. Run them in different deploy windows.
+- **Online schema changes**: never `ALTER TABLE ADD COLUMN NOT NULL` on a big table directly. Three-step: add nullable column → backfill in batches → set `NOT NULL`.
+- **Tag migrations with a Jira / GitHub issue ID** in the migration name (`AddProductsTable_AS-1234`). Makes git blame meaningful 18 months later.
+
+### Naming
+
+| Item | Convention | Example |
+| --- | --- | --- |
+| Table name | `snake_case_plural` (Postgres) or `PascalCasePlural` (SQL Server) | `products`, `Products` |
+| Column name | `snake_case` (Postgres) or `PascalCase` (SQL Server) | `created_at`, `CreatedAt` |
+| Index name | `ix_<table>_<col>` or `<Table>_<Col>_IX` | `ix_products_sku` |
+| Foreign key | `fk_<table>_<referenced>` | `fk_orders_customers` |
+| DbContext class | `<Module>DbContext` | `ProductsDbContext` |
+
+### Backend-specific tricks
+
+- **Postgres**: use `INCLUDE` indexes for index-only scans. Postgres 11+ supports `CREATE INDEX … ON … INCLUDE (col1, col2)`. Lets queries hit the index without touching the heap.
+- **Postgres**: enable `pg_stat_statements` extension; it surfaces slow queries automatically.
+- **SQL Server**: avoid `nvarchar(MAX)` for fields that rarely exceed 4000 chars — use `nvarchar(4000)` so the column is indexable.
+- **MongoDB**: index every field you query / sort by. Mongo defaults to full-collection scan if no index exists.
+- **Redis**: `MEMORY USAGE <key>` shows per-key memory. Useful when you suspect a key is bloating the cache.
+- **ClickHouse**: order columns by access pattern — `ORDER BY (tenant_id, created_at)` for tenant-scoped time-series queries.
+- **Elasticsearch**: use `_source` filtering on every search to avoid shipping the entire doc back over the network when you only need a few fields.
+
+### Cache patterns
+
+- **Cache the slow query, not the whole entity.** Smaller cache footprint, less churn.
+- **TTL > "infinity + invalidation"** for 90% of cases. Invalidation is hard. Short TTL with a fallback to source-of-truth handles most cases.
+- **Stampede prevention**: when many requests hit the cache miss simultaneously, only one should refresh. Use `SemaphoreSlim` keyed per cache-key, or Redis-based locks.
+- **Cache-aside (read-through) is simpler than write-through.** Stick with cache-aside unless you have a specific reason.
+
+### Eventing-data interaction
+
+- **Outbox table needs an index on `(processed_at, created_at)`** so the Wolverine drainer finds unprocessed messages quickly.
+- **Outbox rows should be PURGED, not just marked processed**. Set a cleanup job (or use `ON DELETE` rules) to keep the table small. A 100M-row outbox kills performance.
+- **Inbox table for at-least-once dedup**: index on `(message_id, handler_name)` with a `TTL` of ~30 days. Beyond TTL, dedup falls back to natural idempotency.
+
+### Performance heuristics
+
+- **One DB round-trip per request, on the happy path.** If a single endpoint hits the DB 5 times, that's a refactor candidate.
+- **Batch inserts** — single inserts are ~10× slower than batched. Use `AddRange` + single `SaveChanges`.
+- **`Take(N)` always**, even on filtered queries. Defensive — a future bug that removes the filter shouldn't OOM the host.
+- **Profile before optimizing.** Use `dotnet-counters` for runtime stats, `dotnet-trace` for hot paths. Optimising blind almost always picks the wrong thing.
+
+### Anti-patterns
+
+| Don't | Do |
+| --- | --- |
+| Generic repository pattern (`IRepository<T>`) | Module-specific repository contracts (`IProductCatalog`) — domain-meaningful methods |
+| Lazy-loading navigation properties | Explicit `Include(...)` or projected DTOs — predictable SQL |
+| `SaveChanges` after every write | Group related writes in one transaction (one `SaveChanges` per unit-of-work) |
+| Storing JSON blobs to "save schema work" | Use real columns or a typed JSONB approach — easier to query, index, migrate |
+| Mixing read-side and write-side in the same DbContext for non-trivial apps | Separate them; the engine's read/write split pattern is there for a reason |
+| Time-zone arithmetic in app code | Store UTC, convert at the edge (browser / API caller) |
+
+## Source-doc snapshots
+
+The engine-side snapshots from the engine repo (autoritative when in doubt):
+
+- [Cephalon.Data](/0-1-0-preview/source/components/data/)
+- [Cephalon.Data.EntityFramework](/0-1-0-preview/source/components/data-entityframework/)
+- [Cephalon.Data.Postgres](/0-1-0-preview/source/components/data-postgres/)
+- [Cephalon.Data.SqlServer](/0-1-0-preview/source/components/data-sqlserver/)
+- [Cephalon.Data.MySql](/0-1-0-preview/source/components/data-mysql/)
+- [Cephalon.Data.Oracle](/0-1-0-preview/source/components/data-oracle/)
+- [Cephalon.Data.MongoDb](/0-1-0-preview/source/components/data-mongodb/)
+- [Cephalon.Data.Cassandra](/0-1-0-preview/source/components/data-cassandra/)
+- [Cephalon.Data.ClickHouse](/0-1-0-preview/source/components/data-clickhouse/)
+- [Cephalon.Data.Elasticsearch](/0-1-0-preview/source/components/data-elasticsearch/)
+- [Cephalon.Data.OpenSearch](/0-1-0-preview/source/components/data-opensearch/)
+- [Cephalon.Data.Redis](/0-1-0-preview/source/components/data-redis/)
+- [Cephalon.Data.Neo4j](/0-1-0-preview/source/components/data-neo4j/)
+- [Cephalon.Data.Qdrant](/0-1-0-preview/source/components/data-qdrant/)
+- [Cephalon.Data.Nats](/0-1-0-preview/source/components/data-nats/)
+- [Cephalon.Data.Debezium](/0-1-0-preview/source/components/data-debezium/)
+
+## Where to go next
+
+- **[Tutorial → First-app step 3: Wire EF Core](/0-1-0-preview/tutorials/first-app/03-add-data/)** — complete EF Core walkthrough.
+- **[Technology → Identifiers](/0-1-0-preview/technology/identifiers/)** — Sfid in depth.
+- **[Technology → Eventing](/0-1-0-preview/technology/eventing/)** — outbox + Wolverine integration.
+- **[Tutorial → Multi-tenant SaaS](/0-1-0-preview/tutorials/multi-tenant-saas/)** — per-tenant data sharding.
+- **[Reference → Architecture → Conformance matrix](/0-1-0-preview/reference/architecture/conformance-matrix/)** — which adapters expose which engine surfaces.

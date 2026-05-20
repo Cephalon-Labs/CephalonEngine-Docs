@@ -1,0 +1,437 @@
+---
+title: 'Engine:Observability'
+description: Configure logs, metrics, traces — OTLP exporter, sampling, resource attributes, dependency-health probes, managed-provider adapters (Azure Monitor, GCP, AWS, …).
+sidebar:
+  order: 6
+editUrl: false
+---
+
+`Engine:Observability` configures the observability capability — where telemetry goes, how much of it ships, what's attached to every signal. **Always configure observability in production**, even if you skip other capabilities.
+
+## Full schema
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Observability": {
+      "Provider": "OpenTelemetry",                  // "OpenTelemetry" | "AzureMonitor" | "Serilog" | "AWS" | "GCP" | "AlibabaCloud" | "HuaweiCloud" | …
+      "Endpoint": "http://localhost:4317",          // OTLP exporter endpoint
+      "Protocol": "Grpc",                           // "Grpc" | "HttpProtobuf"
+      "Headers":  "Authorization=Basic <BASE64>",   // OTLP headers (auth, tenancy)
+      "Sampling": {
+        "Strategy": "ParentBased",                  // "AlwaysOn" | "AlwaysOff" | "TraceIdRatio" | "ParentBased"
+        "Ratio":    1.0                             // 0.0 - 1.0 (used by TraceIdRatio / ParentBased fallback)
+      },
+      "Resource": {
+        "ServiceName":      null,                   // defaults to Engine:Id
+        "ServiceVersion":   null,                   // defaults to assembly version
+        "DeploymentEnvironment": null,              // defaults to ASPNETCORE_ENVIRONMENT
+        "Attributes": {
+          "team":   "platform",
+          "region": "eu-west-1"
+        }
+      },
+      "Logs":    { "Enabled": true,  "IncludeScopes": true,  "IncludeFormattedMessage": true },
+      "Metrics": { "Enabled": true,  "ExportIntervalMs": 30000 },
+      "Traces":  { "Enabled": true,  "RecordExceptions": true },
+      "Sources": {
+        "Otel":            true,                    // capture System.Diagnostics ActivitySources
+        "AspNetCore":      true,                    // ASP.NET Core diagnostic source
+        "HttpClient":      true,                    // outbound HTTP
+        "EntityFramework": true,                    // EF Core spans
+        "Wolverine":       true                     // eventing spans
+      },
+      "DependencyHealth": {
+        "Enabled":        true,
+        "IntervalSeconds": 15,
+        "TimeoutSeconds":  5
+      },
+      "Provider:AzureMonitor": {                    // when Provider="AzureMonitor"
+        "ConnectionString": "InstrumentationKey=…"
+      },
+      "Provider:GCP": {                             // when Provider="GCP"
+        "ProjectId": "acme-prod"
+      }
+    }
+  }
+}
+```
+
+## Each option in detail
+
+### `Provider`
+
+| Type | Default | Allowed values |
+| --- | --- | --- |
+| enum string | `"OpenTelemetry"` | `"OpenTelemetry"`, `"AzureMonitor"`, `"AlibabaCloud"`, `"AWS"`, `"GCP"`, `"HuaweiCloud"`, `"DigitalOcean"`, `"GrafanaCloud"`, `"Kubernetes"`, `"NewRelic"`, `"OpenShift"`, `"OracleCloud"`, `"Tanzu"`, `"Serilog"` |
+
+The observability provider. Each maps to a `Cephalon.Observability.*` package:
+
+| Value | Package | Use when |
+| --- | --- | --- |
+| `"OpenTelemetry"` | `Cephalon.Observability.OpenTelemetry` | **Default.** OTLP exporter to any collector. |
+| `"AzureMonitor"` | `Cephalon.Observability.AzureMonitor` | Native Application Insights / Azure Monitor. |
+| `"AWS"` | `Cephalon.Observability.Aws` | X-Ray-compatible OTLP. |
+| `"GCP"` | `Cephalon.Observability.Gcp` | Google Cloud managed traces/metrics. |
+| `"GrafanaCloud"` | `Cephalon.Observability.GrafanaCloud` | Grafana Cloud OTLP gateway. |
+| `"NewRelic"` | `Cephalon.Observability.NewRelic` | New Relic OTLP + api-key. |
+| `"Serilog"` | `Cephalon.Observability.Serilog` | Serilog-based logging (no OTLP). |
+
+Cloud-provider adapters (`AlibabaCloud`, `HuaweiCloud`, `OracleCloud`, `Tanzu`, `DigitalOcean`, `Kubernetes`, `OpenShift`) wire to their respective managed APM services.
+
+### `Endpoint`
+
+| Type | Default |
+| --- | --- |
+| URL string | `"http://localhost:4317"` |
+
+The OTLP collector endpoint. Format depends on `Protocol`:
+
+| Protocol | Default port | Path |
+| --- | --- | --- |
+| `"Grpc"` | `4317` | / (no path) |
+| `"HttpProtobuf"` | `4318` | `/v1/traces`, `/v1/metrics`, `/v1/logs` |
+
+**Examples:**
+
+```jsonc
+{ "Endpoint": "http://otel-collector:4317" }                       // local cluster collector
+{ "Endpoint": "https://otlp-gateway-prod-eu-west-2.grafana.net/otlp" }  // Grafana Cloud
+{ "Endpoint": "https://api.honeycomb.io" }                          // Honeycomb
+```
+
+### `Protocol`
+
+| Type | Default | Allowed values |
+| --- | --- | --- |
+| enum string | `"Grpc"` | `"Grpc"`, `"HttpProtobuf"` |
+
+Wire format for OTLP.
+
+| Value | When to use |
+| --- | --- |
+| `"Grpc"` | Default. Most efficient. Required by most managed collectors. |
+| `"HttpProtobuf"` | When the network blocks gRPC (some corporate firewalls). Slightly higher overhead. |
+
+### `Headers`
+
+| Type | Default |
+| --- | --- |
+| comma-separated string | `null` |
+
+Headers sent with every OTLP export. Used for authentication and tenancy headers.
+
+```jsonc
+{ "Headers": "Authorization=Basic <BASE64_TOKEN>" }
+{ "Headers": "Authorization=Bearer eyJ…,X-Org=acme" }
+{ "Headers": "api-key=<NEW_RELIC_KEY>" }                          // New Relic
+{ "Headers": "x-honeycomb-team=<KEY>,x-honeycomb-dataset=prod" }   // Honeycomb
+```
+
+**Security:** Put secrets in env vars / Key Vault, not `appsettings.json`.
+
+### `Sampling.Strategy`
+
+| Type | Default | Allowed values |
+| --- | --- | --- |
+| enum string | `"ParentBased"` | `"AlwaysOn"`, `"AlwaysOff"`, `"TraceIdRatio"`, `"ParentBased"` |
+
+How traces are sampled.
+
+| Value | Behaviour |
+| --- | --- |
+| `"AlwaysOn"` | Sample every trace. Highest cost; useful in dev. |
+| `"AlwaysOff"` | Sample nothing. Disable tracing entirely. |
+| `"TraceIdRatio"` | Sample a fraction of traces based on a hash of trace ID. Stateless, consistent across services. |
+| `"ParentBased"` | **Default.** Honour upstream sampling decision; fall back to `Ratio` for root spans. Best for distributed tracing. |
+
+### `Sampling.Ratio`
+
+| Type | Default |
+| --- | --- |
+| float (0.0 – 1.0) | `1.0` |
+
+For `TraceIdRatio` and `ParentBased`, the fraction of root spans to sample.
+
+| Value | Effect |
+| --- | --- |
+| `1.0` | Sample everything (default — fine for low-volume apps) |
+| `0.1` | Sample 10% — typical for high-volume production |
+| `0.01` | Sample 1% — for very high-volume APIs |
+| `0.0` | Sample nothing (same as `AlwaysOff`) |
+
+**Guideline:** Start at `1.0`. Drop to `0.1` when trace volume becomes expensive. Keep `1.0` for critical-path services so issues are always captured.
+
+### `Resource`
+
+#### `Resource.ServiceName`
+
+| Type | Default |
+| --- | --- |
+| string | `Engine:Id` |
+
+OTEL `service.name` resource attribute. Defaults to `Engine:Id` if not set.
+
+#### `Resource.ServiceVersion`
+
+| Type | Default |
+| --- | --- |
+| string | assembly informational version |
+
+OTEL `service.version`. Defaults to the host assembly's `[AssemblyInformationalVersion]`. Set explicitly to override (e.g. include a commit SHA: `"1.2.0+a1b2c3d"`).
+
+#### `Resource.DeploymentEnvironment`
+
+| Type | Default |
+| --- | --- |
+| string | `ASPNETCORE_ENVIRONMENT` value |
+
+OTEL `deployment.environment` (`"production"`, `"staging"`, etc.).
+
+#### `Resource.Attributes`
+
+| Type | Default |
+| --- | --- |
+| object (string → string) | `{}` |
+
+Custom resource attributes attached to every signal. Use for team/region/SLO labels.
+
+```jsonc
+{
+  "Resource": {
+    "Attributes": {
+      "team":     "platform",
+      "region":   "eu-west-1",
+      "tier":     "production",
+      "sla":      "99.9"
+    }
+  }
+}
+```
+
+### `Logs`
+
+#### `Logs.Enabled` / `Metrics.Enabled` / `Traces.Enabled`
+
+| Type | Default |
+| --- | --- |
+| boolean | `true` (all three) |
+
+Disable individual signal types. Useful for cost control (e.g. disable logs to OTLP if you already ship logs via a separate agent).
+
+#### `Logs.IncludeScopes`
+
+| Type | Default |
+| --- | --- |
+| boolean | `true` |
+
+Include `ILogger.BeginScope(...)` data in exported log records. Adds context but increases payload size.
+
+#### `Logs.IncludeFormattedMessage`
+
+| Type | Default |
+| --- | --- |
+| boolean | `true` |
+
+Include the formatted log text (`"User 42 logged in"`) alongside the structured fields. Disable to save bytes when the backend reconstructs from fields.
+
+#### `Metrics.ExportIntervalMs`
+
+| Type | Default |
+| --- | --- |
+| integer (ms) | `30000` (30 sec) |
+
+How often metrics are exported. Trade-off:
+
+- Lower (5–10s) — faster anomaly detection, higher backend cost.
+- Higher (60s+) — cheaper, slower to react.
+
+#### `Traces.RecordExceptions`
+
+| Type | Default |
+| --- | --- |
+| boolean | `true` |
+
+Attach exception stack traces to spans on errors. Disable in extreme-PII scenarios.
+
+### `Sources`
+
+Granular control of which diagnostic sources are captured.
+
+| Source | Default | What it includes |
+| --- | --- | --- |
+| `Otel` | `true` | All explicit `ActivitySource` spans. Disable to drop your own custom spans. |
+| `AspNetCore` | `true` | `Microsoft.AspNetCore` activity source — request spans, middleware. |
+| `HttpClient` | `true` | Outbound `HttpClient` calls. |
+| `EntityFramework` | `true` | EF Core command-execution spans. |
+| `Wolverine` | `true` | Eventing publish/handle spans. |
+
+**Examples:**
+
+```jsonc
+// Disable EF spans (cost reduction; you can reproduce via DB logs)
+{ "Sources": { "EntityFramework": false } }
+
+// Disable HttpClient (you already trace outbound elsewhere)
+{ "Sources": { "HttpClient": false } }
+```
+
+### `DependencyHealth`
+
+Configure per-backend health probes (Postgres, Redis, RabbitMQ, etc.). Wired via `Cephalon.Observability.*Dependencies` packages.
+
+#### `DependencyHealth.Enabled`
+
+| Type | Default |
+| --- | --- |
+| boolean | `true` |
+
+Globally enable / disable dependency probes. When `false`, `/health` only reports lifecycle health.
+
+#### `DependencyHealth.IntervalSeconds`
+
+| Type | Default |
+| --- | --- |
+| integer | `15` |
+
+How often each probe runs. Lower = fresher data, more probe traffic.
+
+#### `DependencyHealth.TimeoutSeconds`
+
+| Type | Default |
+| --- | --- |
+| integer | `5` |
+
+Per-probe timeout. After this, the probe reports `Unhealthy` with `"timeout"` reason.
+
+## Common scenarios
+
+### Scenario 1: local development — OTLP collector + Grafana
+
+```jsonc
+{
+  "Engine": {
+    "Observability": {
+      "Provider": "OpenTelemetry",
+      "Endpoint": "http://localhost:4317",
+      "Sampling": { "Strategy": "AlwaysOn", "Ratio": 1.0 },
+      "Resource": {
+        "Attributes": { "team": "platform", "tier": "dev" }
+      }
+    }
+  }
+}
+```
+
+Pair with the docker-compose `otel-collector-config.yaml` generated by `cephalon new`.
+
+### Scenario 2: production — Grafana Cloud with sampling
+
+```jsonc
+{
+  "Engine": {
+    "Observability": {
+      "Provider": "OpenTelemetry",
+      "Endpoint": "https://otlp-gateway-prod-eu-west-2.grafana.net/otlp",
+      "Headers":  "Authorization=Basic <BASE64>",     // from env var in practice
+      "Sampling": { "Strategy": "ParentBased", "Ratio": 0.1 },
+      "Resource": {
+        "Attributes": { "team": "platform", "region": "eu-west-1", "tier": "production" }
+      },
+      "Metrics": { "ExportIntervalMs": 60000 }
+    }
+  }
+}
+```
+
+### Scenario 3: Azure-native — Azure Monitor
+
+```jsonc
+{
+  "Engine": {
+    "Observability": {
+      "Provider": "AzureMonitor",
+      "Provider:AzureMonitor": {
+        "ConnectionString": "InstrumentationKey=…;IngestionEndpoint=…"
+      },
+      "Sampling": { "Strategy": "ParentBased", "Ratio": 0.1 }
+    }
+  }
+}
+```
+
+### Scenario 4: New Relic OTLP
+
+```jsonc
+{
+  "Engine": {
+    "Observability": {
+      "Provider": "NewRelic",
+      "Endpoint": "https://otlp.nr-data.net",
+      "Headers":  "api-key=<NR_LICENSE_KEY>",
+      "Sampling": { "Strategy": "ParentBased", "Ratio": 1.0 }
+    }
+  }
+}
+```
+
+### Scenario 5: cost-conscious production (logs only, no traces/metrics)
+
+```jsonc
+{
+  "Engine": {
+    "Observability": {
+      "Provider": "OpenTelemetry",
+      "Endpoint": "https://otlp.example/",
+      "Logs":     { "Enabled": true },
+      "Metrics":  { "Enabled": false },
+      "Traces":   { "Enabled": false }
+    }
+  }
+}
+```
+
+### Scenario 6: Serilog (no OTLP)
+
+```jsonc
+{
+  "Engine": {
+    "Observability": {
+      "Provider": "Serilog"
+    }
+  }
+}
+```
+
+Configure Serilog sinks via standard Serilog `appsettings` patterns.
+
+## Environment-variable equivalents
+
+```text
+Engine__Observability__Provider=OpenTelemetry
+Engine__Observability__Endpoint=https://otlp.example/
+Engine__Observability__Headers=Authorization=Bearer eyJ…
+Engine__Observability__Sampling__Strategy=ParentBased
+Engine__Observability__Sampling__Ratio=0.1
+Engine__Observability__Resource__Attributes__team=platform
+Engine__Observability__Sources__EntityFramework=false
+Engine__Observability__DependencyHealth__IntervalSeconds=15
+```
+
+## Limits & gotchas
+
+- **`Sampling.Ratio=0.1` doesn't mean exactly 10% of traces.** It's probabilistic — over time it converges, but small samples vary.
+- **`ParentBased` requires upstream services to propagate trace context.** Without W3C `traceparent` headers, every span looks like a root span.
+- **`Headers` is a single string**, not an array. Multiple headers are comma-separated key=value pairs.
+- **`Provider:AzureMonitor` / `Provider:GCP`** sections are flat keys with `:`. In env vars use `Engine__Observability__Provider_AzureMonitor__ConnectionString` (underscore stays).
+- **Reducing `Metrics.ExportIntervalMs` below 5000ms** has diminishing returns and can overwhelm the backend.
+- **`Logs.IncludeScopes=true` can leak sensitive data** if scopes contain PII. Audit your scope usage before enabling in production.
+- **`Sources.EntityFramework` captures the SQL command text by default.** This includes parameter values — sensitive in healthcare / finance contexts. Disable if compliance requires.
+- **`DependencyHealth` probes run from the host's perspective.** They don't validate that *other* services can reach the dependency.
+
+## See also
+
+- **[Technology → Observability](/0-1-0-preview/technology/observability/)** — package catalogue per cloud provider.
+- **[Tutorial → First-app step 6: Observability](/0-1-0-preview/tutorials/first-app/06-observability/)** — wiring observability end-to-end.
+- **[Tutorial → Observability stack](/0-1-0-preview/tutorials/observability-stack/)** — full Grafana/Tempo/Loki/Mimir stack.
+- **[OpenTelemetry specification](https://opentelemetry.io/docs/)** — upstream OTLP, resource attributes, semantic conventions.

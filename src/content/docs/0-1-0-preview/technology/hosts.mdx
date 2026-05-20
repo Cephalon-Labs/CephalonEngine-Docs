@@ -1,0 +1,74 @@
+---
+title: Hosts & transports
+description: The CephalonEngine host adapters — AspNetCore (REST, SSE, WebSocket), AspNetCore.GraphQL, AspNetCore.Grpc, AspNetCore.JsonRpc, and Cephalon.Worker.
+sidebar:
+  order: 2
+editUrl: false
+---
+
+A host is what adapts the engine to a runtime model. Hosts never duplicate composition logic; they wire the engine into the runtime they know about (HTTP server, generic host, …) and map transports into the behavior pipeline.
+
+## Packages
+
+| Package | Maturity | Purpose |
+| --- | --- | --- |
+| **`Cephalon.AspNetCore`** | `M3` | ASP.NET Core host. Built-in REST, SSE, WebSocket transport mapping. OpenAPI + Scalar surface. |
+| **`Cephalon.AspNetCore.GraphQL`** | `M2` | GraphQL transport adapter for AspNetCore. Federation-friendly, module-owned subschemas. |
+| **`Cephalon.AspNetCore.Grpc`** | `M2` | gRPC transport adapter — unary and streaming. Module-owned proto types. |
+| **`Cephalon.AspNetCore.JsonRpc`** | `M2` | JSON-RPC transport adapter. Useful for IDE / tooling protocols. |
+| **`Cephalon.Worker`** | `M3` | Generic-host worker adapter for non-HTTP runtime scenarios. |
+
+## Transport surface
+
+Cephalon ships first-party transport adapters for:
+
+- **REST** — built into `Cephalon.AspNetCore`. Behaviors map to typed routes. OpenAPI / Scalar generated.
+- **JSON-RPC** — `Cephalon.AspNetCore.JsonRpc`. Behaviors map to typed methods.
+- **gRPC** — `Cephalon.AspNetCore.Grpc`. Unary + streaming. Code-first or proto-first.
+- **GraphQL** — `Cephalon.AspNetCore.GraphQL`. Federated subschemas per module.
+- **SSE / WebSocket** — built into `Cephalon.AspNetCore` for streaming.
+
+Multiple transports can be enabled in one host. Modules use behavior bases (`RestBehaviorModuleBase`, `JsonRpcBehaviorModuleBase`, `GrpcBehaviorModuleBase`, `GraphQlBehaviorModuleBase`) to expose surface declaratively.
+
+## Choosing a host
+
+| If your app is… | Pick |
+| --- | --- |
+| HTTP-fronted (the default) | `Cephalon.AspNetCore` |
+| Worker / background / queue-driven | `Cephalon.Worker` |
+| Both (HTTP + worker), same process | `Cephalon.AspNetCore` (it can host workers via `IHostedService`) |
+| Both, different processes | One host per process. Share modules through assembly references or package manifests. |
+
+## REST behavior pipeline
+
+The REST adapter turns module behaviors into ASP.NET Core endpoints:
+
+```csharp title="Behaviors/CreateOrderBehavior.cs" {3-6,8-9}
+public sealed class CreateOrderBehavior : IRestBehavior
+{
+    public RestRoute Route => RestRoute.Post("/orders")
+        .WithSummary("Place an order")
+        .WithTags("Commerce")
+        .Produces<Order>(201);
+
+    public Task<IResult> Handle(CreateOrderPayload p, IOrderRepository orders, CancellationToken ct) =>
+        /* ... */
+}
+```
+
+The behavior pipeline applies cross-cutting decorators (audit, metrics, auth) deterministically. The OpenAPI document and Scalar UI pick up the behavior automatically. Behaviors can opt into `WithApiVersion(...)`, `WithRateLimit(...)`, `WithRequireScope(...)`, and other engine-blessed extensions.
+
+## Source-doc snapshots
+
+- [Cephalon.AspNetCore](/0-1-0-preview/source/components/aspnetcore/)
+- [Cephalon.AspNetCore.GraphQL](/0-1-0-preview/source/components/aspnetcore-graphql/)
+- [Cephalon.AspNetCore.Grpc](/0-1-0-preview/source/components/aspnetcore-grpc/)
+- [Cephalon.AspNetCore.JsonRpc](/0-1-0-preview/source/components/aspnetcore-jsonrpc/)
+- [Cephalon.Worker](/0-1-0-preview/source/components/worker/)
+
+## Cross-references
+
+- **[Tutorial → First-app step 4](/0-1-0-preview/tutorials/first-app/04-rest-api/)** — REST behaviors end-to-end.
+- **[Tutorial → gRPC service](/0-1-0-preview/tutorials/grpc-service/)** — gRPC service walkthrough.
+- **[Tutorial → GraphQL API](/0-1-0-preview/tutorials/graphql-api/)** — federated GraphQL walkthrough.
+- **[Reference → Architecture](/0-1-0-preview/reference/architecture/)** — canonical contracts index (the dedicated *Transport surface* page is planned for `0.2.0-preview`).

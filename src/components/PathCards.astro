@@ -1,0 +1,31 @@
+---
+import { Icon } from 'astro-icon/components';
+
+export interface PathItem {
+  badge: string;
+  title: string;
+  description: string;
+  href: string;
+  cta: string;
+}
+
+export interface Props {
+  paths: PathItem[];
+}
+
+const { paths } = Astro.props;
+---
+
+<section class="ce-paths">
+  {paths.map((path) => (
+    <a class="ce-path" href={path.href}>
+      <span class="ce-path__badge">{path.badge}</span>
+      <h3 class="ce-path__title">{path.title}</h3>
+      <p class="ce-path__description">{path.description}</p>
+      <span class="ce-path__cta">
+        {path.cta}
+        <Icon name="bi:arrow-right" size={14} aria-hidden="true" />
+      </span>
+    </a>
+  ))}
+</section>

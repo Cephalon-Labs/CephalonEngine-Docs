@@ -1,0 +1,140 @@
+---
+title: Class Neo4jEventStore
+slug: 0-1-0-preview/reference/api/cephalon-eventsourcing-neo4j-neo4jeventstore
+editUrl: false
+---
+
+Namespace: [Cephalon.EventSourcing.Neo4j](/0-1-0-preview/reference/api/cephalon-eventsourcing-neo4j/)  
+Assembly: Cephalon.EventSourcing.Neo4j.dll  
+
+Neo4j-backed implementation of <xref href="Cephalon.Abstractions.EventSourcing.IEventStore" data-throw-if-not-resolved="false"></xref> using graph nodes for event streams.
+Each domain event is stored as an <code>:Event</code> node with a compound node key constraint on
+<code>(streamId, streamVersion)</code> enforcing optimistic concurrency at the database level.
+
+```csharp
+public sealed class Neo4jEventStore : IEventStore
+```
+
+#### Inheritance
+
+[object](https://learn.microsoft.com/dotnet/api/system.object) ← 
+[Neo4jEventStore](/0-1-0-preview/reference/api/cephalon-eventsourcing-neo4j-neo4jeventstore/)
+
+#### Implements
+
+IEventStore
+
+#### Inherited Members
+
+[object.Equals\(object?\)](https://learn.microsoft.com/dotnet/api/system.object.equals\#system\-object\-equals\(system\-object\)), 
+[object.Equals\(object?, object?\)](https://learn.microsoft.com/dotnet/api/system.object.equals\#system\-object\-equals\(system\-object\-system\-object\)), 
+[object.GetHashCode\(\)](https://learn.microsoft.com/dotnet/api/system.object.gethashcode), 
+[object.GetType\(\)](https://learn.microsoft.com/dotnet/api/system.object.gettype), 
+[object.ReferenceEquals\(object?, object?\)](https://learn.microsoft.com/dotnet/api/system.object.referenceequals), 
+[object.ToString\(\)](https://learn.microsoft.com/dotnet/api/system.object.tostring)
+
+## Constructors
+
+### <a id="Cephalon_EventSourcing_Neo4j_Neo4jEventStore__ctor_Neo4j_Driver_IDriver_System_String_"></a> Neo4jEventStore\(IDriver, string\)
+
+Initializes a new instance of the <xref href="Cephalon.EventSourcing.Neo4j.Neo4jEventStore" data-throw-if-not-resolved="false"></xref> class.
+
+```csharp
+public Neo4jEventStore(IDriver driver, string eventLabel = "Event")
+```
+
+#### Parameters
+
+`driver` IDriver
+
+The Neo4j driver used to open sessions.
+
+`eventLabel` [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The node label used for event nodes. Defaults to <code>Event</code>.
+
+## Methods
+
+### <a id="Cephalon_EventSourcing_Neo4j_Neo4jEventStore_AppendAsync_System_String_System_Collections_Generic_IReadOnlyCollection_Cephalon_Abstractions_EventSourcing_IDomainEvent__System_Int64_System_Threading_CancellationToken_"></a> AppendAsync\(string, IReadOnlyCollection<IDomainEvent\>, long, CancellationToken\)
+
+Appends one or more events to the requested stream after checking the expected version.
+
+```csharp
+public Task AppendAsync(string streamId, IReadOnlyCollection<IDomainEvent> events, long expectedVersion, CancellationToken cancellationToken = default)
+```
+
+#### Parameters
+
+`streamId` [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The stable stream identifier.
+
+`events` [IReadOnlyCollection](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlycollection\-1)<IDomainEvent\>
+
+The events to append.
+
+`expectedVersion` [long](https://learn.microsoft.com/dotnet/api/system.int64)
+
+The current stream version expected by the caller. Use <code>-1</code> to require a brand-new stream.
+
+`cancellationToken` [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+The token that cancels the operation.
+
+#### Returns
+
+ [Task](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task)
+
+A task that completes when the append finishes.
+
+### <a id="Cephalon_EventSourcing_Neo4j_Neo4jEventStore_GetVersionAsync_System_String_System_Threading_CancellationToken_"></a> GetVersionAsync\(string, CancellationToken\)
+
+Gets the latest version known for the requested stream.
+
+```csharp
+public Task<long> GetVersionAsync(string streamId, CancellationToken cancellationToken = default)
+```
+
+#### Parameters
+
+`streamId` [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The stable stream identifier.
+
+`cancellationToken` [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+The token that cancels the operation.
+
+#### Returns
+
+ [Task](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task\-1)<[long](https://learn.microsoft.com/dotnet/api/system.int64)\>
+
+A task that returns the current stream version, or <code>-1</code> when the stream does not exist.
+
+### <a id="Cephalon_EventSourcing_Neo4j_Neo4jEventStore_ReadStreamAsync_System_String_System_Int64_System_Threading_CancellationToken_"></a> ReadStreamAsync\(string, long, CancellationToken\)
+
+Reads the requested stream from the supplied version onward.
+
+```csharp
+public IAsyncEnumerable<IDomainEvent> ReadStreamAsync(string streamId, long fromVersion = 0, CancellationToken cancellationToken = default)
+```
+
+#### Parameters
+
+`streamId` [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The stable stream identifier.
+
+`fromVersion` [long](https://learn.microsoft.com/dotnet/api/system.int64)
+
+The first stream version to include. The default is <code>0</code>.
+
+`cancellationToken` [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+The token that cancels the operation.
+
+#### Returns
+
+ [IAsyncEnumerable](https://learn.microsoft.com/dotnet/api/system.collections.generic.iasyncenumerable\-1)<IDomainEvent\>
+
+An async sequence of domain events in ascending stream-version order.

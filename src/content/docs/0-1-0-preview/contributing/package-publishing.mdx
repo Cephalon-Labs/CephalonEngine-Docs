@@ -1,0 +1,30 @@
+---
+title: Package publishing
+description: How CephalonEngine packages get versioned, signed, and shipped to the public feed.
+sidebar:
+  order: 5
+editUrl: false
+---
+
+This page documents the publication lifecycle of a Cephalon NuGet package.
+
+## Versioning
+
+- All packages share the engine's minor version. A `0.1.0-preview` release ships every package at the same minor.
+- Patch versions are package-specific.
+- Pre-release suffix is `preview.N` where N is the public preview number.
+
+## Signing
+
+Engine-published packages are signed. The trust-store entries ship in `Cephalon.Engine` and are versioned alongside the engine.
+
+## Publishing
+
+Local development: `pwsh ./scripts/publish-package-artifacts.ps1`.
+
+CI: see [`.github/workflows/release.yml`](https://github.com/Cephalon-Labs/CephalonEngine/blob/main/.github/workflows/release.yml).
+
+## Source-doc snapshots
+
+- [Package publishing](/0-1-0-preview/source/package-publishing/)
+- [External package lifecycle](/0-1-0-preview/source/external-package-lifecycle/)

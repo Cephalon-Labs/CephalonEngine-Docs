@@ -1,0 +1,32 @@
+---
+import { Icon } from 'astro-icon/components';
+
+export interface FeatureItem {
+  icon: string;
+  title: string;
+  description: string;
+  href?: string;
+}
+
+export interface Props {
+  features: FeatureItem[];
+  columns?: number;
+}
+
+const { features, columns = 3 } = Astro.props;
+---
+
+<section class="ce-features" data-columns={columns}>
+  {features.map((feature) => (
+    <a class={`ce-feature${feature.href ? ' ce-feature--linked' : ''}`} href={feature.href ?? '#'}>
+      <span class="ce-feature__icon" aria-hidden="true">{feature.icon}</span>
+      <h3 class="ce-feature__title">{feature.title}</h3>
+      <p class="ce-feature__description">{feature.description}</p>
+      {feature.href && (
+        <span class="ce-feature__chevron" aria-hidden="true">
+          <Icon name="bi:chevron-right" size={14} />
+        </span>
+      )}
+    </a>
+  ))}
+</section>

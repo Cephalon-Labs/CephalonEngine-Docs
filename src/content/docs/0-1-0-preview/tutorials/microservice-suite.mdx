@@ -1,0 +1,41 @@
+---
+title: 'Tutorial: Build a microservice suite'
+description: 'Split a domain across multiple CephalonEngine hosts with eventing, shared identity, and per-service observability. Includes a Kubernetes deploy.'
+sidebar:
+  order: 2
+editUrl: false
+---
+
+This tutorial takes the modular monolith from the **[First-app series](/0-1-0-preview/tutorials/first-app/)** and splits it across three hosts: a `Catalog` service, an `Orders` service, and an `Identity` service. By the end you'll have a Kubernetes deploy with shared eventing through Wolverine, OTLP traces that span the wire, and a shared identity provider.
+
+## Topology
+
+```text
+┌─────────┐        ┌─────────┐        ┌─────────┐
+│ Catalog │◄──REST─┤ Orders  ├─event─►│ Billing │
+└────┬────┘        └────┬────┘        └─────────┘
+     │                  │
+     ▼                  ▼
+   Postgres          Postgres
+                       │
+                       ▼
+                  Wolverine / RabbitMQ
+```
+
+> **Status.** This tutorial is part of the next docs push (`v0.2.0-preview`). Until the full walkthrough lands, the reference recipes below already work end-to-end.
+
+## Skeleton recipes
+
+- **Service-to-service auth** — wire Bearer JWT between hosts; see **[Reference → Configuration → Identity](/0-1-0-preview/reference/configuration/identity/)** + **[Technology → Identity](/0-1-0-preview/technology/identity/)**. A dedicated *Identity tokens* tutorial lands in `0.2.0-preview`.
+- **Cross-service eventing** — pattern in [Event-driven tutorial](/0-1-0-preview/tutorials/event-driven/).
+- **Shared observability** — wire each service to the same OTLP backend; the `cephalon.engine.id` resource attribute keeps them separated.
+- **Kubernetes deploy** — each host generates its own `deploy/kubernetes/` folder; deploy with `kubectl apply -k`.
+
+## What to read in the meantime
+
+- **[Guide → Concepts → App models](/0-1-0-preview/guide/concepts/#app-model)** — the dimension diagram is the right mental model.
+- **[Technology → Eventing](/0-1-0-preview/technology/eventing/)** — the Wolverine adapter's transport options.
+- **[Technology → Identity](/0-1-0-preview/technology/identity/)** — service-to-service tokens.
+- **[Source → Kubernetes deployment](/0-1-0-preview/source/kubernetes-deployment/)** — apply.ps1 + kustomize layout from the engine source docs (the dedicated *Deployment → Kubernetes* guide is planned for `0.2.0-preview`).
+
+Track progress on the **[Roadmap](/about/roadmap/)** or in the [tutorials backlog](https://github.com/Cephalon-Labs/CephalonEngine/issues?q=label%3Adocs%2Ftutorials).

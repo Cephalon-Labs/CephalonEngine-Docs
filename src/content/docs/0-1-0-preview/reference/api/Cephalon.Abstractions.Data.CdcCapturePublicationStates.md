@@ -1,0 +1,115 @@
+---
+title: Class CdcCapturePublicationStates
+slug: 0-1-0-preview/reference/api/cephalon-abstractions-data-cdccapturepublicationstates
+editUrl: false
+---
+
+Namespace: [Cephalon.Abstractions.Data](/0-1-0-preview/reference/api/cephalon-abstractions-data/)  
+Assembly: Cephalon.Abstractions.dll  
+
+Defines the recommended stable publication-state identifiers for CDC runtime reporting.
+
+```csharp
+public static class CdcCapturePublicationStates
+```
+
+#### Inheritance
+
+[object](https://learn.microsoft.com/dotnet/api/system.object) ← 
+[CdcCapturePublicationStates](/0-1-0-preview/reference/api/cephalon-abstractions-data-cdccapturepublicationstates/)
+
+#### Inherited Members
+
+[object.Equals\(object?\)](https://learn.microsoft.com/dotnet/api/system.object.equals\#system\-object\-equals\(system\-object\)), 
+[object.Equals\(object?, object?\)](https://learn.microsoft.com/dotnet/api/system.object.equals\#system\-object\-equals\(system\-object\-system\-object\)), 
+[object.GetHashCode\(\)](https://learn.microsoft.com/dotnet/api/system.object.gethashcode), 
+[object.GetType\(\)](https://learn.microsoft.com/dotnet/api/system.object.gettype), 
+[object.MemberwiseClone\(\)](https://learn.microsoft.com/dotnet/api/system.object.memberwiseclone), 
+[object.ReferenceEquals\(object?, object?\)](https://learn.microsoft.com/dotnet/api/system.object.referenceequals), 
+[object.ToString\(\)](https://learn.microsoft.com/dotnet/api/system.object.tostring)
+
+## Fields
+
+### <a id="Cephalon_Abstractions_Data_CdcCapturePublicationStates_CaptureFailed"></a> CaptureFailed
+
+Indicates that the capture itself last reported a failure before publication completed.
+
+```csharp
+public const string CaptureFailed = "capture-failed"
+```
+
+#### Field Value
+
+ [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+### <a id="Cephalon_Abstractions_Data_CdcCapturePublicationStates_Current"></a> Current
+
+Indicates that the capture is current through the linked publication path.
+
+```csharp
+public const string Current = "current"
+```
+
+#### Field Value
+
+ [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+### <a id="Cephalon_Abstractions_Data_CdcCapturePublicationStates_DispatchFailed"></a> DispatchFailed
+
+Indicates that the linked outbox dispatch runtime last reported a failure.
+
+```csharp
+public const string DispatchFailed = "dispatch-failed"
+```
+
+#### Field Value
+
+ [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+### <a id="Cephalon_Abstractions_Data_CdcCapturePublicationStates_DispatchRetryPending"></a> DispatchRetryPending
+
+Indicates that the linked outbox dispatch runtime has a retry pending.
+
+```csharp
+public const string DispatchRetryPending = "dispatch-retry-pending"
+```
+
+#### Field Value
+
+ [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+### <a id="Cephalon_Abstractions_Data_CdcCapturePublicationStates_Dispatching"></a> Dispatching
+
+Indicates that the linked outbox dispatch runtime is actively dispatching publications.
+
+```csharp
+public const string Dispatching = "dispatching"
+```
+
+#### Field Value
+
+ [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+### <a id="Cephalon_Abstractions_Data_CdcCapturePublicationStates_PendingPublication"></a> PendingPublication
+
+Indicates that the capture still has pending publications to push into or through the outbox.
+
+```csharp
+public const string PendingPublication = "pending-publication"
+```
+
+#### Field Value
+
+ [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+### <a id="Cephalon_Abstractions_Data_CdcCapturePublicationStates_Unknown"></a> Unknown
+
+Indicates that the active runtime does not yet have a publication answer.
+
+```csharp
+public const string Unknown = "unknown"
+```
+
+#### Field Value
+
+ [string](https://learn.microsoft.com/dotnet/api/system.string)

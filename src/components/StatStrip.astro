@@ -1,0 +1,21 @@
+---
+export interface StatItem {
+  value: string;
+  label: string;
+}
+
+export interface Props {
+  stats: StatItem[];
+}
+
+const { stats } = Astro.props;
+---
+
+<section class="ce-stats">
+  {stats.map((stat) => (
+    <div class="ce-stat">
+      <span class="ce-stat__value">{stat.value}</span>
+      <span class="ce-stat__label">{stat.label}</span>
+    </div>
+  ))}
+</section>

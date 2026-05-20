@@ -1,0 +1,34 @@
+---
+title: Breaking changes
+description: Every breaking change in CephalonEngine history with a before/after snippet.
+sidebar:
+  order: 6
+editUrl: false
+---
+
+This page is the audit trail of every breaking change shipped in a stable release. The `0.1.0-preview` track is still pre-stable, so changes within preview minors are not listed here — they're tracked in the [release notes](/about/release-notes/).
+
+## How to use this page
+
+1. Find the release where the change shipped.
+2. Read the **before** snippet — the API you're using today.
+3. Compare against **after** — the new shape.
+4. Apply the diff to your code; the composition smoke tests will catch anything you miss.
+
+## 0.1.0-preview
+
+The initial preview track. No backwards-compatibility commitment yet.
+
+## 0.2.0-preview (planned)
+
+Specific breaking changes will land here as they are committed. Each entry will have:
+
+- **What changed** — one-sentence summary.
+- **Before** — code snippet at `0.1.0-preview`.
+- **After** — code snippet at `0.2.0-preview`.
+- **Why** — the rationale.
+- **Mechanical migration** — whether `Cephalon.MigrationAssistant` can rewrite it.
+
+## Future stable releases
+
+Once CephalonEngine ships `1.0.0`, this page becomes the contract for every breaking change going forward. Stable releases follow strict semver — breaking changes only land in major bumps.

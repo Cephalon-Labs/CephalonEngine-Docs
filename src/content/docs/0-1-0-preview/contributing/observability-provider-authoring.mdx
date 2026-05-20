@@ -1,0 +1,52 @@
+---
+title: Observability provider authoring
+description: The shared telemetry contract, diagnostics conventions, and planning language for new observability provider companions.
+sidebar:
+  order: 4
+editUrl: false
+---
+
+A new observability provider companion (`Cephalon.Observability.<Provider>`) is the recommended way to ship support for a managed backend. This page documents the conventions every provider companion is expected to follow.
+
+## Shared telemetry contract
+
+- Resource attributes — never strip or replace the Cephalon resource attributes. Add your own with a non-conflicting prefix.
+- OTLP — gRPC OTLP is the wire format. Anything else (Zipkin, Jaeger thrift, …) is an adapter on top.
+- Sampling — providers respect the `Engine:Observability:Sampling` configuration. They don't introduce their own.
+
+## Diagnostics conventions
+
+- Provider startup emits `cephalon.observability.<provider>.started` event.
+- Provider startup failures escalate to the failure policy. Don't silently fall back.
+- Endpoint resolution is logged at `Information` once per host lifetime.
+
+## Configuration shape
+
+```jsonc
+{
+  "Engine": {
+    "Observability": {
+      "Provider": "<provider>",
+      "Endpoint": "<provider-specific>",
+      "Headers": "<key=value;key=value>",
+      "ConnectionString": "<provider-specific>"
+    }
+  }
+}
+```
+
+Provider-specific keys live under `Engine:Observability:<Provider>:*`.
+
+## Planning language
+
+When proposing a new provider:
+
+1. **Backend** — what is the target (Grafana Cloud, Honeycomb, …)?
+2. **Wire format** — OTLP gRPC by default; document any deviation.
+3. **Auth** — header-based, API-key, OIDC?
+4. **Default endpoint** — region picker if relevant.
+5. **Maturity entry point** — start at `M2` with a single-vertical proof.
+
+## Source-doc snapshot
+
+- [Observability provider authoring](/0-1-0-preview/source/observability-provider-authoring/)

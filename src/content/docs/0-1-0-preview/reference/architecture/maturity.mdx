@@ -1,0 +1,38 @@
+---
+title: Maturity audit
+description: The current M0–M4 maturity label for every shipped CephalonEngine package.
+sidebar:
+  order: 2
+editUrl: false
+---
+
+CephalonEngine ships every public surface with an explicit maturity label. The labels exist so adopters know exactly what is taxonomy-only, narrow, broad, or adoption-ready.
+
+## The ladder
+
+| Label | Definition |
+| --- | --- |
+| **M0** | **Taxonomy-only**. Name and shape exist. No behaviour claim. |
+| **M1** | **Catalog-only**. Descriptors and runtime catalogs in place. No managed execution. |
+| **M2** | **Narrow execution**. Single vertical proof. The happy path works end-to-end on one configuration. |
+| **M3** | **Broad execution**. Multiple paths working together. Composes well with other packages. |
+| **M4** | **Adoption-ready**. Consumers can rely on it across project shapes. Stability commitment. |
+
+## How to read a per-package row
+
+Each row in the audit lists:
+
+- the package name.
+- the current label.
+- the specific surface that earned the label (e.g. "M3 — composition + runtime + integrity verification; M2 — package-signature trust chain").
+- the next graduation criteria.
+
+The full audit is mirrored to the versioned source at **[Engine surface maturity audit](/0-1-0-preview/source/engine-surface-maturity-audit/)**. Treat that source as the authoritative copy when in doubt.
+
+## Adoption guidance
+
+- **`M4`**: fine to depend on with stability expectations.
+- **`M3`**: fine to depend on; expect additive changes, not breakage.
+- **`M2`**: usable for narrow scenarios; verify your specific path is exercised.
+- **`M1`**: usable for catalog-driven introspection only.
+- **`M0`**: avoid relying on. Use only for typed names in roadmap-driven code.

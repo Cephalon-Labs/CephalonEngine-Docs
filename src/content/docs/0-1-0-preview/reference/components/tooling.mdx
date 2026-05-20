@@ -1,0 +1,47 @@
+---
+title: Tooling
+description: Cephalon.Cli, Cephalon.Scaffolding, Cephalon.TemplatePack, Cephalon.ReferenceDocs.
+sidebar:
+  order: 11
+editUrl: false
+---
+
+The out-of-process half of the engine. Nothing here is required at runtime — these are dev/CI tools.
+
+## Packages
+
+Click any package name to jump to its **source-doc**.
+
+| Package | NuGet ID | Maturity | Kind | Purpose |
+| --- | --- | --- | --- | --- |
+| **[Cli](/0-1-0-preview/source/components/cli/)** | `Cephalon.Cli` | `M3` | .NET global tool | The `cephalon` command (`doctor`, `new`, `stage-packages`, `reference-docs`). |
+| **[Scaffolding](/0-1-0-preview/source/components/scaffolding/)** | `Cephalon.Scaffolding` | `M3` | Library | Scaffold-plan engine powering `cephalon new`. Internal to `Cephalon.Cli` but also reusable. |
+| TemplatePack *(no source-doc)* | `Cephalon.TemplatePack` | `M3` | `dotnet new` template | Registers `dotnet new cephalon-app` blueprint. |
+| **[ReferenceDocs](/0-1-0-preview/source/components/reference-docs/)** | `Cephalon.ReferenceDocs` | `M2` | .NET global tool | XML-comment → Markdown generator. |
+
+## Install matrix
+
+| Scenario | Packages / commands |
+| --- | --- |
+| Daily dev | `dotnet tool install -g Cephalon.Cli --prerelease` |
+| Per-repo pinned CLI | `dotnet new tool-manifest` + `dotnet tool install Cephalon.Cli --prerelease` |
+| IDE wizard scaffolding | + `dotnet new install Cephalon.TemplatePack --prerelease` |
+| Custom internal scaffolder | `Cephalon.Scaffolding` referenced from a wrapper library/CLI |
+| Generate API reference Markdown | `dotnet tool install -g Cephalon.ReferenceDocs --prerelease` |
+
+## CLI command surface
+
+| Command | Purpose | Common flags |
+| --- | --- | --- |
+| `cephalon doctor` | Health check | `--json`, `--deployment-mode <mode>`, `--check-profile <profile>` |
+| `cephalon new <name>` | Scaffold app | `--output`, `--include-eventing`, `--include-identity`, `--deployment-target`, `--transport` |
+| `cephalon stage-packages <path>` | Copy local packages | `--source`, `--clean` |
+| `cephalon reference-docs <project>` | Generate Markdown | `--output`, `--format starlight|docfx|vitepress|mdbook` |
+
+Full flag reference: **[Reference → CLI](/0-1-0-preview/reference/cli/)**.
+
+## See also
+
+- **[Technology → CLI & scaffolding](/0-1-0-preview/technology/tooling/)** — narrative + 4 use-case scenarios.
+- **[Reference → CLI](/0-1-0-preview/reference/cli/)** — every flag for every command.
+- **[Guide → Installation → CLI install](/0-1-0-preview/guide/installation/cli/)** — install paths.

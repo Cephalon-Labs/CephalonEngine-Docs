@@ -1,0 +1,49 @@
+---
+title: 'Tutorial: gRPC service'
+description: 'Build a CephalonEngine gRPC service with unary and streaming methods, shared proto contracts, and OTLP traces that link across the wire.'
+sidebar:
+  order: 4
+editUrl: false
+---
+
+`Cephalon.AspNetCore.Grpc` is the transport adapter for gRPC. It handles unary and streaming methods, plugs into the same behavior pipeline as REST, and integrates with the host's observability stack so traces propagate across the wire.
+
+## What you'll build
+
+- a gRPC service exposing `GetProduct` (unary) and `WatchInventory` (server streaming).
+- a proto contract shared between the service and a client console app.
+- mutual TLS via the included Kubernetes deploy script.
+- traces that flow from the calling client through the gRPC server into the database.
+
+## Skeleton recipe
+
+```xml
+<PackageReference Include="Cephalon.AspNetCore.Grpc" />
+```
+
+```csharp
+// Program.cs
+builder.Services
+    .AddCephalonAspNetCore(options => options.EnableGrpc())
+    .AddModulesFromAssemblies(/* ... */);
+```
+
+```csharp
+public sealed class ProductsGrpcModule : GrpcBehaviorModuleBase
+{
+    public override ModuleDescriptor Describe() => new("Acme.Store.Grpc.Products", "1.0.0", [Capability.Data]);
+
+    protected override void ConfigureGrpcServices(IGrpcBehaviorBuilder builder)
+    {
+        builder.MapService<ProductsGrpcService>();
+    }
+}
+```
+
+## Status
+
+The full step-by-step walkthrough is part of the next docs push. In the meantime:
+
+- the host adapter's surface lives at **[Source → components / aspnetcore-grpc](/0-1-0-preview/source/components/aspnetcore-grpc/)** + the **[Technology → Hosts](/0-1-0-preview/technology/hosts/)** catalog.
+- protobuf authoring conventions are in the **[Engineering standards](/0-1-0-preview/contributing/engineering-standards/)**.
+- the **[First-app tutorial](/0-1-0-preview/tutorials/first-app/)** explains the behavior pipeline, which works the same for gRPC.

@@ -1,0 +1,31 @@
+---
+title: Testing strategy
+description: Composition smoke tests, behavior specs, integration tests, performance benchmarks — the test discipline every CephalonEngine PR must meet.
+sidebar:
+  order: 7
+editUrl: false
+---
+
+## What CI runs
+
+| Lane | Filter | Frequency |
+| --- | --- | --- |
+| Composition | `Category!=Integration` (composition tests included by default) | Every PR |
+| Behavior | `Category=Behavior` | Every PR |
+| Integration | `Category=Integration` | Every PR (separate runner) |
+| Contract | `Category=Contract` | Every PR |
+| Benchmark | `Cephalon.Benchmarks` filter | Nightly + on PR opt-in |
+
+## What every PR must include
+
+- **Composition coverage** for any new module surface.
+- **Behavior coverage** for every new behavior.
+- **Integration coverage** for any backend adapter change.
+- **Contract coverage** for any public API change (proto / schema / OpenAPI golden).
+
+See **[Tutorial → Testing strategy](/0-1-0-preview/tutorials/testing-strategy/)** for app-side guidance; this page is for engine PRs.
+
+## Source-doc snapshots
+
+- [Test coverage roadmap](/0-1-0-preview/source/test-coverage-roadmap/)
+- [Benchmarking](/0-1-0-preview/source/benchmarking/)

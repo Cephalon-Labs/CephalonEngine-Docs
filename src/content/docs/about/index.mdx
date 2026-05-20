@@ -1,0 +1,87 @@
+---
+title: About
+description: What CephalonEngine is, who builds it, where it's headed, and how to follow along.
+sidebar:
+  order: 0
+  label: Overview
+editUrl: false
+---
+
+import PathCards from '../../../components/PathCards.astro';
+
+CephalonEngine is a modular .NET 10 framework for building production-grade applications without trading away rigor for speed. It is opinionated about the engine, additive about everything else.
+
+<PathCards
+  paths={[
+    {
+      badge: 'Direction',
+      title: 'Roadmap',
+      description: 'The next several minors, the long-range direction, and the .NET 11 readiness lane.',
+      href: '/about/roadmap/',
+      cta: 'Open the roadmap',
+    },
+    {
+      badge: 'Backlog',
+      title: 'Backlog',
+      description: 'The full engine backlog grouped by capability.',
+      href: '/about/backlog/',
+      cta: 'Open the backlog',
+    },
+    {
+      badge: 'History',
+      title: 'Release notes',
+      description: 'Every shipped version with the change summary and link to migration notes.',
+      href: '/about/release-notes/',
+      cta: 'Open the release notes',
+    },
+    {
+      badge: 'Process',
+      title: 'Governance',
+      description: 'How planning happens, how decisions are made, how disputes get resolved.',
+      href: '/about/governance/',
+      cta: 'Open governance',
+    },
+    {
+      badge: 'Reference',
+      title: 'FAQ',
+      description: 'Frequently asked questions about scope, performance, licensing, and adoption.',
+      href: '/about/faq/',
+      cta: 'Open the FAQ',
+    },
+    {
+      badge: 'Legal',
+      title: 'License',
+      description: 'MIT-licensed. Full text and what it means for you.',
+      href: '/about/license/',
+      cta: 'Open the license',
+    },
+    {
+      badge: 'Marketing',
+      title: 'Press kit',
+      description: 'Logos, screenshots, brand guidelines.',
+      href: '/about/press-kit/',
+      cta: 'Open the press kit',
+    },
+  ]}
+/>
+
+## In one paragraph
+
+CephalonEngine is a modular framework for .NET 10. It composes a small, stable engine with a wide catalog of opt-in companion packages — data adapters, eventing transports, observability providers, identity, multi-tenancy, agentics, retrieval, edge runtimes. Every package ships with an explicit maturity label so adopters know what to rely on. Every public surface has a typed contract recorded in the runtime manifest. The same engine boots an ASP.NET Core host, a generic-host worker, or a custom embedded host — the team picks the shape, not the framework.
+
+## Who builds it
+
+CephalonEngine is built by Cephalon-Labs and a growing community of contributors. The repo lives at [github.com/Cephalon-Labs/CephalonEngine](https://github.com/Cephalon-Labs/CephalonEngine). The docs site is open-source at [github.com/Cephalon-Labs/CephalonEngine-Docs](https://github.com/Cephalon-Labs/CephalonEngine-Docs).
+
+## What we ship every week
+
+The preview track is on **autonomous continuous shipping** — slice → ship → merge → repeat. The eventing track is currently landing broker topology, partition behaviour, scheduled delivery, DLQ replay, and process manager state proofs. Track progress on the **[Roadmap](/about/roadmap/)**.
+
+## Where this is going
+
+The long-range direction is documented in **[Roadmap](/about/roadmap/)** and **[Long-range direction](/0-1-0-preview/source/long-range-direction/)**. Short version:
+
+- adoption-ready engine (M4) across the core + AspNetCore host + Worker.
+- adoption-ready data adapters for the most-requested backends.
+- adoption-ready eventing for Wolverine plus a second adapter for diversity.
+- ship a stable `1.0.0` once the manifest schema, runtime contract, and configuration shape are frozen.

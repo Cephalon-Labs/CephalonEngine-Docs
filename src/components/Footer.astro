@@ -1,0 +1,282 @@
+---
+import Default from '@astrojs/starlight/components/Footer.astro';
+import { Icon } from 'astro-icon/components';
+import {
+  currentVersion,
+  detectVersion,
+  rootHref,
+  stripBase,
+  stripLocale,
+  versionHref,
+} from '../lib/version-routing';
+import FooterAds from './FooterAds.astro';
+
+const { lang } = Astro.locals.starlightRoute;
+const locale: 'en' | 'th' = lang === 'th' ? 'th' : 'en';
+const isThai = locale === 'th';
+
+const { path: stripped } = stripLocale(stripBase(Astro.url.pathname));
+const activeVersion = detectVersion(stripped) ?? currentVersion;
+
+const currentYear = new Date().getFullYear();
+
+interface FooterLink {
+  label: string;
+  href: string;
+  external?: boolean;
+}
+interface FooterColumn {
+  title: string;
+  links: FooterLink[];
+}
+
+const vHref = (innerPath: string) => versionHref(activeVersion.id, innerPath, locale);
+const rHref = (innerPath: string) => rootHref(innerPath, locale);
+
+const columns: FooterColumn[] = isThai
+  ? [
+      {
+        title: 'เอกสาร',
+        links: [
+          { label: 'เริ่มต้นด่วน', href: vHref('guide/quickstart') },
+          { label: 'บทเรียน', href: vHref('tutorials') },
+          { label: 'Migration', href: vHref('migration') },
+          { label: 'Reference', href: vHref('reference') },
+        ],
+      },
+      {
+        title: 'Technology',
+        links: [
+          { label: 'Hosts & transports', href: vHref('technology/hosts') },
+          { label: 'Data', href: vHref('technology/data') },
+          { label: 'Eventing', href: vHref('technology/eventing') },
+          { label: 'Observability', href: vHref('technology/observability') },
+        ],
+      },
+      {
+        title: 'ชุมชน',
+        links: [
+          { label: 'ร่วมพัฒนา', href: vHref('contributing') },
+          { label: 'โรดแมป', href: rHref('about/roadmap') },
+          { label: 'GitHub', href: 'https://github.com/Cephalon-Labs/CephalonEngine', external: true },
+          { label: 'Issues', href: 'https://github.com/Cephalon-Labs/CephalonEngine/issues', external: true },
+        ],
+      },
+      {
+        title: 'โปรเจกต์',
+        links: [
+          { label: 'เกี่ยวกับ', href: rHref('about') },
+          { label: 'FAQ', href: rHref('about/faq') },
+          { label: 'License', href: rHref('about/license') },
+          { label: 'Release notes', href: rHref('about/release-notes') },
+        ],
+      },
+    ]
+  : [
+      {
+        title: 'Docs',
+        links: [
+          { label: 'Get started', href: vHref('guide/quickstart') },
+          { label: 'Tutorials', href: vHref('tutorials') },
+          { label: 'Migration', href: vHref('migration') },
+          { label: 'Reference', href: vHref('reference') },
+        ],
+      },
+      {
+        title: 'Technology',
+        links: [
+          { label: 'Hosts & transports', href: vHref('technology/hosts') },
+          { label: 'Data', href: vHref('technology/data') },
+          { label: 'Eventing', href: vHref('technology/eventing') },
+          { label: 'Observability', href: vHref('technology/observability') },
+        ],
+      },
+      {
+        title: 'Community',
+        links: [
+          { label: 'Contributing', href: vHref('contributing') },
+          { label: 'Roadmap', href: rHref('about/roadmap') },
+          { label: 'GitHub', href: 'https://github.com/Cephalon-Labs/CephalonEngine', external: true },
+          { label: 'Issues', href: 'https://github.com/Cephalon-Labs/CephalonEngine/issues', external: true },
+        ],
+      },
+      {
+        title: 'Project',
+        links: [
+          { label: 'About', href: rHref('about') },
+          { label: 'FAQ', href: rHref('about/faq') },
+          { label: 'License', href: rHref('about/license') },
+          { label: 'Release notes', href: rHref('about/release-notes') },
+        ],
+      },
+    ];
+
+const tagline = isThai
+  ? 'เฟรมเวิร์ก .NET 10 แบบโมดูลาร์ สำหรับสร้างแอประดับโปรดักชัน'
+  : 'A modular .NET 10 framework for shipping production-grade apps.';
+
+const copyright = `© ${currentYear} Cephalon-Labs · MIT licensed`;
+
+/* Support/sponsor channel — factual + inviting, not pushy.
+   Replace the URL with your preferred channel (GitHub Sponsors, Open
+   Collective, Ko-fi, Buy Me a Coffee, etc.) once registered. The default
+   points at GitHub Sponsors, which most OSS maintainers can enable
+   through their GitHub profile. */
+const supportHref = 'https://github.com/sponsors/Cephalon-Labs';
+const supportLeadIn = isThai ? 'พัฒนาโดยทีมอิสระ' : 'Maintained by independent developers';
+const supportCta = isThai ? 'สนับสนุนการพัฒนา' : 'Sponsor the project';
+
+// `githubLabel` was removed when the standalone GitHub icon was dropped
+// from the footer. GitHub badges below carry their own per-link aria labels.
+const homeHref = rHref('');
+---
+
+<Default><slot /></Default>
+
+<FooterAds />
+
+<footer class="ce-footer" aria-labelledby="ce-footer-heading">
+  <h2 id="ce-footer-heading" class="sr-only">{isThai ? 'ลิงก์ทั้งหมดในเว็บไซต์' : 'Site links'}</h2>
+
+  <div class="ce-footer__inner">
+    <div class="ce-footer__brand">
+      <a class="ce-footer__home" href={homeHref} aria-label="CephalonEngine — home">
+        <svg class="ce-footer__logo" viewBox="0 0 64 64" aria-hidden="true">
+          <defs>
+            <linearGradient id="ce-footer-grad" x1="0" x2="64" y1="0" y2="64" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#34B6DC" />
+              <stop offset="1" stop-color="#0F5D73" />
+            </linearGradient>
+          </defs>
+          <rect width="64" height="64" rx="16" fill="url(#ce-footer-grad)" />
+          <path d="M18 23.5C18 20.4624 20.4624 18 23.5 18H40.5C43.5376 18 46 20.4624 46 23.5V28.5C46 31.5376 43.5376 34 40.5 34H27.5C25.567 34 24 35.567 24 37.5V40.5C24 43.5376 21.5376 46 18.5 46H18V23.5Z" fill="#E6FBFF" />
+          <path d="M46 40.5C46 43.5376 43.5376 46 40.5 46H23.5C20.4624 46 18 43.5376 18 40.5V35.5C18 32.4624 20.4624 30 23.5 30H36.5C38.433 30 40 28.433 40 26.5V23.5C40 20.4624 42.4624 18 45.5 18H46V40.5Z" fill="#9BE8FF" />
+        </svg>
+        <span class="ce-footer__wordmark">CephalonEngine</span>
+      </a>
+      <p class="ce-footer__tagline">{tagline}</p>
+      <div class="ce-footer__socials">
+        {/* Live GitHub status badges via shields.io — auto-refresh server-side, no JS needed.
+             Each badge links back to the matching GitHub view so users can drill in.
+             The standalone GitHub icon was removed because each badge already
+             carries the GitHub logo and links to the relevant view. */}
+        <div class="ce-footer__badges" aria-label={isThai ? 'สถานะ GitHub' : 'GitHub status'}>
+          <a
+            class="ce-footer__badge"
+            href="https://github.com/Cephalon-Labs/CephalonEngine/stargazers"
+            rel="noopener"
+            aria-label={isThai ? 'ดาวบน GitHub' : 'GitHub stars'}
+          >
+            <img
+              src="https://img.shields.io/github/stars/Cephalon-Labs/CephalonEngine?style=flat&logo=github&logoColor=white&label=stars&labelColor=0A4557&color=0F8DB0"
+              alt={isThai ? 'จำนวนดาว GitHub' : 'GitHub stars count'}
+              loading="lazy"
+              height="20"
+            />
+          </a>
+          <a
+            class="ce-footer__badge"
+            href="https://github.com/Cephalon-Labs/CephalonEngine/network/members"
+            rel="noopener"
+            aria-label={isThai ? 'ฟอร์กบน GitHub' : 'GitHub forks'}
+          >
+            <img
+              src="https://img.shields.io/github/forks/Cephalon-Labs/CephalonEngine?style=flat&logo=github&logoColor=white&label=forks&labelColor=0A4557&color=0F8DB0"
+              alt={isThai ? 'จำนวนฟอร์ก' : 'GitHub forks count'}
+              loading="lazy"
+              height="20"
+            />
+          </a>
+          <a
+            class="ce-footer__badge"
+            href="https://github.com/Cephalon-Labs/CephalonEngine/releases/latest"
+            rel="noopener"
+            aria-label={isThai ? 'รุ่นล่าสุด' : 'Latest release'}
+          >
+            <img
+              src="https://img.shields.io/github/v/release/Cephalon-Labs/CephalonEngine?include_prereleases&style=flat&label=release&labelColor=0A4557&color=34B6DC"
+              alt={isThai ? 'รุ่นล่าสุดบน GitHub' : 'Latest release version'}
+              loading="lazy"
+              height="20"
+            />
+          </a>
+          <a
+            class="ce-footer__badge"
+            href="https://github.com/Cephalon-Labs/CephalonEngine/issues"
+            rel="noopener"
+            aria-label={isThai ? 'Issues ที่เปิดอยู่' : 'Open issues'}
+          >
+            <img
+              src="https://img.shields.io/github/issues/Cephalon-Labs/CephalonEngine?style=flat&label=issues&labelColor=0A4557&color=E07432"
+              alt={isThai ? 'จำนวน issues ที่เปิดอยู่' : 'Open issue count'}
+              loading="lazy"
+              height="20"
+            />
+          </a>
+          <a
+            class="ce-footer__badge"
+            href="https://github.com/Cephalon-Labs/CephalonEngine/commits"
+            rel="noopener"
+            aria-label={isThai ? 'commit ล่าสุด' : 'Last commit'}
+          >
+            <img
+              src="https://img.shields.io/github/last-commit/Cephalon-Labs/CephalonEngine?style=flat&label=last%20commit&labelColor=0A4557&color=0F8DB0"
+              alt={isThai ? 'วันที่ commit ล่าสุด' : 'Last commit date'}
+              loading="lazy"
+              height="20"
+            />
+          </a>
+          <a
+            class="ce-footer__badge"
+            href="https://github.com/Cephalon-Labs/CephalonEngine/blob/main/LICENSE.txt"
+            rel="noopener"
+            aria-label={isThai ? 'License' : 'License'}
+          >
+            <img
+              src="https://img.shields.io/github/license/Cephalon-Labs/CephalonEngine?style=flat&label=license&labelColor=0A4557&color=16A34A"
+              alt={isThai ? 'ใบอนุญาตของโปรเจกต์' : 'Project license'}
+              loading="lazy"
+              height="20"
+            />
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <nav class="ce-footer__columns" aria-label={isThai ? 'ลิงก์ในส่วนท้าย' : 'Footer'}>
+      {columns.map((column) => (
+        <div class="ce-footer__column">
+          <h3 class="ce-footer__column-title">{column.title}</h3>
+          <ul class="ce-footer__column-list">
+            {column.links.map((link) => (
+              <li>
+                <a
+                  class="ce-footer__link"
+                  href={link.href}
+                  {...(link.external ? { rel: 'noopener', target: '_blank' } : {})}
+                >
+                  {link.label}
+                  {link.external && (
+                    <Icon name="bi:box-arrow-up-right" class="ce-footer__external" size={12} aria-hidden="true" />
+                  )}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </nav>
+  </div>
+
+  <div class="ce-footer__bottom">
+    <p class="ce-footer__copy">{copyright}</p>
+    <p class="ce-footer__support">
+      <span>{supportLeadIn}</span>
+      <span class="ce-footer__support-divider" aria-hidden="true">·</span>
+      <a class="ce-footer__support-link" href={supportHref} rel="noopener" target="_blank">
+        <Icon name="bi:heart" class="ce-footer__support-icon" size={12} aria-hidden="true" />
+        {supportCta}
+      </a>
+    </p>
+  </div>
+</footer>

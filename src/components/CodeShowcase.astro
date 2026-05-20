@@ -1,0 +1,58 @@
+---
+import { Code } from '@astrojs/starlight/components';
+
+export interface ShowcaseTab {
+  label: string;
+  filename: string;
+  language: string;
+  code: string;
+}
+
+export interface Props {
+  title: string;
+  description?: string;
+  tabs: ShowcaseTab[];
+}
+
+const { title, description, tabs } = Astro.props;
+const showcaseId = `showcase-${Math.random().toString(36).slice(2, 9)}`;
+---
+
+<section class="ce-showcase">
+  <header class="ce-showcase__header">
+    <h2>{title}</h2>
+    {description && <p>{description}</p>}
+  </header>
+  <div class="ce-showcase__panel" data-showcase={showcaseId}>
+    <div class="ce-showcase__tabs" role="tablist">
+      {tabs.map((tab, index) => (
+        <button
+          type="button"
+          role="tab"
+          class={`ce-showcase__tab${index === 0 ? ' is-active' : ''}`}
+          data-target={`${showcaseId}-${index}`}
+          aria-selected={index === 0 ? 'true' : 'false'}
+        >
+          <span class="ce-showcase__tab-label">{tab.label}</span>
+          <span class="ce-showcase__tab-file">{tab.filename}</span>
+        </button>
+      ))}
+    </div>
+    <div class="ce-showcase__bodies">
+      {tabs.map((tab, index) => (
+        <div
+          class={`ce-showcase__code${index === 0 ? ' is-active' : ''}`}
+          data-panel={`${showcaseId}-${index}`}
+        >
+          {/* Starlight's <Code> component uses the same Expressive Code
+              pipeline as the rest of the docs, so C# / JSON / etc. get
+              proper Shiki-based syntax highlighting in the configured
+              github-light / github-dark themes — no hand-painted colours. */}
+          <Code code={tab.code} lang={tab.language} frame="none" />
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+{/* Tab-switcher handler lives in /public/scripts/site-ui.js — see Head.astro */}

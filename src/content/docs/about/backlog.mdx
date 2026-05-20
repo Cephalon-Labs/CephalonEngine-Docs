@@ -1,0 +1,28 @@
+---
+title: Backlog
+description: The full CephalonEngine backlog grouped by capability.
+sidebar:
+  order: 2
+editUrl: false
+---
+
+The full backlog is tracked in the engine repo and mirrored to the versioned source. This page is the curated entry point.
+
+## Source-doc snapshot
+
+- [Engine backlog](/0-1-0-preview/source/engine-backlog/)
+
+## How items flow
+
+1. Idea / proposal in a GitHub Issue with the appropriate label.
+2. Triage at the next planning sync.
+3. Accepted items land in the backlog with an estimated minor.
+4. Implementation lands as a PR, gated by review.
+5. Maturity label assigned on merge.
+
+## Labels we use
+
+- `area/<capability>` — e.g. `area/eventing`, `area/data`.
+- `kind/<type>` — `feature`, `fix`, `docs`, `tooling`.
+- `maturity-impact/<level>` — flags PRs that graduate packages.
+- `release/<minor>` — the targeted minor.

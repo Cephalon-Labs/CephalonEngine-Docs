@@ -1,0 +1,87 @@
+---
+import Default from '@astrojs/starlight/components/SiteTitle.astro';
+import { Icon } from 'astro-icon/components';
+import {
+  currentVersion,
+  detectVersion,
+  rootHref,
+  stripBase,
+  stripLocale,
+  versionHref,
+} from '../lib/version-routing';
+
+const { lang } = Astro.locals.starlightRoute;
+const locale: 'en' | 'th' = lang === 'th' ? 'th' : 'en';
+
+// Resolve the version that the header nav should link into. If the user is
+// already inside a version (e.g. /0-1-0-preview/guide/), use that one;
+// otherwise fall back to the configured current version.
+const { path: stripped } = stripLocale(stripBase(Astro.url.pathname));
+const activeVersion = detectVersion(stripped) ?? currentVersion;
+
+interface NavLink {
+  label: string;
+  thLabel: string;
+  /** Path inside the version (omit leading slash). Empty = link to /about for non-versioned. */
+  innerPath: string;
+  isVersioned: boolean;
+}
+
+const links: NavLink[] = [
+  { label: 'Get start', thLabel: 'เริ่มต้น', innerPath: 'guide/quickstart', isVersioned: true },
+  { label: 'Tutorial', thLabel: 'บทเรียน', innerPath: 'tutorials', isVersioned: true },
+  { label: 'Contribute', thLabel: 'ร่วมพัฒนา', innerPath: 'contributing', isVersioned: true },
+  { label: 'API Reference', thLabel: 'API Reference', innerPath: 'reference/api', isVersioned: true },
+  { label: 'About', thLabel: 'เกี่ยวกับ', innerPath: 'about', isVersioned: false },
+];
+
+function buildHref(link: NavLink): string {
+  return link.isVersioned
+    ? versionHref(activeVersion.id, link.innerPath, locale)
+    : rootHref(link.innerPath, locale);
+}
+
+function isActive(link: NavLink): boolean {
+  const target = buildHref(link);
+  return Astro.url.pathname === target || Astro.url.pathname.startsWith(target);
+}
+
+const menuLabel = locale === 'th' ? 'เมนู' : 'Menu';
+---
+
+<div class="ce-site-title">
+  <Default><slot /></Default>
+
+  <nav class="ce-header-nav" aria-label="Primary">
+    {links.map((link) => (
+      <a
+        href={buildHref(link)}
+        class={`ce-header-nav__link${isActive(link) ? ' is-active' : ''}`}
+      >
+        {locale === 'th' ? link.thLabel : link.label}
+      </a>
+    ))}
+  </nav>
+
+  <details class="ce-header-menu" aria-label={menuLabel}>
+    <summary class="ce-header-menu__trigger" aria-haspopup="menu">
+      <span class="ce-header-menu__label">{menuLabel}</span>
+      <Icon name="bi:chevron-down" class="ce-header-menu__chevron" size={12} aria-hidden="true" />
+    </summary>
+    <ul class="ce-header-menu__panel" role="menu">
+      {links.map((link) => (
+        <li role="presentation">
+          <a
+            role="menuitem"
+            href={buildHref(link)}
+            class={`ce-header-menu__option${isActive(link) ? ' is-active' : ''}`}
+          >
+            {locale === 'th' ? link.thLabel : link.label}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </details>
+</div>
+
+{/* Mobile menu dropdown JS lives in /public/scripts/site-ui.js — see Head.astro */}

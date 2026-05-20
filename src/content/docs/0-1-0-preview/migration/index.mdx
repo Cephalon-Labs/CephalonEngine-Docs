@@ -1,0 +1,72 @@
+---
+title: Migration
+description: Move onto CephalonEngine, upgrade between CephalonEngine versions, or move between .NET versions with playbooks for each lift.
+sidebar:
+  order: 0
+  label: Overview
+editUrl: false
+---
+
+import PathCards from '../../../../components/PathCards.astro';
+
+Migration is hard. The goal of this section is to make it **boring**: each playbook lists the smallest reversible diff you can ship, the risk for each step, and a rollback path that doesn't lose state.
+
+<PathCards
+  paths={[
+    {
+      badge: 'Move in',
+      title: 'From plain ASP.NET Core',
+      description: 'Convert a Program.cs-style ASP.NET Core app into a Cephalon host. Module-by-module migration plan.',
+      href: '/0-1-0-preview/migration/from-aspnet-core/',
+      cta: 'Open the playbook',
+    },
+    {
+      badge: 'Move in',
+      title: 'From a modular monolith',
+      description: 'Lift an existing modular monolith (MediatR, Modular Architecture-style) onto CephalonEngine.',
+      href: '/0-1-0-preview/migration/from-modular-monolith/',
+      cta: 'Open the playbook',
+    },
+    {
+      badge: 'Move in',
+      title: 'From microservices',
+      description: 'Consolidate a microservice estate behind CephalonEngine. Decide what stays a microservice and what moves into a modular monolith.',
+      href: '/0-1-0-preview/migration/from-microservices/',
+      cta: 'Open the playbook',
+    },
+    {
+      badge: 'Versions',
+      title: 'Version upgrades',
+      description: 'Move between CephalonEngine versions. Per-minor playbooks with before/after diffs.',
+      href: '/0-1-0-preview/migration/version-upgrades/',
+      cta: 'Open the matrix',
+    },
+    {
+      badge: '.NET',
+      title: '.NET versions',
+      description: 'Move between .NET 10 and .NET 11. Current readiness lane: assessment-only.',
+      href: '/0-1-0-preview/migration/dotnet-versions/',
+      cta: 'Open the matrix',
+    },
+    {
+      badge: 'Reference',
+      title: 'Breaking changes',
+      description: 'Every breaking change in CephalonEngine history with the before/after snippet.',
+      href: '/0-1-0-preview/migration/breaking-changes/',
+      cta: 'Open the changelog',
+    },
+  ]}
+/>
+
+## Migration philosophy
+
+- **Smallest reversible step.** Every migration playbook is structured as a sequence of small, reversible commits. You can stop at any commit and ship.
+- **Run two stacks side-by-side.** Where possible we describe how to run the old and new stack in parallel until you trust the new one.
+- **State migrations are explicit.** Schema changes, queue topology changes, and identifier changes always come with a dedicated migration step.
+- **Telemetry tells the truth.** Each playbook ends with the telemetry you should add to verify the migration worked.
+
+## Required reading before any migration
+
+- **[Guide → Concepts](/0-1-0-preview/guide/concepts/)** — the model migrations target.
+- **[Guide → Compatibility](/0-1-0-preview/guide/compatibility/)** — what is supported on the destination.
+- **[Reference → Architecture → Conformance matrix](/0-1-0-preview/reference/architecture/conformance-matrix/)** — per-package status.

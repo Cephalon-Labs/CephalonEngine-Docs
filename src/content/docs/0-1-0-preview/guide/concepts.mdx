@@ -1,0 +1,626 @@
+---
+title: Core concepts
+description: The smallest mental model you need to use CephalonEngine — engine, modules, capabilities, manifest, app models, transports — with code examples for each.
+sidebar:
+  order: 3
+  label: Concepts
+editUrl: false
+---
+
+CephalonEngine is built around a small, stable vocabulary. **Read this page top-to-bottom once.** Every other doc on the site assumes you understand these eight terms; if you skip it, you'll spend twice as long deciphering the tutorials.
+
+Each concept below has:
+
+- A short definition
+- A code example showing the surface
+- Common use cases
+- Known limits / pitfalls
+- Cross-references to deeper docs
+
+## Engine
+
+The **engine** is what turns a set of modules into a runtime. It is host-agnostic — the same engine boots an ASP.NET Core host, a generic-host worker, a console process, or a custom embedded host.
+
+### What the engine guarantees
+
+1. **Validation** — duplicate registrations, conflicting capability providers, and missing dependencies fail fast at composition time, not at first request.
+2. **Deterministic ordering** — modules are sorted by their `DependsOn` graph before any lifecycle hook runs.
+3. **Module discovery** — from referenced assemblies, explicit DLL paths, package manifests, or package directories.
+4. **Capability registry** — every declared capability has a registered provider; unmatched capabilities fail composition.
+5. **Lifecycle execution** — `OnRegister` → `OnStart` runs in order; `OnStop` runs in reverse on shutdown.
+6. **Runtime manifest** — typed, versioned, source-traced JSON describing what just composed.
+7. **Health aggregation** — every `IDependencyHealthSource` contribution rolls up into one `/health` decision.
+
+### Example: composing an engine inside an ASP.NET Core host
+
+```csharp title="src/Acme.Store.Host/Program.cs"
+using Cephalon.AspNetCore;
+using Cephalon.Engine;
+
+var builder = WebApplication.CreateBuilder(args);
+
+var app = builder.Services
+    .AddCephalonAspNetCore()                              // host adapter
+    .AddModulesFromAssemblies(typeof(Program).Assembly)   // module discovery
+    .Build(builder);                                       // run composition
+
+app.MapCephalon();   // wire /engine/* routes + behaviour pipeline
+app.MapHealthChecks("/health");
+
+app.Run();
+```
+
+### Example: composing inside a generic-host worker (no HTTP)
+
+```csharp title="src/Acme.Worker/Program.cs"
+using Cephalon.Engine;
+using Cephalon.Worker;
+using Microsoft.Extensions.Hosting;
+
+var builder = Host.CreateApplicationBuilder(args);
+
+var runtime = builder.Services
+    .AddCephalonWorker()                                  // worker adapter
+    .AddModulesFromAssemblies(typeof(Program).Assembly)
+    .AddEventing(options => options.UseWolverine())
+    .Build(builder);
+
+await runtime.RunAsync();
+```
+
+The **only difference** is the host adapter (`AddCephalonAspNetCore` vs `AddCephalonWorker`). Modules, capabilities, and configuration are identical.
+
+### Use cases
+
+- **HTTP API** — ASP.NET Core host with `RestApi` + optional `Grpc` / `GraphQL` transports.
+- **Background processor** — Worker host with `Messaging` capability, no transports.
+- **Scheduled job** — Worker host + `IHostedService` cron scheduler.
+- **Edge runtime** — ASP.NET Core host + `Cephalon.Edge` for hot-path routing.
+- **Embedded engine** — load the engine inside another framework (e.g. an existing WCF service) by calling `engine.Build()` manually.
+
+### Limits
+
+- The engine itself **does not own a transport, database driver, or HTTP route.** Hosts own transports; companion packages own drivers; modules own routes.
+- Module discovery scans **referenced assemblies only** — modules in unreferenced DLLs need explicit `AddModulesFromPath(...)` or a package manifest.
+
+### Cross-references
+
+- **[Architecture](/0-1-0-preview/guide/architecture/)** — the layered view.
+- **[Reference → Runtime contracts](/0-1-0-preview/reference/architecture/runtime-contracts/)** — every guarantee in detail.
+- **[Contributing → Module authoring](/0-1-0-preview/contributing/module-authoring/)** — the rules for writing modules others depend on.
+
+## Module
+
+A **module** is a unit of capability you compose into the engine. Modules are the **only** code that touches the engine's contracts directly; everything else (companion packages, hosts, your application code) interacts via DI services that modules register.
+
+### What a module declares
+
+- **A descriptor** — name, version, capabilities, optional dependencies.
+- **Services** — DI registrations (`IServiceCollection.AddXxx(...)`).
+- **Behaviours** — REST profiles, gRPC services, message handlers — typed surfaces the host exposes.
+- **Lifecycle hooks** — optional `OnRegister`, `OnStart`, `OnStop`, `OnFailure` overrides.
+
+### Example: minimal module (no transport surface)
+
+```csharp title="src/Acme.Store.Modules.Health/HealthModule.cs"
+using Cephalon.Abstractions.Modules;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Acme.Store.Modules.Health;
+
+public sealed class HealthModule : IModule
+{
+    public ModuleDescriptor Describe() => new(
+        name: "Acme.Store.Modules.Health",
+        version: "1.0.0");
+
+    public void RegisterServices(IServiceCollection services)
+    {
+        services.AddSingleton<IClock, SystemClock>();
+    }
+}
+```
+
+### Example: REST-exposed module with capabilities + dependencies
+
+```csharp title="src/Acme.Store.Modules.Products/ProductsModule.cs"
+using Cephalon.Abstractions.Modules;
+using Cephalon.AspNetCore.Behaviors;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Acme.Store.Modules.Products;
+
+public sealed class ProductsModule : RestBehaviorModuleBase
+{
+    public override ModuleDescriptor Describe() => new(
+        name:         "Acme.Store.Modules.Products",
+        version:      "1.2.0",
+        capabilities: [Capability.Data, Capability.Audit],
+        dependsOn:    ["Acme.Store.Modules.Foundation"]);
+
+    public override void RegisterServices(IServiceCollection services)
+    {
+        services.AddScoped<IProductCatalog, EfProductCatalog>();
+    }
+
+    protected override void ConfigureRestBehaviors(IRestBehaviorBuilder builder)
+    {
+        builder.MapProfile<ListProductsBehavior>();
+        builder.MapProfile<GetProductBehavior>();
+        builder.MapProfile<CreateProductBehavior>();
+    }
+}
+```
+
+### Example: module with `OnStart` lifecycle work
+
+```csharp title="src/Acme.Store.Modules.Search/SearchModule.cs"
+public sealed class SearchModule : IModule
+{
+    public ModuleDescriptor Describe() => new("Acme.Store.Modules.Search", "1.0.0");
+
+    public void RegisterServices(IServiceCollection services)
+    {
+        services.AddSingleton<ISearchIndex, ElasticSearchIndex>();
+    }
+
+    public async Task OnStartAsync(IModuleStartContext ctx, CancellationToken ct)
+    {
+        var index = ctx.Services.GetRequiredService<ISearchIndex>();
+        await index.WarmAsync(ct);     // pre-load hot data into the index
+    }
+}
+```
+
+### Use cases
+
+| Pattern | Example | Notes |
+| --- | --- | --- |
+| **Pure DI module** | Foundation services, clock, options | No transport surface; just registers shared singletons. |
+| **REST CRUD module** | `ProductsModule` | Inherits `RestBehaviorModuleBase`; maps profiles. |
+| **gRPC service module** | `OrdersGrpcModule` | Inherits `GrpcBehaviorModuleBase`; maps services. |
+| **Eventing-only module** | `BillingModule` | Subscribes to events via `IMessageHandler<T>`; no public HTTP surface. |
+| **Cross-cutting module** | `AuditModule`, `IdentityModule` | Wires policy that other modules consume via DI. |
+| **Tenant-scoped module** | Multi-tenant modules with `Capability.Tenancy` | Inject `ITenantContext` to scope behaviour per tenant. |
+
+### Rules
+
+| Rule | Why |
+| --- | --- |
+| Descriptor `name` must be unique | Two modules with the same `name` fail composition. Convention: use the project name as a prefix. |
+| Descriptor `version` is semver | Engine doesn't enforce semver semantics, but consumers can introspect via `/engine/manifest` to detect upgrades. |
+| `RegisterServices` runs **before** `OnStart` | Do all DI registration in `RegisterServices`. Do no I/O in `RegisterServices` — the container isn't fully built yet. |
+| `OnStart` can throw — failure stops the host | If a module can't start (DB unreachable, migration failed), the host crashes with a clear error. Orchestrators (Kubernetes, systemd, App Service) see the failure and restart. |
+| Cross-module references via DI only | Don't `services.GetRequiredService<OtherModule>()` directly — the other module might not be present. Depend on its **service contract**, not its module class. |
+
+### Limits
+
+- Modules can't dynamically register / unregister at runtime — composition is one-shot at startup.
+- A module cannot inspect the manifest from `RegisterServices` because the manifest hasn't been built yet. Use `OnStart` if you need manifest access.
+- Module-level configuration is read by convention from `Engine:<ModuleName>:*` — using arbitrary `IConfiguration` paths works but isn't introspectable.
+
+### Cross-references
+
+- **[Contributing → Module authoring](/0-1-0-preview/contributing/module-authoring/)** — the full authoring contract for modules you ship as packages.
+- **[Tutorial → First-app step 2: Add a domain module](/0-1-0-preview/tutorials/first-app/02-add-module/)** — a complete walkthrough.
+
+## Capability
+
+A **capability** is a coarse-grained ability the engine knows how to wire. Capabilities exist so:
+
+- Modules can **declare what they depend on** without naming concrete companion packages.
+- The engine can **fail fast** when a required capability has no provider.
+- The manifest can **describe what the runtime actually carries**.
+
+Capabilities are members of `Cephalon.Abstractions.Capabilities.Capability` (a strongly-typed enum-like).
+
+### Built-in capabilities
+
+| Capability | Provider examples | What it gives modules |
+| --- | --- | --- |
+| `Data` | `Cephalon.Data.EntityFramework`, `Cephalon.Data` + adapter | Read/write store contracts, identifier generation, inbox/outbox |
+| `Eventing` | `Cephalon.Eventing.Wolverine` | `IMessagePublisher`, `IMessageHandler<T>`, outbox transactions |
+| `Identity` | `Cephalon.Identity` + adapter | Principal model, authorization decisions |
+| `Tenancy` | `Cephalon.MultiTenancy` | `ITenantContext` for the current request, tenant resolution |
+| `Audit` | `Cephalon.Audit` | Audit recorder, runtime audit catalog |
+| `Localization` | `Cephalon.Engine` (built-in) | Language pack lookup |
+| `Patterns` | `Cephalon.Engine` (built-in) | Strategy / decorator extension points |
+
+Full registry: **[Reference → Architecture → Runtime contracts](/0-1-0-preview/reference/architecture/runtime-contracts/)**.
+
+### Example: declaring a capability dependency
+
+```csharp
+public override ModuleDescriptor Describe() => new(
+    name:         "Acme.Billing",
+    version:      "1.0.0",
+    capabilities: [Capability.Data, Capability.Eventing, Capability.Audit]);
+```
+
+At composition, the engine checks that every declared capability has at least one registered provider. Missing providers throw `CapabilityProviderMissingException` with the capability name and the requesting module — no silent failures.
+
+### Use cases
+
+- **Module requires data** — declare `Capability.Data` so the host fails fast if EF Core isn't wired.
+- **Module emits events** — declare `Capability.Eventing` so the host fails fast if Wolverine isn't wired.
+- **Module enforces auth** — declare `Capability.Identity` so the host fails fast if identity isn't wired.
+
+### Limits
+
+- Capabilities are **coarse-grained** by design. You can't declare `Capability.Data.Postgres` — pick `Capability.Data` and let the chosen adapter satisfy it.
+- A module can't require **two providers** of the same capability — first registered wins. To support multiple data backends, define separate keyed services in your module.
+
+### Cross-references
+
+- **[Reference → Architecture → Runtime contracts](/0-1-0-preview/reference/architecture/runtime-contracts/)** — the full capability list and catalogue interfaces.
+
+## Manifest
+
+The **manifest** is the typed description of "what just got composed". It's generated at engine build time and is available to:
+
+- Any module via `IRuntimeManifest` (DI service).
+- The host via the runtime catalog.
+- Operators via the `/engine/manifest` HTTP route (when the AspNetCore host is in use).
+
+### Schema
+
+```jsonc title="GET /engine/manifest"
+{
+  "manifestSchemaVersion": "v2",
+  "engineId":              "acme-store",
+  "engineVersion":         "0.1.0-preview",
+  "host":                  { "kind": "aspnetcore", "version": "0.1.0-preview" },
+  "modules": [
+    {
+      "name": "Acme.Store.Modules.Products",
+      "version": "1.2.0",
+      "package": { "name": "Acme.Store.Modules.Products", "version": "1.2.0", "publisher": "Acme" },
+      "capabilities": ["Data", "Audit"],
+      "dependsOn": ["Acme.Store.Modules.Foundation"],
+      "integrity": { "hash": "sha256:abc…", "algorithm": "SHA-256", "trusted": true }
+    }
+  ],
+  "capabilities": ["Data", "Audit", "Eventing"],
+  "providers": [
+    { "capability": "Data", "package": "Cephalon.Data.EntityFramework", "version": "0.1.0-preview" }
+  ],
+  "deploymentMode": {
+    "baseline": "net10.0",
+    "readinessLanes": { "dotnet11": "assessment-only", "trim": "warn", "aot": "warn", "singleFile": "warn" }
+  }
+}
+```
+
+### Example: reading the manifest from a module
+
+```csharp
+public sealed class DiagnosticsModule : IModule
+{
+    public ModuleDescriptor Describe() => new("Acme.Diagnostics", "1.0.0");
+
+    public void RegisterServices(IServiceCollection services) =>
+        services.AddSingleton<IModuleAuditor, ManifestAuditor>();
+}
+
+public sealed class ManifestAuditor(IRuntimeManifest manifest, ILogger<ManifestAuditor> log)
+    : IModuleAuditor
+{
+    public void Audit()
+    {
+        log.LogInformation(
+            "Engine {EngineId} loaded {ModuleCount} modules across {CapabilityCount} capabilities",
+            manifest.EngineId, manifest.Modules.Count, manifest.Capabilities.Count);
+    }
+}
+```
+
+### Use cases
+
+- **Operational dashboards** — scrape `/engine/manifest` from every replica and diff to detect version skew.
+- **Per-tenant feature gating** — a tenant-scoped module can check `manifest.Capabilities.Contains(Capability.Eventing)` before emitting events.
+- **CI conformance checks** — assert that production builds include expected modules.
+
+### Limits
+
+- Manifest is **read-only after composition**. It's a snapshot, not a live registry.
+- Manifest version is `v2`. Future bumps will include migration notes — see **[Migration → Breaking changes](/0-1-0-preview/migration/breaking-changes/)**.
+
+### Cross-references
+
+- **[Reference → Architecture → Runtime contracts](/0-1-0-preview/reference/architecture/runtime-contracts/)** — full schema and routes.
+
+## App model
+
+A Cephalon app is **not** "a microservice" or "a modular monolith". It is a **combination of six dimensions** that the team picks intentionally. Splitting the choice this way means a team can move from `SingleHost` to `Microservice` deployment topology **without rewriting the composition model or the transports**.
+
+### The six dimensions
+
+| Dimension | What it controls | Options |
+| --- | --- | --- |
+| **Composition model** | How the app is assembled | `Modular` (current), `Plugin-ready Modular` (planned) |
+| **Deployment topology** | How the app is shipped | `SingleHost`, `Microservice`, `MicroserviceSuite` |
+| **Feature organization** | How code is laid out | `VerticalSlice`, `ModuleFirst` |
+| **Shared foundation** | Common runtime + conventions | always on for Cephalon apps |
+| **Transport surface** | How the app exposes commands/queries/events | `RestApi`, `JsonRpc`, `Grpc`, `GraphQL`, `ServerSentEvents`, `WebSocket` (multiple allowed) |
+| **Behavioural extension** | How variable behaviour is swapped | strategy hooks per module |
+
+### Example: a modular monolith with REST + gRPC + Sfid
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Id": "acme-store",
+    "Composition": { "Model": "Modular" },
+    "Deployment":  { "Topology": "SingleHost" },
+    "FeatureOrganization": "ModuleFirst",
+    "Transports": [ "RestApi", "Grpc" ],
+    "Data": { "IdStrategy": "Sfid", "Provider": "Postgres" }
+  }
+}
+```
+
+### Example: a microservice suite (two services, shared eventing)
+
+Each service has its own `appsettings.json`:
+
+```jsonc title="acme-orders/appsettings.json"
+{
+  "Engine": {
+    "Id": "acme-orders",
+    "Deployment": { "Topology": "Microservice" },
+    "Transports": [ "RestApi" ],
+    "Messaging": { "Enabled": true, "Provider": "Wolverine",
+                   "Wolverine": { "Transport": "RabbitMq" } }
+  }
+}
+```
+
+```jsonc title="acme-billing/appsettings.json"
+{
+  "Engine": {
+    "Id": "acme-billing",
+    "Deployment": { "Topology": "Microservice" },
+    "Transports": [ "Grpc" ],
+    "Messaging": { "Enabled": true, "Provider": "Wolverine",
+                   "Wolverine": { "Transport": "RabbitMq" } }
+  }
+}
+```
+
+Both services share the **same eventing transport** so messages routed via Wolverine flow between them. Module code is identical to a monolith — you swap one host for two and adjust the configuration.
+
+### When to use which topology
+
+| Choice | When |
+| --- | --- |
+| `SingleHost` (modular monolith) | Default. Best for teams ≤ ~15 engineers or apps without separate scale profiles per feature. Easier to operate. |
+| `Microservice` (single service) | When a feature has distinct scale, security boundary, or release cadence. |
+| `MicroserviceSuite` (multiple services) | When you need physical isolation between major bounded contexts — e.g. customer-facing vs internal admin. |
+
+### Limits
+
+- **Composition Model `Plugin-ready Modular`** is planned but not yet shipped — generated apps default to `Modular`.
+- **Multiple transports in one host** is supported, but each transport adds startup cost and memory. Run benchmarks if mixing more than three.
+
+### Cross-references
+
+- **[Architecture](/0-1-0-preview/guide/architecture/)** — the rationale per dimension.
+- **[Migration → From microservices](/0-1-0-preview/migration/from-microservices/)** — when consolidating microservices makes sense.
+
+## Transport surface
+
+**Transports** are how the app exposes commands, queries, events, or streams. CephalonEngine ships first-party transport adapters for:
+
+| Transport | Package | Use for |
+| --- | --- | --- |
+| **REST** | `Cephalon.AspNetCore` (built-in) | Browser-facing APIs, integration with anything HTTP. OpenAPI + Scalar UI auto-wired. |
+| **JSON-RPC** | `Cephalon.AspNetCore.JsonRpc` | IDE / language-server protocols; thin wire format. |
+| **gRPC** | `Cephalon.AspNetCore.Grpc` | Service-to-service inside the cluster. Unary + streaming. |
+| **GraphQL** | `Cephalon.AspNetCore.GraphQL` | Single endpoint, federated subschemas per module. |
+| **Server-Sent Events** | `Cephalon.AspNetCore` (built-in) | One-way streaming to the browser. |
+| **WebSocket** | `Cephalon.AspNetCore` (built-in) | Two-way streaming, presence. |
+
+Multiple transports can run together. Modules opt in via the matching behaviour base class.
+
+### Example: a module exposing the same data via REST and gRPC
+
+```csharp title="ProductsRestModule.cs"
+public sealed class ProductsRestModule : RestBehaviorModuleBase
+{
+    public override ModuleDescriptor Describe() => new("Acme.Products.Rest", "1.0.0");
+
+    protected override void ConfigureRestBehaviors(IRestBehaviorBuilder b)
+    {
+        b.MapProfile<ListProductsBehavior>();
+        b.MapProfile<GetProductBehavior>();
+    }
+}
+```
+
+```csharp title="ProductsGrpcModule.cs"
+public sealed class ProductsGrpcModule : GrpcBehaviorModuleBase
+{
+    public override ModuleDescriptor Describe() => new("Acme.Products.Grpc", "1.0.0");
+
+    protected override void ConfigureGrpcServices(IGrpcBehaviorBuilder b)
+    {
+        b.MapService<ProductsGrpcService>();
+    }
+}
+```
+
+Both modules share the same `IProductCatalog` DI service — the transport is just a different surface over the same domain logic.
+
+### Configuring transports
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Transports": [ "RestApi", "Grpc" ]
+  }
+}
+```
+
+For ASP.NET Core hosts, REST behaviours expose **OpenAPI** automatically. Visit `/scalar/v1` in a browser to see the documentation UI.
+
+For gRPC, register the proto types via `b.MapService<TService>()` — see **[Tutorial → gRPC service](/0-1-0-preview/tutorials/grpc-service/)**.
+
+### Limits
+
+- **HTTP/2 + TLS required for gRPC.** Kestrel handles this for you in dev; in production, ensure your load balancer / ingress doesn't downgrade the connection.
+- **GraphQL doesn't auto-merge subschemas from packages installed at runtime** — only assembly-discovered modules contribute.
+- **WebSocket / SSE need sticky sessions** if you scale horizontally and use in-process state. Move state to Redis / database to avoid this.
+
+### Cross-references
+
+- **[Technology → Hosts & transports](/0-1-0-preview/technology/hosts/)** — full transport catalogue with version status.
+- **[Reference → Architecture → Runtime contracts](/0-1-0-preview/reference/architecture/runtime-contracts/)** — the typed contract per transport.
+- **[Tutorial → First-app step 4: REST API](/0-1-0-preview/tutorials/first-app/04-rest-api/)** — a complete REST walkthrough.
+
+## Identifier strategy
+
+Generated apps default to **`Sfid`** identifiers from [Sfid.Net](https://github.com/sfid/sfid-net). Sfid is a sortable, k-ordered identifier with a 80-bit random suffix — good for clustering on B-tree indexes while staying globally unique.
+
+| Strategy | When to choose |
+| --- | --- |
+| **`Sfid`** (default) | Most apps. Time-ordered, compact, URL-safe. |
+| **`Guid`** | Interop with systems that already use GUIDs heavily, or compliance/auditing reasons. |
+| **`Long`** | If you absolutely need numeric ids (legacy column types, integer-only foreign keys). Auto-increment-managed by EF / db. |
+| **Custom** | Plug your own `IIdGenerator<T>` via DI. |
+
+### Switching strategies
+
+```jsonc title="appsettings.json"
+{
+  "Engine": { "Data": { "IdStrategy": "Sfid" } }   // or "Guid", "Long"
+}
+```
+
+### Limits
+
+- Switching strategy **mid-project requires a schema migration** — existing rows still have the old id type. Plan strategy at project start.
+- Sfid is **not cryptographically random** — don't use it as an anti-enumeration token. Generate a separate opaque token for those.
+
+### Cross-references
+
+- **[Technology → Identifiers](/0-1-0-preview/technology/identifiers/)** — the `Cephalon.Ids.Sfid` companion in detail.
+
+## How it all fits together
+
+```text
+┌────────────────────────────────────────────────────────────────────┐
+│ Host  (Cephalon.AspNetCore  /  Cephalon.Worker  /  custom adapter) │
+│                                                                    │
+│   ┌──────────────────────────────────────────────────────────────┐ │
+│   │ Engine (Cephalon.Engine)                                     │ │
+│   │   • module discovery & dependency ordering                   │ │
+│   │   • manifest v2 (versioned schema, source-traced)            │ │
+│   │   • capability registry                                      │ │
+│   │   • technology contributors                                  │ │
+│   │   • lifecycle execution                                      │ │
+│   │   • integrity verification                                   │ │
+│   └──────────────────────────────────────────────────────────────┘ │
+│                                                                    │
+│   Modules ──→ services, behaviours, capabilities, descriptors      │
+│   Companion packages ──→ data, eventing, identity, tenancy,        │
+│                          observability, audit, retrieval, edge,    │
+│                          agentics, …                               │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+- The **engine layer never depends on a specific host.**
+- The **host never depends on a specific module.**
+- **Modules never depend on a specific transport.**
+
+This is what makes the same app shape ship as a single host, a fleet of microservices, or an edge runtime without rewriting the foundation.
+
+## Tips & tricks
+
+The shortcuts and design heuristics that experienced CephalonEngine adopters use.
+
+### Module design
+
+- **One module = one bounded context.** If you can't name what the module does in 3 words, it's doing too much. Split it.
+- **Foundation module first.** Create `Acme.Foundation` for shared services (`IClock`, `ICorrelationContext`, options POCOs). Every other module declares `dependsOn: ["Acme.Foundation"]`. Beats a sprawling `Acme.Common`.
+- **Behaviours are thin.** A behaviour handler should be ~10 lines: validate inputs, call a domain service, shape the response. All logic in the domain service.
+- **Don't share DbContexts across modules.** Each module owns its own `DbContext` even if they point to the same database. Migrations stay per-module-clean.
+
+### Capability design
+
+- **Declare capabilities you need, not capabilities you might need.** Declaring `Capability.Eventing` "just in case" forces hosts to wire eventing even when not used.
+- **A module that only registers DI services usually doesn't declare any capability.** Capabilities are for engine-managed extensions; pure DI doesn't need one.
+- **Read `IRuntimeManifest.Capabilities` in `OnStart` to conditionally enable features**, not `RegisterServices` (manifest doesn't exist there yet).
+
+### Naming
+
+| Thing | Convention | Example |
+| --- | --- | --- |
+| Module class | `<Context>Module` | `ProductsModule`, `OrdersModule` |
+| Module project name | `<Org>.<App>.Modules.<Context>` | `Acme.Store.Modules.Products` |
+| Module descriptor name | matches project name | `"Acme.Store.Modules.Products"` |
+| Behaviour class | `<Verb><Noun>Behavior` | `ListProductsBehavior`, `CreateOrderBehavior` |
+| Event class | `<Past-tense-fact>` (record) | `OrderPlaced`, `InvoiceIssued` |
+| Event `name` attribute | `<reverse-dns>.<context>.<event>` (kebab) | `"acme.store.order-placed"` |
+| Engine ID | `<product>-<role>` (kebab) | `"acme-store"`, `"acme-orders-worker"` |
+| Configuration section | `Engine:<ModuleName>:*` | `Engine:Products:CatalogTtl` |
+
+### Lifecycle hooks
+
+- **`OnRegister` is for DI registration only.** Don't open DB connections, don't read config. The container isn't fully built.
+- **`OnStart` is for async I/O work** (warm caches, run migrations, register with service discovery). Failure here crashes the host — orchestrators see the failure and restart.
+- **`OnStop` should be idempotent.** Orchestrators may signal `SIGTERM` multiple times during draining. Use `CancellationToken` to short-circuit.
+- **Long-running work belongs in `IHostedService`, not `OnStart`.** `OnStart` blocks readiness; hosted services run in parallel after the host starts.
+
+### Cross-module collaboration
+
+- **Don't `GetRequiredService<OtherModule>()`.** Inject a service contract (`IOrderQuery`) the other module registers. The module class itself isn't meant to be consumed.
+- **Events are the cleanest decoupling.** `OrdersModule` emits `OrderPlaced` → `BillingModule` consumes. Neither knows the other exists at compile time.
+- **For request-time queries**, prefer typed interfaces over events. `IProductCatalog.FindAsync(id)` is faster and simpler than emitting a query event and waiting for a response.
+
+### Configuration
+
+- **Default everything to off.** New capabilities ship as `"Enabled": false`. Adopters opt in per environment via `appsettings.<Env>.json` or env vars.
+- **Use `IOptionsMonitor<T>` for tunable settings** (page sizes, timeouts, feature gates). Use `IOptions<T>` for boot-time-only settings.
+- **Validate at startup with `.ValidateDataAnnotations().ValidateOnStart()`.** Fail composition fast instead of getting a `null` at runtime.
+
+### App-model decisions
+
+- **Default to `SingleHost` modular monolith.** It's easier to operate; split only when there's a real reason (separate scale profile, security boundary, release cadence).
+- **`Microservice` topology requires shared eventing.** If your services don't talk via events, you've built distributed HTTP — bring the modules back into one host.
+- **`VerticalSlice` feature organization helps small teams.** `ModuleFirst` (the default) scales better with 10+ engineers because boundaries are explicit.
+
+### Transport choice
+
+- **REST first.** Easiest to debug, easiest to integrate with anything (curl, browsers, tools). Add gRPC only if you have a same-language consumer who needs the lower latency.
+- **GraphQL is right for read-heavy aggregations** across many modules — not as a general API.
+- **WebSocket / SSE need a fallback** for hostile networks (mobile, corporate proxies). Always offer a polling endpoint.
+
+### Identifier strategy
+
+- **Stick with `Sfid` unless you have a specific reason** to change. Time-ordered, compact, URL-safe — wins on every axis except interop with non-.NET systems.
+- **Don't expose Sfid in URLs as the only handle** to user-facing entities — Sfids encode creation time, which leaks information. Pair with a separate opaque public token for sensitive resources.
+- **Use `Long` ids only for legacy integration.** Auto-increment forces a single-writer DB topology forever.
+
+### Debugging
+
+- **`/engine/manifest` is the truth.** When something doesn't behave the way you expect, check the manifest first — module loaded? capability provided? right version?
+- **OTLP traces show the behavior pipeline.** Every decorator (audit, metrics, auth) emits a span. If a request "disappears" between auth and the handler, the trace tells you exactly where.
+- **`Logging:LogLevel:Cephalon.Engine=Debug`** prints every composition step. Use during a tricky module load issue.
+
+### Anti-patterns
+
+| Anti-pattern | What to do instead |
+| --- | --- |
+| Putting domain types in `Cephalon.Abstractions`-flavoured base classes | Keep abstractions clean; your types are yours. |
+| Capability "umbrella" services that route to many backends | One service per backend with explicit DI keys (`AddKeyedScoped`). |
+| Behaviours calling other behaviours directly | Behaviours call services; services call services. Behaviours are the surface, not the implementation. |
+| Catching every exception in handlers | Let the engine's failure policy + audit pipeline handle it. Catch only what you can recover from. |
+| `IServiceProvider` injection everywhere | Inject specific services. Service-locator pattern hides dependencies. |
+| Module class doing initialisation work | Initialization belongs in services or `OnStart`. The module class describes; it doesn't execute. |
+
+## Next steps
+
+- **[Architecture](/0-1-0-preview/guide/architecture/)** — the full layered view, the runtime contract, maturity ladder.
+- **[Tutorial → First-app](/0-1-0-preview/tutorials/first-app/)** — apply all of this to a real codebase.
+- **[Reference → Runtime contracts](/0-1-0-preview/reference/architecture/runtime-contracts/)** — the canonical contract reference.
+- **[Reference → Configuration](/0-1-0-preview/reference/configuration/)** — every `Engine:*` key documented.

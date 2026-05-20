@@ -1,0 +1,84 @@
+---
+title: Multi-tenancy
+description: Cephalon.MultiTenancy + governance (memberships, invitations, domain ownership) + 7 email-delivery adapters (SMTP, HTTP, Amazon SES, Mailgun, SendGrid, Microsoft Graph).
+sidebar:
+  order: 7
+editUrl: false
+---
+
+`Cephalon.MultiTenancy` provides tenancy primitives (resolution, context, sharding). `Cephalon.MultiTenancy.Governance` adds the lifecycle flows: memberships, invitations, domain-ownership, approvals — each needing an email-delivery channel for outbound notifications.
+
+## Packages
+
+Click any package name to jump to its **source-doc**.
+
+### Core
+
+| Package | NuGet ID | Maturity | Capability |
+| --- | --- | --- | --- |
+| **[MultiTenancy](/0-1-0-preview/source/components/multi-tenancy/)** *(base)* | `Cephalon.MultiTenancy` | `M3` | `Capability.Tenancy` |
+| **[Governance](/0-1-0-preview/source/components/multi-tenancy-governance/)** *(base)* | `Cephalon.MultiTenancy.Governance` | `M3` | `Capability.TenancyGovernance` |
+| **[Governance.AspNetCore](/0-1-0-preview/source/components/multi-tenancy-governance-aspnetcore/)** | `Cephalon.MultiTenancy.Governance.AspNetCore` | `M3` | — *(host adapter)* |
+
+### Email-delivery adapters
+
+| Package | NuGet ID | `…:Delivery` | Use when |
+| --- | --- | --- | --- |
+| **[SMTP](/0-1-0-preview/source/components/multi-tenancy-governance-smtpdelivery/)** | `Cephalon.MultiTenancy.Governance.SmtpDelivery` | `"Smtp"` | Generic SMTP — Postfix, Sendmail, on-prem mail server |
+| **[HTTP webhook](/0-1-0-preview/source/components/multi-tenancy-governance-httpdelivery/)** | `Cephalon.MultiTenancy.Governance.HttpDelivery` | `"Http"` | Posting to a webhook (Slack, Mattermost, generic listener) |
+| **[Amazon SES](/0-1-0-preview/source/components/multi-tenancy-governance-amazonsesdelivery/)** *(+ [`.AspNetCore`](/0-1-0-preview/source/components/multi-tenancy-governance-amazonsesdelivery-aspnetcore/))* | `Cephalon.MultiTenancy.Governance.AmazonSesDelivery` | `"AmazonSes"` | AWS-native deployments |
+| **[Mailgun](/0-1-0-preview/source/components/multi-tenancy-governance-mailgundelivery/)** *(+ [`.AspNetCore`](/0-1-0-preview/source/components/multi-tenancy-governance-mailgundelivery-aspnetcore/))* | `Cephalon.MultiTenancy.Governance.MailgunDelivery` | `"Mailgun"` | Mailgun-managed sending |
+| **[SendGrid](/0-1-0-preview/source/components/multi-tenancy-governance-sendgriddelivery/)** *(+ [`.AspNetCore`](/0-1-0-preview/source/components/multi-tenancy-governance-sendgriddelivery-aspnetcore/))* | `Cephalon.MultiTenancy.Governance.SendgridDelivery` | `"Sendgrid"` | SendGrid-managed sending |
+| **[Microsoft Graph](/0-1-0-preview/source/components/multi-tenancy-governance-microsoftgraphdelivery/)** *(+ [`.AzureIdentity`](/0-1-0-preview/source/components/multi-tenancy-governance-microsoftgraphdelivery-azureidentity/))* | `Cephalon.MultiTenancy.Governance.MicrosoftGraphDelivery` | `"MicrosoftGraph"` | Sending via M365 mailbox |
+
+## Install matrix
+
+| Scenario | Packages |
+| --- | --- |
+| Tenant-aware app, no governance flows | `Cephalon.MultiTenancy` |
+| + member/invitation flows | + `Cephalon.MultiTenancy.Governance` + `Cephalon.MultiTenancy.Governance.AspNetCore` |
+| + outbound email via SMTP | + `Cephalon.MultiTenancy.Governance.SmtpDelivery` |
+| + outbound email via Amazon SES (on AWS) | + `Cephalon.MultiTenancy.Governance.AmazonSesDelivery.AspNetCore` |
+| + outbound email via Microsoft Graph (Azure AD identity) | + `Cephalon.MultiTenancy.Governance.MicrosoftGraphDelivery.AzureIdentity` |
+
+## Configuration shape
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Tenancy": {
+      "Enabled": true,
+      "Resolvers": ["subdomain", "claim"],
+      "Sharding": {
+        "default": "ConnectionStrings:DefaultShard",
+        "acme":    "ConnectionStrings:AcmeShard"
+      },
+      "Governance": {
+        "Enabled": true,
+        "Delivery": "AmazonSes",
+        "AmazonSes": { "Region": "us-east-1", "FromAddress": "no-reply@acme.example" }
+      }
+    }
+  }
+}
+```
+
+Full schema + 4 scenarios (subdomain, header, claim, multi-resolver): **[Reference → Configuration → Tenancy](/0-1-0-preview/reference/configuration/tenancy/)**.
+
+## Governance flows
+
+`Cephalon.MultiTenancy.Governance` registers the following behaviors:
+
+| Endpoint | Behavior |
+| --- | --- |
+| `POST /governance/invitations` | Create + send invitation to email |
+| `POST /governance/invitations/{id}/accept` | Accept invitation, create membership |
+| `POST /governance/domain-ownership` | Request domain verification |
+| `GET /governance/memberships` | List memberships of current user |
+| `POST /governance/approvals/{id}` | Approve or reject pending action |
+
+## See also
+
+- **[Technology → Multi-tenancy](/0-1-0-preview/technology/multi-tenancy/)** — resolver pipeline + sharding patterns.
+- **[Reference → Configuration → Tenancy](/0-1-0-preview/reference/configuration/tenancy/)** — full schema.
+- **[Tutorial → Multi-tenant SaaS](/0-1-0-preview/tutorials/multi-tenant-saas/)** — end-to-end walkthrough.

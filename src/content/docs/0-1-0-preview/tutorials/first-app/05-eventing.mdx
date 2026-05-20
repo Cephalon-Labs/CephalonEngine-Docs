@@ -1,0 +1,246 @@
+---
+title: '5 · Eventing'
+description: 'Add the Orders module, integrate Wolverine, publish domain events through the outbox, and react with a process manager.'
+sidebar:
+  order: 5
+editUrl: false
+---
+
+Step 5 introduces eventing through `Cephalon.Eventing.Wolverine`, the current managed dispatch path. You'll add an **Orders** module that publishes a `ProductPurchased` event when an order is placed, then react to it from a process manager.
+
+## 5.1 Enable messaging
+
+Update `src/Acme.Store.Host/appsettings.json`:
+
+```json
+{
+  "Engine": {
+    "Messaging": { "Enabled": true, "Provider": "Wolverine" }
+  }
+}
+```
+
+Add the eventing packages to `Directory.Packages.props`:
+
+```xml
+<PackageVersion Include="Cephalon.Eventing" Version="0.1.0-preview" />
+<PackageVersion Include="Cephalon.Eventing.Wolverine" Version="0.1.0-preview" />
+```
+
+## 5.2 Create the Orders module
+
+```powershell
+dotnet new classlib -n Acme.Store.Modules.Orders -o ./src/Acme.Store.Modules.Orders
+dotnet sln Acme.Store.slnx add ./src/Acme.Store.Modules.Orders/Acme.Store.Modules.Orders.csproj
+dotnet add ./src/Acme.Store.Host/Acme.Store.Host.csproj reference ./src/Acme.Store.Modules.Orders/Acme.Store.Modules.Orders.csproj
+```
+
+`src/Acme.Store.Modules.Orders/Acme.Store.Modules.Orders.csproj`:
+
+```xml
+<ItemGroup>
+  <PackageReference Include="Cephalon.Abstractions" />
+  <PackageReference Include="Cephalon.AspNetCore" />
+  <PackageReference Include="Cephalon.Eventing" />
+  <PackageReference Include="Cephalon.Eventing.Wolverine" />
+  <PackageReference Include="Cephalon.Data.EntityFramework" />
+</ItemGroup>
+```
+
+## 5.3 Define the event
+
+`src/Acme.Store.Modules.Orders/Events/ProductPurchased.cs`:
+
+```csharp
+using Cephalon.Eventing;
+
+namespace Acme.Store.Modules.Orders.Events;
+
+[Event(name: "acme.store.product-purchased", version: "1.0")]
+public sealed record ProductPurchased(string OrderId, string ProductId, int Quantity, decimal Total);
+```
+
+The `[Event]` attribute is what the eventing layer keys on for typed dispatch and serialisation. The `name` field becomes the routing key.
+
+## 5.4 Define the order entity
+
+`src/Acme.Store.Modules.Orders/Domain/Order.cs`:
+
+```csharp
+using Cephalon.Ids.Sfid;
+
+namespace Acme.Store.Modules.Orders.Domain;
+
+public sealed class Order
+{
+    public Sfid Id { get; init; } = Sfid.NewSfid();
+    public required string ProductId { get; set; }
+    public required int Quantity { get; set; }
+    public required decimal Total { get; set; }
+    public DateTimeOffset PlacedAt { get; init; } = DateTimeOffset.UtcNow;
+    public OrderStatus Status { get; set; } = OrderStatus.Placed;
+}
+
+public enum OrderStatus { Placed, Confirmed, Cancelled }
+```
+
+## 5.5 The behavior that publishes the event
+
+`src/Acme.Store.Modules.Orders/Behaviors/PlaceOrderBehavior.cs`:
+
+```csharp
+using Acme.Store.Modules.Orders.Domain;
+using Acme.Store.Modules.Orders.Events;
+using Cephalon.AspNetCore.Behaviors;
+using Cephalon.Eventing;
+using Microsoft.AspNetCore.Http;
+
+namespace Acme.Store.Modules.Orders.Behaviors;
+
+public sealed record PlaceOrderPayload(string ProductId, int Quantity, decimal Total);
+
+public sealed class PlaceOrderBehavior : IRestBehavior
+{
+    public RestRoute Route => RestRoute.Post("/orders");
+
+    public async Task<IResult> Handle(
+        PlaceOrderPayload payload,
+        IOrderRepository repository,
+        IMessagePublisher publisher,
+        CancellationToken ct)
+    {
+        var order = new Order { ProductId = payload.ProductId, Quantity = payload.Quantity, Total = payload.Total };
+        await repository.AddAsync(order, ct);
+
+        await publisher.PublishAsync(
+            new ProductPurchased(order.Id.ToString(), order.ProductId, order.Quantity, order.Total),
+            ct);
+
+        return Results.Created($"/orders/{order.Id}", order);
+    }
+}
+```
+
+`IMessagePublisher` writes through the outbox automatically when the order is saved. The Wolverine adapter handles the dispatch — no manual transaction management needed.
+
+## 5.6 The process manager
+
+A process manager reacts to events and orchestrates next steps. Create `src/Acme.Store.Modules.Orders/ProcessManagers/ConfirmOrderProcessManager.cs`:
+
+```csharp
+using Acme.Store.Modules.Orders.Domain;
+using Acme.Store.Modules.Orders.Events;
+using Cephalon.Eventing;
+using Microsoft.Extensions.Logging;
+
+namespace Acme.Store.Modules.Orders.ProcessManagers;
+
+public sealed class ConfirmOrderProcessManager(
+    IOrderRepository orders,
+    ILogger<ConfirmOrderProcessManager> log) : IMessageHandler<ProductPurchased>
+{
+    public async Task HandleAsync(ProductPurchased message, MessageContext ctx, CancellationToken ct)
+    {
+        log.LogInformation(
+            "Confirming order {OrderId} for product {ProductId} (qty {Quantity})",
+            message.OrderId, message.ProductId, message.Quantity);
+
+        var order = await orders.FindAsync(message.OrderId, ct);
+        if (order is null) return;
+
+        order.Status = OrderStatus.Confirmed;
+        await orders.UpdateAsync(order, ct);
+    }
+}
+```
+
+## 5.7 Register the module
+
+`src/Acme.Store.Modules.Orders/OrdersModule.cs`:
+
+```csharp
+using Acme.Store.Modules.Orders.Behaviors;
+using Acme.Store.Modules.Orders.Data;
+using Acme.Store.Modules.Orders.Domain;
+using Acme.Store.Modules.Orders.ProcessManagers;
+using Cephalon.Abstractions.Modules;
+using Cephalon.AspNetCore.Behaviors;
+using Cephalon.Data.EntityFramework;
+using Cephalon.Eventing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Acme.Store.Modules.Orders;
+
+public sealed class OrdersModule : RestBehaviorModuleBase
+{
+    public override ModuleDescriptor Describe() => new(
+        name: "Acme.Store.Modules.Orders",
+        version: "1.0.0",
+        capabilities: [Capability.Data, Capability.Eventing, Capability.Audit]);
+
+    public override void RegisterServices(IServiceCollection services)
+    {
+        services.AddCephalonEntityFramework<OrdersDbContext>((sp, options) =>
+        {
+            var conn = sp.GetRequiredService<IConfiguration>().GetConnectionString("Orders")
+                       ?? throw new InvalidOperationException("Missing 'Orders' connection string.");
+            options.UseNpgsql(conn);
+        });
+
+        services.AddScoped<IOrderRepository, EfOrderRepository>();
+        services.AddMessageHandler<ProductPurchased, ConfirmOrderProcessManager>();
+    }
+
+    protected override void ConfigureRestBehaviors(IRestBehaviorBuilder builder)
+    {
+        builder.MapProfile<PlaceOrderBehavior>();
+        builder.MapProfile<ListOrdersBehavior>();
+    }
+}
+```
+
+## 5.8 Wolverine transport
+
+`appsettings.Development.json`:
+
+```json
+{
+  "Engine": {
+    "Messaging": {
+      "Wolverine": {
+        "Transport": "InMemory"
+      }
+    }
+  }
+}
+```
+
+For production, switch to RabbitMQ, Kafka, or Azure Service Bus by setting `Transport` and the matching connection string. See **[Technology → Eventing](/0-1-0-preview/technology/eventing/)**.
+
+## 5.9 Run and trace
+
+```powershell
+curl -X POST http://localhost:5000/orders -H "Content-Type: application/json" `
+     -d '{"productId":"p-001","quantity":2,"total":298}'
+```
+
+Watch the logs. You should see:
+
+```text
+info: ... Placed order o-...
+info: ... Confirming order o-... for product p-001 (qty 2)
+```
+
+Two log lines from two different scopes — the publisher and the process manager — connected by the same trace id because Wolverine propagates the activity context.
+
+## What you should have now
+
+- [x] An `Orders` module that publishes events through the outbox.
+- [x] A process manager that confirms the order asynchronously.
+- [x] Eventing capability flowing into the manifest.
+
+## What to do next
+
+**[Step 6 → Observability](/0-1-0-preview/tutorials/first-app/06-observability/)**.

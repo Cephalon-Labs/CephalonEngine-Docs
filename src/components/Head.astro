@@ -1,0 +1,67 @@
+---
+import Default from '@astrojs/starlight/components/Head.astro';
+import { ClientRouter } from 'astro:transitions';
+
+const { entry, lang } = Astro.locals.starlightRoute;
+const title = entry.data.title;
+const description = entry.data.description ?? Astro.locals.starlightRoute.siteTitle;
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site).toString();
+
+// Resolve the base URL prefix so /public/* assets work whether deployed
+// at the site root or under a sub-path like `/CephalonEngine`.
+const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
+---
+
+<Default><slot /></Default>
+
+{/*
+  Astro ClientRouter — SPA-like navigation. Every page is still a fully
+  pre-rendered static HTML file (no SEO impact — crawlers fetch complete
+  HTML per URL); ClientRouter only enhances *navigation*: a click fetches
+  the next page's HTML and cross-fades the swap instead of a white-flash
+  full reload. Fonts + cached assets persist across swaps, so FOUT happens
+  at most once (the first real page load).
+
+  Lifecycle events ClientRouter emits — consumed by /scripts/site-ui.js:
+    astro:before-preparation → navigation start  (progress bar)
+    astro:page-load          → page ready+visible (per-page re-init)
+*/}
+<ClientRouter />
+<link rel="canonical" href={canonicalUrl} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:locale" content={lang ?? 'en'} />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="robots" content="index,follow" />
+<meta name="format-detection" content="telephone=no" />
+
+{/*
+  Single shared UI-bootstrap script:
+    • TOC URL-fragment sync
+    • mobile header menu dropdown
+    • version switcher dropdown
+    • hero copy-to-clipboard
+    • code-showcase tab switcher
+
+  Lives in /public/scripts/ so Astro copies it verbatim (no bundling),
+  served with the same long-lived URL on every page → browser caches it
+  ONCE and reuses across all navigation.
+
+  • `preload` hint downloads the script in parallel with HTML parse so it's
+    already-on-disk by the time `<script defer>` schedules its run.
+  • `defer` ensures execution happens AFTER HTML parse — no parser stalls,
+    no layout shifts, no flicker.
+
+  All five behaviours bail-safely if their target elements aren't present
+  (e.g. copy script on a non-hero page is a no-op).
+*/}
+<link rel="preload" as="script" href={`${base}/scripts/site-ui.js`} />
+{/*
+  `is:inline` here doesn't make the JS inline — the script has a `src` so
+  the browser still fetches the external file. The directive just tells
+  Astro to ship the <script> tag verbatim instead of trying to process /
+  bundle its contents (which is irrelevant when there's no body). Silences
+  the astro(4000) hint cleanly.
+*/}
+<script is:inline src={`${base}/scripts/site-ui.js`} defer></script>

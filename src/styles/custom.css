@@ -1,0 +1,2197 @@
+/*
+ * CephalonEngine Docs — Component styles
+ *
+ * Built on top of design tokens. Components are namespaced with `ce-` so we
+ * never collide with Starlight internals or future Tailwind/utility layers.
+ */
+
+/* ---------- Typography ---------- */
+
+body {
+  font-family: var(--ce-font-sans);
+  /* IBM Plex Sans OpenType features: kern (kerning) + liga (standard
+     ligatures). The Inter-specific stylistic sets were removed since they
+     don't apply to Plex. */
+  font-feature-settings: 'kern', 'liga';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Thai text needs more vertical room than Latin for upper vowels and tone
+   marks. Apply a sensible default leading and disable letter-spacing on
+   Thai-locale pages so diacritics never clip and don't get mis-spaced. */
+:lang(th),
+[lang='th'] {
+  line-height: 1.65;
+  letter-spacing: 0;
+}
+
+:lang(th) h1, [lang='th'] h1,
+:lang(th) h2, [lang='th'] h2,
+:lang(th) h3, [lang='th'] h3,
+:lang(th) h4, [lang='th'] h4,
+:lang(th) h5, [lang='th'] h5,
+:lang(th) h6, [lang='th'] h6 {
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+h1, h2, h3, h4, h5, h6,
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+.sl-markdown-content h4 {
+  font-family: var(--ce-font-display);
+  letter-spacing: -0.012em;
+}
+
+.sl-markdown-content h2 {
+  margin-top: 3rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--sl-color-hairline);
+}
+
+.sl-markdown-content h2:first-child,
+.sl-markdown-content h2 + h3 {
+  border-top: 0;
+  margin-top: 1.5rem;
+  padding-top: 0;
+}
+
+.sl-markdown-content code:not(pre code) {
+  background: var(--ce-surface-2);
+  color: var(--sl-color-text);
+  padding: 0.12rem 0.4rem;
+  border-radius: var(--ce-radius-xs);
+  font-size: 0.85em;
+  border: 1px solid var(--sl-color-hairline);
+}
+
+/* ---------- Buttons ---------- */
+
+.ce-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.7rem 1.1rem;
+  border-radius: var(--ce-radius-pill);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: transform var(--ce-tween), box-shadow var(--ce-tween), background-color var(--ce-tween);
+  border: 1px solid transparent;
+  line-height: 1;
+}
+
+.ce-button--primary {
+  background: linear-gradient(135deg, var(--ce-brand-500), var(--ce-brand-700));
+  color: #ffffff !important;
+  box-shadow: var(--ce-shadow-elev);
+}
+
+.ce-button--primary:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--ce-shadow-hero);
+}
+
+.ce-button--ghost {
+  background: transparent;
+  color: var(--sl-color-text) !important;
+  border-color: var(--sl-color-hairline);
+}
+
+.ce-button--ghost:hover {
+  background: var(--ce-surface-2);
+  border-color: var(--ce-brand-400);
+}
+
+/* ---------- Hero ---------- */
+
+.ce-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 2.5rem;
+  padding: 3.5rem 2.5rem;
+  border-radius: var(--ce-radius-2xl);
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(52, 182, 220, 0.18), transparent 60%),
+    radial-gradient(80% 60% at 100% 100%, rgba(125, 221, 248, 0.12), transparent 55%),
+    linear-gradient(135deg, var(--ce-surface-1), var(--ce-surface-2));
+  border: 1px solid var(--sl-color-hairline);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+:root[data-theme='dark'] .ce-hero {
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(52, 182, 220, 0.18), transparent 60%),
+    radial-gradient(80% 60% at 100% 100%, rgba(15, 93, 115, 0.4), transparent 55%),
+    linear-gradient(135deg, #061821, #0d2a34);
+}
+
+.ce-hero__halo {
+  position: absolute;
+  inset: -25% -10% auto auto;
+  width: 60%;
+  height: 60%;
+  background: radial-gradient(closest-side, rgba(52, 182, 220, 0.35), transparent 70%);
+  filter: blur(40px);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ---------- Hero animated "goo" blob background ----------
+   Multiple soft circles drift around, merged together by the SVG goo
+   filter so the silhouettes blob in and out of each other. Inspired by the
+   CodePen "MQqMyo" gooey effect, restyled with the CephalonEngine palette. */
+.ce-hero__blobs {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: var(--ce-radius-2xl);
+  opacity: 0.22;
+  mix-blend-mode: multiply;
+}
+
+:root[data-theme='dark'] .ce-hero__blobs {
+  opacity: 0.3;
+  mix-blend-mode: screen;
+}
+
+.ce-hero__blobs svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.ce-hero__blob {
+  transform-origin: center center;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  animation-direction: alternate;
+}
+
+.ce-hero__blob--1 { fill: var(--ce-brand-400); animation: ce-hero-blob-1 18s infinite; }
+.ce-hero__blob--2 { fill: var(--ce-brand-500); animation: ce-hero-blob-2 22s infinite; }
+.ce-hero__blob--3 { fill: var(--ce-brand-300); animation: ce-hero-blob-3 26s infinite; }
+.ce-hero__blob--4 { fill: var(--ce-brand-200); animation: ce-hero-blob-4 20s infinite; }
+.ce-hero__blob--5 { fill: var(--ce-brand-600); animation: ce-hero-blob-5 24s infinite; }
+
+:root[data-theme='dark'] .ce-hero__blob--1 { fill: var(--ce-brand-300); }
+:root[data-theme='dark'] .ce-hero__blob--2 { fill: var(--ce-brand-400); }
+:root[data-theme='dark'] .ce-hero__blob--3 { fill: var(--ce-brand-200); }
+:root[data-theme='dark'] .ce-hero__blob--4 { fill: var(--ce-brand-300); }
+:root[data-theme='dark'] .ce-hero__blob--5 { fill: var(--ce-brand-500); }
+
+@keyframes ce-hero-blob-1 {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(80px, 60px) scale(1.1); }
+  66%  { transform: translate(-40px, 100px) scale(0.95); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes ce-hero-blob-2 {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(-70px, -80px) scale(0.92); }
+  66%  { transform: translate(60px, 40px) scale(1.08); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes ce-hero-blob-3 {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(110px, -60px) scale(1.06); }
+  66%  { transform: translate(-90px, -20px) scale(0.94); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes ce-hero-blob-4 {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(-120px, 90px) scale(1.12); }
+  66%  { transform: translate(70px, -110px) scale(0.9); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes ce-hero-blob-5 {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(140px, 30px) scale(1.05); }
+  66%  { transform: translate(-60px, -90px) scale(0.97); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+/* Respect users who opted out of motion. */
+@media (prefers-reduced-motion: reduce) {
+  .ce-hero__blob {
+    animation: none;
+  }
+}
+
+.ce-hero__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(15, 93, 115, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 93, 115, 0.07) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(circle at 30% 50%, black 0%, transparent 75%);
+  -webkit-mask-image: radial-gradient(circle at 30% 50%, black 0%, transparent 75%);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+}
+
+/* Dark mode — the deep teal lines disappear against the near-black bg.
+   Switch to a soft cyan tint with higher alpha so the grid still reads. */
+:root[data-theme='dark'] .ce-hero__grid {
+  background-image:
+    linear-gradient(rgba(180, 220, 235, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(180, 220, 235, 0.08) 1px, transparent 1px);
+  opacity: 0.75;
+}
+
+.ce-hero__inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.ce-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: flex-start;
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--ce-radius-pill);
+  background: rgba(15, 141, 176, 0.12);
+  color: var(--ce-brand-600);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid rgba(15, 141, 176, 0.18);
+  margin: 0;
+}
+
+:root[data-theme='dark'] .ce-hero__eyebrow {
+  background: rgba(125, 221, 248, 0.1);
+  color: var(--ce-brand-300);
+  border-color: rgba(125, 221, 248, 0.18);
+}
+
+.ce-hero__pulse {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--ce-brand-400);
+  box-shadow: 0 0 0 4px rgba(52, 182, 220, 0.2);
+  animation: ce-pulse 2.4s var(--ce-ease-in-out) infinite;
+}
+
+@keyframes ce-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(52, 182, 220, 0.2); }
+  50% { box-shadow: 0 0 0 10px rgba(52, 182, 220, 0); }
+}
+
+.ce-hero__title {
+  font-family: var(--ce-font-display);
+  font-size: clamp(2.1rem, 4.4vw, 3.4rem);
+  /* line-height needs to leave room for Thai upper vowels (◌ิ ◌ี ◌ึ ◌ื)
+     and tone marks (◌่ ◌้ ◌๊ ◌๋ ◌์) above the baseline, plus lower
+     vowels (◌ุ ◌ู) below. 1.05 clips them; 1.2 keeps Latin tight while
+     reserving enough vertical space for the Thai diacritics. */
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 0;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--ce-brand-700), var(--ce-brand-500) 55%, var(--ce-brand-400));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Thai needs slightly looser leading still — bump per-locale so Latin
+   doesn't lose its tight display feel. */
+.ce-hero__title:lang(th),
+[lang='th'] .ce-hero__title {
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+:root[data-theme='dark'] .ce-hero__title {
+  background: linear-gradient(135deg, #e6fbff, var(--ce-brand-300) 50%, var(--ce-brand-400));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.ce-hero__tagline {
+  font-size: clamp(1rem, 1.5vw, 1.18rem);
+  line-height: 1.55;
+  color: var(--sl-color-gray-3);
+  margin: 0;
+  max-width: 38rem;
+}
+
+.ce-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.ce-hero__install {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.9rem;
+  border-radius: var(--ce-radius-pill);
+  background: var(--ce-surface-0);
+  border: 1px solid var(--sl-color-hairline);
+  font-family: var(--ce-font-mono);
+  font-size: 0.85rem;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.ce-hero__install-label {
+  font-family: var(--ce-font-sans);
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--sl-color-gray-4);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ce-hero__install code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--sl-color-text);
+}
+
+.ce-hero__copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: var(--ce-radius-pill);
+  border: 0;
+  background: var(--ce-brand-100);
+  color: var(--ce-brand-700);
+  cursor: pointer;
+  transition:
+    background-color var(--ce-tween),
+    color var(--ce-tween),
+    transform 0.08s ease-out;
+}
+
+/* Light mode hover */
+.ce-hero__copy:hover {
+  background: var(--ce-brand-200);
+}
+
+/* Dark mode — base + hover (the light-mode --ce-brand-200 is too pale
+   against surface-3, so we use a brighter brand step) */
+:root[data-theme='dark'] .ce-hero__copy {
+  background: var(--ce-surface-3);
+  color: var(--ce-brand-300);
+}
+:root[data-theme='dark'] .ce-hero__copy:hover {
+  background: var(--ce-brand-700);
+  color: var(--ce-brand-100);
+}
+
+/* Pressed state — tactile feedback in both modes */
+.ce-hero__copy:active {
+  transform: scale(0.9);
+}
+:root[data-theme='dark'] .ce-hero__copy:active {
+  background: var(--ce-brand-600);
+}
+
+/* Post-copy "success" feedback — visible 1 s, then JS removes the class */
+.ce-hero__copy.is-copied,
+:root[data-theme='dark'] .ce-hero__copy.is-copied {
+  background: var(--ce-success);
+  color: #fff;
+}
+
+.ce-hero__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+  color: var(--sl-color-gray-4);
+  font-size: 0.85rem;
+}
+
+.ce-hero__meta strong {
+  color: var(--sl-color-text);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Hero preview */
+
+.ce-hero__preview {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* The hero preview-window is a hand-rolled "macOS editor" mockup. To track
+   the site theme we expose every paint value as a CSS variable, default
+   them to the GitHub-light palette, then flip the values on
+   `[data-theme='dark']`. The markup never needs to change. */
+.ce-hero__preview-window {
+  --ce-preview-bg: #ffffff;
+  --ce-preview-border: rgba(15, 93, 115, 0.18);
+  --ce-preview-chrome-bg: linear-gradient(180deg, #f6f8fa, #ebeef2);
+  --ce-preview-chrome-border: rgba(15, 93, 115, 0.12);
+  --ce-preview-filename: #57606a;
+  --ce-preview-text: #1f2328;
+  --ce-preview-comment: #6e7781;
+  --ce-preview-keyword: #cf222e;
+  --ce-preview-string: #0a3069;
+
+  width: 100%;
+  max-width: 32rem;
+  border-radius: var(--ce-radius-lg);
+  background: var(--ce-preview-bg);
+  box-shadow: var(--ce-shadow-hero);
+  border: 1px solid var(--ce-preview-border);
+  overflow: hidden;
+  transform: rotate(0.2deg);
+}
+
+:root[data-theme='dark'] .ce-hero__preview-window {
+  --ce-preview-bg: #050d12;
+  --ce-preview-border: rgba(125, 221, 248, 0.14);
+  --ce-preview-chrome-bg: linear-gradient(180deg, #0c1f29, #07151b);
+  --ce-preview-chrome-border: rgba(125, 221, 248, 0.12);
+  --ce-preview-filename: #8aa6b3;
+  --ce-preview-text: #d6ecf3;
+  --ce-preview-comment: #6e8c98;
+  --ce-preview-keyword: #7ddfff;
+  --ce-preview-string: #f8d6a3;
+}
+
+.ce-hero__preview-chrome {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--ce-preview-chrome-bg);
+  border-bottom: 1px solid var(--ce-preview-chrome-border);
+}
+
+.ce-hero__preview-chrome span {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: #233844;
+}
+
+/* Traffic-light dots are the same in both themes — they're meant to read
+   as the standard macOS window controls. */
+.ce-hero__preview-chrome span:nth-child(1) { background: #ff5f56; }
+.ce-hero__preview-chrome span:nth-child(2) { background: #ffbd2e; }
+.ce-hero__preview-chrome span:nth-child(3) { background: #27c93f; }
+
+.ce-hero__preview-chrome p {
+  margin: 0 0 0 auto;
+  font-family: var(--ce-font-mono);
+  font-size: 0.78rem;
+  color: var(--ce-preview-filename);
+}
+
+.ce-hero__preview-code {
+  /* Wrapper around Starlight's <Code> (Expressive Code). EC paints the C#
+     syntax with the configured github-light / github-dark theme; this
+     wrapper just owns the padding and lets the panel background show
+     through. The manual `tk-c / tk-k / tk-s` rules were removed because
+     proper Shiki tokens replace them. */
+  margin: 0;
+  background: transparent;
+  border: 0;
+  overflow: hidden;
+}
+
+/* Strip Expressive Code's window-chrome inside the hero preview — the
+   surrounding macOS-style chrome we built by hand already provides the
+   frame, traffic-light buttons, and filename label. */
+.ce-hero__preview-code .expressive-code,
+.ce-hero__preview-code .expressive-code .frame,
+.ce-hero__preview-code .expressive-code .frame.is-terminal,
+.ce-hero__preview-code .expressive-code .frame.has-title {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.ce-hero__preview-code .expressive-code .frame .header {
+  display: none;
+}
+
+.ce-hero__preview-code .expressive-code pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 1rem 1.25rem;
+  font-family: var(--ce-font-mono);
+  font-size: 0.72rem;
+  line-height: 1.6;
+  /* No horizontal scroll in the hero — long lines wrap (see `wrap={true}`
+     on the <Code> component) and anything that still tries to escape is
+     clipped, never scrolled. */
+  overflow: hidden;
+}
+
+.ce-hero__preview-code .expressive-code pre > code {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Expressive Code sets its own font-size via the `--ec-codeFontSize` CSS
+   variable (originally 0.9rem from ec.config.mjs); override it specifically
+   inside the hero preview so the code reads as a compact snippet rather
+   than full-size docs content. */
+.ce-hero__preview-code .expressive-code,
+.ce-hero__preview-code .expressive-code code {
+  --ec-codeFontSize: 0.72rem;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 960px) {
+  .ce-hero {
+    grid-template-columns: 1fr;
+    padding: 2.5rem 1.5rem;
+  }
+  .ce-hero__preview {
+    justify-content: stretch;
+  }
+}
+
+/* ---------- Feature grid ---------- */
+
+.ce-features {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  margin: 2.5rem 0;
+}
+
+.ce-features[data-columns="2"] { grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); }
+.ce-features[data-columns="4"] { grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+
+.ce-feature {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  border-radius: var(--ce-radius-lg);
+  border: 1px solid var(--sl-color-hairline);
+  background: var(--ce-surface-1);
+  color: var(--sl-color-text) !important;
+  text-decoration: none;
+  transition: transform var(--ce-tween), box-shadow var(--ce-tween), border-color var(--ce-tween);
+  overflow: hidden;
+}
+
+.ce-feature--linked:hover {
+  transform: translateY(-3px);
+  border-color: var(--ce-brand-400);
+  box-shadow: var(--ce-shadow-elev);
+}
+
+.ce-feature__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: var(--ce-radius-md);
+  background: linear-gradient(135deg, var(--ce-brand-100), var(--ce-brand-200));
+  margin-bottom: 0.9rem;
+}
+
+:root[data-theme='dark'] .ce-feature__icon {
+  background: linear-gradient(135deg, rgba(52, 182, 220, 0.16), rgba(15, 93, 115, 0.4));
+}
+
+.ce-feature__title {
+  font-family: var(--ce-font-display);
+  font-size: 1.1rem;
+  margin: 0 0 0.35rem;
+  font-weight: 700;
+}
+
+.ce-feature__description {
+  margin: 0;
+  color: var(--sl-color-gray-3);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.ce-feature__chevron {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  color: var(--sl-color-gray-4);
+  transition: color var(--ce-tween), transform var(--ce-tween);
+}
+
+.ce-feature--linked:hover .ce-feature__chevron {
+  color: var(--ce-brand-500);
+  transform: translateX(3px);
+}
+
+/* ---------- Path cards ---------- */
+
+.ce-paths {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  margin: 2.5rem 0;
+}
+
+.ce-path {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 1.6rem;
+  border-radius: var(--ce-radius-lg);
+  text-decoration: none;
+  color: var(--sl-color-text) !important;
+  background: linear-gradient(180deg, var(--ce-surface-1), var(--ce-surface-2));
+  border: 1px solid var(--sl-color-hairline);
+  transition: transform var(--ce-tween), box-shadow var(--ce-tween), border-color var(--ce-tween);
+}
+
+.ce-path:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--ce-shadow-elev);
+  border-color: var(--ce-brand-400);
+}
+
+.ce-path__badge {
+  align-self: flex-start;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ce-brand-600);
+  padding: 0.18rem 0.6rem;
+  border-radius: var(--ce-radius-pill);
+  background: rgba(15, 141, 176, 0.1);
+}
+
+:root[data-theme='dark'] .ce-path__badge {
+  color: var(--ce-brand-300);
+  background: rgba(52, 182, 220, 0.14);
+}
+
+.ce-path__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-family: var(--ce-font-display);
+  font-weight: 700;
+}
+
+.ce-path__description {
+  margin: 0;
+  color: var(--sl-color-gray-3);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.ce-path__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  color: var(--ce-brand-600);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+:root[data-theme='dark'] .ce-path__cta {
+  color: var(--ce-brand-300);
+}
+
+.ce-path:hover .ce-path__cta {
+  text-decoration: underline;
+}
+
+/* ---------- Stat strip ---------- */
+
+.ce-stats {
+  display: grid;
+  /* Each cell is the same width via 1fr so labels of varied lengths
+     line up consistently across columns. */
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1.25rem;
+  margin: 2.5rem 0;
+  padding: 1.75rem 1.5rem;
+  background: var(--ce-surface-1);
+  border-radius: var(--ce-radius-lg);
+  border: 1px solid var(--sl-color-hairline);
+  /* Align all cells to the top of the row, so values share a baseline
+     even when labels wrap to a second line. */
+  align-items: start;
+}
+
+/* Each stat is a 2-row grid (value row + label row). Both rows are
+   LEFT-aligned within the cell so the value and its label share the
+   same left edge — looks structured and "aligned" across all four
+   columns (each column is 1fr in the parent grid, so the four left
+   edges form a clean vertical rhythm at the same x intervals).
+
+   Centering looked balanced for a single stat but ragged across the
+   row because value+label widths differ — when both are centred to
+   the cell's middle, their left edges diverge. */
+.ce-stat {
+  display: grid;
+  grid-template-rows: auto auto;
+  row-gap: 0.4rem;
+  text-align: start;
+  justify-items: start;
+  margin-top: 0;
+}
+
+.ce-stat__value {
+  font-family: var(--ce-font-display);
+  font-size: 2rem;
+  font-weight: 800;
+  /* Fixed line-height locks the value-row height. Without this, mixed
+     content (digits, punctuation, hyphens) can shift baselines by 1-2px
+     between cells. */
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--ce-brand-600), var(--ce-brand-400));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* Tabular figures so digit widths are consistent — ".NET 10" and "40+"
+     share the same digit metrics. */
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-theme='dark'] .ce-stat__value {
+  background: linear-gradient(135deg, var(--ce-brand-200), var(--ce-brand-400));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.ce-stat__label {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--sl-color-gray-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ---------- Showcase tabs ---------- */
+
+.ce-showcase {
+  margin: 3rem 0;
+}
+
+.ce-showcase__header {
+  margin-bottom: 1.25rem;
+}
+
+.ce-showcase__header h2 {
+  margin: 0 0 0.4rem;
+  font-family: var(--ce-font-display);
+  font-size: clamp(1.6rem, 2.4vw, 2.1rem);
+  letter-spacing: -0.02em;
+}
+
+.ce-showcase__header p {
+  margin: 0;
+  color: var(--sl-color-gray-3);
+  max-width: 48rem;
+}
+
+.ce-showcase__panel {
+  border-radius: var(--ce-radius-lg);
+  border: 1px solid var(--sl-color-hairline);
+  /* Theme-aware panel surface so it matches whichever Expressive Code theme
+     is active (github-light in light mode, github-dark in dark mode).
+     The default is light; dark mode overrides below. */
+  background: #f6f8fa;
+  overflow: hidden;
+  box-shadow: var(--ce-shadow-elev);
+}
+
+:root[data-theme='dark'] .ce-showcase__panel {
+  background: #050d12;
+}
+
+.ce-showcase__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  /* No gradient and no border between tabs and code — keep the panel surface
+     continuous. The inactive-tab overlay (below) is what visually separates
+     them from the active tab. */
+  background: transparent;
+}
+
+.ce-showcase__tab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.15rem;
+  align-items: flex-start;
+  /* Reset user-agent <button> styling (Chrome and Firefox give buttons
+     different default padding / font / line-height which leaks into a
+     "first button looks different" effect). */
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  margin: 0;
+  /* Fixed height (not min-height) — every tab is exactly the same size,
+     no matter what its content is or where it sits in the strip.
+     Padding-block is removed and the content is centred via flex instead,
+     so the height value alone determines the tab box dimensions. */
+  height: 3.75rem;
+  padding: 0 1.1rem;
+  /* Inactive tabs get a soft top-down overlay so they look slightly raised
+     above the code surface. Light-mode default + dark-mode override below
+     so the overlay tracks the panel surface. */
+  background: linear-gradient(180deg, rgba(15, 93, 115, 0.08), rgba(15, 93, 115, 0.02));
+  border: 0;
+  border-right: 1px solid rgba(15, 93, 115, 0.1);
+  color: var(--sl-color-gray-3);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--ce-tween), color var(--ce-tween);
+  box-sizing: border-box;
+  /* Stop flex from stretching us — we already set a fixed height. */
+  flex: 0 0 auto;
+  align-self: stretch;
+}
+
+.ce-showcase__tab:hover {
+  background: linear-gradient(180deg, rgba(15, 93, 115, 0.14), rgba(15, 93, 115, 0.05));
+  color: var(--sl-color-text);
+}
+
+/* Active tab matches the code body's panel surface — no overlay and no
+   border-bottom, so the tab and the code area read as one continuous shape.
+   The 2px brand stripe at the top marks the active tab. */
+.ce-showcase__tab.is-active {
+  background: transparent;
+  color: var(--sl-color-text);
+}
+
+.ce-showcase__tab.is-active::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: var(--ce-brand-500);
+}
+
+/* Fill the empty space to the right of the last tab so the inactive-tab
+   overlay extends all the way across — otherwise the bare panel surface
+   peeks through and looks like a hole. */
+.ce-showcase__tabs::after {
+  content: '';
+  flex: 1 1 auto;
+  background: linear-gradient(180deg, rgba(15, 93, 115, 0.08), rgba(15, 93, 115, 0.02));
+  min-width: 0;
+}
+
+/* Dark-mode overrides: the cyan glow overlay reads better on the dark
+   panel surface than the deep-teal one used in light mode. */
+:root[data-theme='dark'] .ce-showcase__tab {
+  background: linear-gradient(180deg, rgba(125, 221, 248, 0.08), rgba(125, 221, 248, 0.02));
+  border-right-color: rgba(125, 221, 248, 0.08);
+  color: #93b1be;
+}
+
+:root[data-theme='dark'] .ce-showcase__tab:hover {
+  background: linear-gradient(180deg, rgba(125, 221, 248, 0.14), rgba(125, 221, 248, 0.05));
+  color: #c4dde6;
+}
+
+:root[data-theme='dark'] .ce-showcase__tab.is-active {
+  color: #e6fbff;
+}
+
+:root[data-theme='dark'] .ce-showcase__tab.is-active::before {
+  background: var(--ce-brand-400);
+}
+
+:root[data-theme='dark'] .ce-showcase__tabs::after {
+  background: linear-gradient(180deg, rgba(125, 221, 248, 0.08), rgba(125, 221, 248, 0.02));
+}
+
+.ce-showcase__tab-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  /* Pin leading so Thai labels don't grow taller than Latin under the
+     global `:lang(th)` line-height: 1.65 rule. */
+  line-height: 1.3;
+}
+
+.ce-showcase__tab-file {
+  font-family: var(--ce-font-mono);
+  font-size: 0.7rem;
+  opacity: 0.65;
+  /* Mono filenames stay LTR-ish even on Thai pages; keep their leading
+     compact for visual rhythm. */
+  line-height: 1.3;
+}
+
+.ce-showcase__bodies {
+  position: relative;
+  padding-bottom: 0;
+  margin-top: 0 !important;
+}
+
+/* The body now wraps Starlight's <Code> (Expressive Code) — no hand-painted
+   colours or fonts. Just toggle display per tab and let EC paint the syntax. */
+.ce-showcase__code {
+  display: none;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  border-top: 1px solid rgba(125, 221, 248, 0.2);
+}
+
+.ce-showcase__code.is-active {
+  display: block;
+}
+
+/* Strip Expressive Code's own frame chrome so the highlighted block sits
+   flush inside our tab panel — no nested rounded box, no shadow, no
+   inset border. The Shiki theme colours stay intact. */
+.ce-showcase__code .expressive-code {
+  margin: 0;
+}
+
+.ce-showcase__code .expressive-code .frame,
+.ce-showcase__code .expressive-code .frame.is-terminal,
+.ce-showcase__code .expressive-code .frame.has-title {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.ce-showcase__code .expressive-code .frame .header {
+  display: none;
+}
+
+.ce-showcase__code .expressive-code pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 1.25rem 1.5rem;
+  background: transparent;
+}
+
+/* ---------- Version chip / cards (legacy synced pages still use this) ---------- */
+
+.sl-markdown-content .version-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: var(--ce-radius-pill);
+  background: rgba(15, 141, 176, 0.12);
+  color: var(--sl-color-text-accent);
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.2rem 0.65rem;
+}
+
+.sl-markdown-content .version-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  margin: 2rem 0;
+}
+
+.sl-markdown-content .version-card {
+  background: linear-gradient(180deg, rgba(15, 141, 176, 0.08), rgba(15, 93, 115, 0.02));
+  border: 1px solid rgba(15, 141, 176, 0.16);
+  border-radius: var(--ce-radius-lg);
+  padding: 1rem 1.1rem;
+}
+
+.sl-markdown-content .version-card h3 {
+  margin-top: 0;
+  margin-bottom: 0.4rem;
+}
+
+.sl-markdown-content .version-card p {
+  margin-bottom: 0;
+}
+
+/* ---------- Header navigation ---------- */
+
+.ce-site-title {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* Default SiteTitle wraps the logo in an <a>. Constrain it so the logo
+   keeps its size and the nav can take the rest of the row. */
+.ce-site-title > a {
+  flex: 0 0 auto;
+}
+
+.ce-site-title > a img {
+  height: 2rem;
+  width: auto;
+}
+
+.ce-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.ce-header-nav__link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--ce-radius-pill);
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--sl-color-gray-2);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--ce-tween),
+    background-color var(--ce-tween);
+}
+
+.ce-header-nav__link:hover {
+  color: var(--sl-color-text);
+  background: var(--ce-surface-2);
+}
+
+.ce-header-nav__link.is-active {
+  color: var(--ce-brand-600);
+  background: rgba(15, 141, 176, 0.1);
+}
+
+:root[data-theme='dark'] .ce-header-nav__link.is-active {
+  color: var(--ce-brand-300);
+  background: rgba(125, 221, 248, 0.12);
+}
+
+/* ---------- Mobile header menu (dropdown) ---------- */
+
+/* The dropdown lives in the space between the logo and the search/hamburger
+   on narrow screens. On wide screens the horizontal nav above shows instead. */
+.ce-header-menu {
+  display: none;
+  position: relative;
+  font-family: var(--ce-font-sans);
+}
+
+.ce-header-menu__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.7rem 0.4rem 0.85rem;
+  border-radius: var(--ce-radius-pill);
+  border: 1px solid var(--sl-color-hairline);
+  background: var(--ce-surface-1);
+  color: var(--sl-color-text);
+  font-size: 0.88rem;
+  font-weight: 500;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition:
+    border-color var(--ce-tween),
+    background-color var(--ce-tween);
+}
+
+.ce-header-menu__trigger::-webkit-details-marker { display: none; }
+.ce-header-menu__trigger::marker { content: ''; }
+
+.ce-header-menu__trigger:hover {
+  border-color: var(--ce-brand-400);
+  background: var(--ce-surface-2);
+}
+
+.ce-header-menu[open] .ce-header-menu__trigger {
+  border-color: var(--ce-brand-500);
+  background: var(--ce-surface-2);
+}
+
+.ce-header-menu__chevron {
+  color: var(--sl-color-gray-4);
+  transition: transform var(--ce-tween);
+}
+
+.ce-header-menu[open] .ce-header-menu__chevron {
+  transform: rotate(180deg);
+}
+
+/* `position: fixed` so the panel escapes Starlight's `.title-wrapper`
+   `overflow: clip` rule. Top/left are written by JS on each open/resize. */
+.ce-header-menu__panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  margin: 0;
+  padding: 0.35rem;
+  list-style: none;
+  min-width: 14rem;
+  border-radius: var(--ce-radius-md);
+  background: var(--ce-surface-0);
+  border: 1px solid var(--sl-color-hairline);
+  box-shadow: var(--ce-shadow-elev);
+  z-index: 50;
+  animation: ce-version-fade-in var(--ce-tween);
+}
+
+.ce-header-menu__option {
+  display: block;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--ce-radius-sm);
+  font-size: 0.92rem;
+  color: var(--sl-color-text);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--ce-tween);
+}
+
+.ce-header-menu__option:hover {
+  background: var(--ce-surface-2);
+}
+
+.ce-header-menu__option.is-active {
+  background: rgba(15, 141, 176, 0.08);
+  color: var(--ce-brand-600);
+  font-weight: 600;
+}
+
+:root[data-theme='dark'] .ce-header-menu__option.is-active {
+  background: rgba(125, 221, 248, 0.1);
+  color: var(--ce-brand-300);
+}
+
+/* Breakpoint switch — three modes:
+   • ≥ 72rem (wide desktop)      : inline nav links visible, menu hidden
+   • 50-72rem (tablet/narrow)    : menu flows after logo (before Search)
+   • ≤ 50rem (true mobile)       : menu absolutely centred in the header
+
+   The 72rem threshold matches Starlight's nav layout break. The 50rem
+   threshold is the point where Starlight collapses Search to a popover
+   icon and the header gets crowded — at that width we re-centre the
+   menu between the logo and the icon row so it doesn't squeeze them. */
+
+@media (max-width: 72rem) {
+  .ce-header-nav { display: none; }
+  .ce-header-menu { display: inline-block; }
+
+  /* The title-wrapper normally has `overflow: clip` for long page titles.
+     Open it so the dropdown panel below the trigger isn't clipped at the
+     header bottom edge. */
+  .title-wrapper { overflow: visible; }
+}
+
+/* True mobile — re-centre the Menu so it sits between the logo and the
+   right-side icons (Search + hamburger). We use `position: absolute;
+   inset: 0; margin: auto` instead of `transform: translate(-50%, -50%)`
+   because a transformed element becomes a containing block for fixed-
+   position descendants, which would re-anchor the dropdown panel and
+   break its viewport-clamping JS positioning. */
+@media (max-width: 50rem) {
+  .title-wrapper { overflow: visible; }
+
+  .ce-header-menu {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: fit-content;
+    height: fit-content;
+    z-index: 5;
+  }
+}
+
+/* ---------- Version switcher ---------- */
+
+.ce-version-switcher {
+  position: relative;
+  font-family: var(--ce-font-sans);
+}
+
+.ce-version-switcher__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem 0.4rem 0.85rem;
+  border-radius: var(--ce-radius-pill);
+  border: 1px solid var(--sl-color-hairline);
+  background: var(--ce-surface-1);
+  color: var(--sl-color-text);
+  font-size: 0.82rem;
+  font-weight: 500;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition:
+    border-color var(--ce-tween),
+    background-color var(--ce-tween);
+}
+
+.ce-version-switcher__trigger::-webkit-details-marker { display: none; }
+.ce-version-switcher__trigger::marker { content: ''; }
+
+.ce-version-switcher__trigger:hover {
+  border-color: var(--ce-brand-400);
+  background: var(--ce-surface-2);
+}
+
+.ce-version-switcher[open] .ce-version-switcher__trigger {
+  border-color: var(--ce-brand-500);
+  background: var(--ce-surface-2);
+}
+
+.ce-version-switcher__heading {
+  color: var(--sl-color-gray-4);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ce-version-switcher__value {
+  color: var(--ce-brand-600);
+  font-weight: 600;
+  font-family: var(--ce-font-mono);
+  font-size: 0.82rem;
+}
+
+:root[data-theme='dark'] .ce-version-switcher__value {
+  color: var(--ce-brand-300);
+}
+
+.ce-version-switcher__chevron {
+  color: var(--sl-color-gray-4);
+  transition: transform var(--ce-tween);
+}
+
+.ce-version-switcher[open] .ce-version-switcher__chevron {
+  transform: rotate(180deg);
+}
+
+.ce-version-switcher__panel {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  margin: 0;
+  padding: 0.35rem;
+  list-style: none;
+  min-width: 14rem;
+  border-radius: var(--ce-radius-md);
+  background: var(--ce-surface-0);
+  border: 1px solid var(--sl-color-hairline);
+  box-shadow: var(--ce-shadow-elev);
+  z-index: 50;
+  animation: ce-version-fade-in var(--ce-tween);
+}
+
+@keyframes ce-version-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.ce-version-switcher__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--ce-radius-sm);
+  text-decoration: none;
+  color: var(--sl-color-text);
+  font-size: 0.88rem;
+  transition: background-color var(--ce-tween);
+}
+
+.ce-version-switcher__option:hover {
+  background: var(--ce-surface-2);
+}
+
+.ce-version-switcher__option.is-active {
+  background: rgba(15, 141, 176, 0.08);
+}
+
+.ce-version-switcher__option.is-active .ce-version-switcher__option-label {
+  color: var(--ce-brand-600);
+  font-weight: 600;
+}
+
+:root[data-theme='dark'] .ce-version-switcher__option.is-active {
+  background: rgba(125, 221, 248, 0.1);
+}
+
+:root[data-theme='dark'] .ce-version-switcher__option.is-active .ce-version-switcher__option-label {
+  color: var(--ce-brand-300);
+}
+
+.ce-version-switcher__option-label {
+  font-family: var(--ce-font-mono);
+}
+
+.ce-version-switcher__badge {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ce-brand-600);
+  background: rgba(15, 141, 176, 0.12);
+  padding: 0.12rem 0.5rem;
+  border-radius: var(--ce-radius-pill);
+}
+
+:root[data-theme='dark'] .ce-version-switcher__badge {
+  color: var(--ce-brand-300);
+  background: rgba(125, 221, 248, 0.14);
+}
+
+@media (max-width: 50rem) {
+  .ce-version-switcher__heading { display: none; }
+}
+
+/* Mobile menu drawer (< 50rem). Starlight's `.mobile-preferences` row puts
+   the social-icons group, theme-select, and language-select side-by-side.
+   Our wider version-switcher pill makes that row wrap awkwardly, so split
+   the layout into two predictable rows:
+     row 1 — full-width `.social-icons` (version + GitHub)
+     row 2 — theme + language selects, side-by-side */
+@media (max-width: 50rem) {
+  .mobile-preferences {
+    align-items: stretch;
+    row-gap: 0.5rem;
+    padding-block: 0.75rem;
+  }
+
+  .mobile-preferences > .social-icons {
+    flex-basis: 100%;
+    margin-inline-end: 0;
+    padding-block: 0.25rem;
+    gap: 0.75rem;
+    align-items: center;
+    border-bottom: 1px solid var(--sl-color-hairline);
+    padding-bottom: 0.85rem;
+    margin-bottom: 0.4rem;
+  }
+
+  /* Make the version switcher take the bulk of the row so it visually
+     reads as the primary action; GitHub sits to its right at icon size. */
+  .mobile-preferences .ce-version-switcher {
+    flex: 1 1 auto;
+  }
+  .mobile-preferences .ce-version-switcher__trigger {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  /* Anchor the dropdown panel inside the drawer so it doesn't fall off
+     screen when opened on a narrow viewport. */
+  .mobile-preferences .ce-version-switcher__panel {
+    min-width: min(18rem, calc(100vw - 3rem));
+  }
+
+  /* Show the "Version" eyebrow inside the drawer (we hid it on tight
+     headers, but the drawer has room and the label adds context). */
+  .mobile-preferences .ce-version-switcher__heading {
+    display: inline;
+  }
+
+  /* Starlight's ThemeSelect ships at width="6.25em" and LanguageSelect at
+     width="7em" — too narrow for languages with longer labels (e.g. Thai
+     "อัตโนมัติ" / "ภาษาไทย"). Override the inline `--sl-select-width` with
+     a generous fixed em value so the select calc produces a wide-enough
+     element. `!important` is required because Starlight sets the variable
+     via inline style on the <label>, which would otherwise win. */
+  .mobile-preferences starlight-theme-select > label {
+    --sl-select-width: 10em !important;
+  }
+
+  .mobile-preferences starlight-lang-select > label {
+    --sl-select-width: 10em !important;
+  }
+
+  /* Let each select wrap to its own line if the drawer is too narrow for
+     both side-by-side. */
+  .mobile-preferences starlight-theme-select,
+  .mobile-preferences starlight-lang-select {
+    flex: 0 1 auto;
+  }
+}
+
+/* ---------- Logo (header) ---------- */
+
+.ce-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.ce-logo__mark {
+  width: 1.85rem;
+  height: 1.85rem;
+}
+
+.ce-logo__text {
+  font-family: var(--ce-font-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* ---------- Splash layout container ---------- */
+
+.sl-markdown-content :where(.ce-hero, .ce-features, .ce-paths, .ce-stats, .ce-showcase) {
+  max-width: none;
+}
+
+/* ---------- Section headings on splash pages ---------- */
+
+.ce-section-title,
+.sl-markdown-content h2.ce-section-title {
+  font-family: var(--ce-font-display);
+  font-size: clamp(1.6rem, 2.4vw, 2.1rem);
+  margin: 0 0 0.4rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--sl-color-hairline);
+  letter-spacing: -0.02em;
+}
+
+.ce-section-kicker {
+  /* Tab-shaped chip that sits flush with the h2 below: border on top + sides,
+     no bottom border, and 0 margin-bottom so it touches the h2's border-top
+     hairline. Transparent background — uses the warm accent color so the
+     kicker visually stands apart from the brand-teal links/badges around it. */
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ce-accent-500);
+  margin-bottom: 0;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--sl-color-hairline);
+  border-bottom: 0;
+  border-top-left-radius: var(--ce-radius-sm);
+  border-top-right-radius: var(--ce-radius-sm);
+  background: transparent;
+}
+
+:root[data-theme='dark'] .ce-section-kicker {
+  color: var(--ce-accent-300);
+}
+
+.ce-lead {
+  font-size: 1.05rem;
+  color: var(--sl-color-gray-3);
+  max-width: 52rem;
+  line-height: 1.6;
+}
+
+/* ---------- Expressive Code polish ---------- */
+
+.expressive-code {
+  margin: 1.5rem 0;
+}
+
+.expressive-code .frame {
+  border-radius: var(--ce-radius-lg);
+  box-shadow: var(--ce-shadow-soft);
+  border: 1px solid var(--sl-color-hairline);
+}
+
+/* All frame headers get a 1px hairline at the bottom so the divider
+   spans the FULL header width — including the area beyond the tab.
+   For editor frames, the active tab's `::after` paints a brand-cyan
+   stripe AT THE SAME Y POSITION (because we zeroed margin-block-start
+   below), so visually you see one continuous 1px line:
+       [ cyan under the tab ] [ hairline beyond the tab ] */
+.expressive-code .frame .header {
+  border-bottom: 1px solid var(--sl-color-hairline);
+}
+
+/* Active editor tab indicator uses brand accent (overrides EC default) */
+.expressive-code .frame.is-editor .header .title.is-active::after {
+  background: linear-gradient(90deg, var(--ce-brand-400), var(--ce-brand-500));
+}
+
+/* Pull the title flush against the code area so the cyan stripe aligns
+   exactly with the header's hairline — one continuous 1px edge. */
+.expressive-code .frame.is-editor.has-title .title {
+  margin-block-start: 0;
+}
+
+/* Copy button matches the rest of the design system */
+.expressive-code .copy {
+  border-radius: var(--ce-radius-pill);
+}
+
+.expressive-code .copy button {
+  border-radius: var(--ce-radius-pill);
+  background: var(--ce-surface-2);
+  border: 1px solid var(--sl-color-hairline);
+  transition: background-color var(--ce-tween), border-color var(--ce-tween);
+}
+
+.expressive-code .copy button:hover {
+  background: var(--ce-brand-100);
+  border-color: var(--ce-brand-400);
+}
+
+:root[data-theme='dark'] .expressive-code .copy button:hover {
+  background: var(--ce-surface-3);
+}
+
+/* Line numbers gutter — softer */
+.expressive-code .gutter .ln {
+  color: var(--sl-color-gray-5);
+}
+
+/* Collapsible section affordance */
+.expressive-code .collapsible-section summary {
+  color: var(--ce-brand-600);
+  font-family: var(--ce-font-sans);
+  font-weight: 600;
+}
+
+:root[data-theme='dark'] .expressive-code .collapsible-section summary {
+  color: var(--ce-brand-300);
+}
+
+/* ---------- Callouts (key/info/warn) ---------- */
+
+.ce-callout {
+  display: flex;
+  gap: 0.85rem;
+  padding: 1rem 1.15rem;
+  border-radius: var(--ce-radius-md);
+  margin: 1.5rem 0;
+  border: 1px solid var(--sl-color-hairline);
+  background: var(--ce-surface-1);
+}
+
+.ce-callout__icon {
+  flex: 0 0 auto;
+  font-size: 1.25rem;
+}
+
+.ce-callout--key { border-left: 4px solid var(--ce-brand-500); }
+.ce-callout--warn { border-left: 4px solid var(--ce-warning); }
+.ce-callout--danger { border-left: 4px solid var(--ce-danger); }
+.ce-callout--success { border-left: 4px solid var(--ce-success); }
+
+/* ---------- Splash template ---------- */
+
+/* Hide Starlight's auto-rendered page-title <h1 id="_top"> on splash pages.
+   The hero component already carries the visible title, so the page-title
+   duplicates "CephalonEngine" at the top. We keep it in the DOM (still
+   useful for screen readers as the page heading) but visually hide it. */
+:root:not([data-has-sidebar]) h1#_top {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The content-panel that wrapped the now-hidden h1 still reserves vertical
+   padding for it — collapse that wrapper so the hero sits right below the
+   banner without a stray empty band. */
+:root:not([data-has-sidebar]) .content-panel:has(> .sl-container > h1#_top) {
+  padding-block: 0;
+  border: 0;
+}
+
+/* ---------- Site footer ---------- */
+
+.ce-footer {
+  /* No top margin — the FooterAds band sits directly above this and provides
+     visual separation via its own top border. */
+  margin-top: 0;
+  padding: 2rem 0 2rem;
+  border-top: 0;
+  background:
+    radial-gradient(80% 60% at 100% 0%, rgba(52, 182, 220, 0.06), transparent 60%),
+    linear-gradient(180deg, var(--ce-surface-1), var(--ce-surface-0));
+  color: var(--sl-color-text);
+  font-family: var(--ce-font-sans);
+  /* Establish a container so the inner grid can adapt to the footer's actual
+     rendered width — important on doc pages where the sidebar narrows the
+     content panel but the viewport is still wide. */
+  container-type: inline-size;
+  container-name: ce-footer;
+}
+
+/* Give the ads band breathing room above (where the footer's old margin
+   was) so it doesn't crowd the page content. */
+.ce-footer-ads {
+  margin-top: 4rem;
+}
+
+/* ---------- Site ads (sit ABOVE .ce-footer as a standalone band) ----------
+   3 columns flush against each other (no gap). Each slot has a 1px
+   hairline that touches the next slot's hairline → looks like one
+   continuous strip divided by single lines, not separate cards.
+
+   Container queries don't work here because FooterAds is OUTSIDE the
+   `.ce-footer` container — we use @media on the viewport instead. */
+.ce-footer-ads {
+  border-top: 1px solid var(--sl-color-hairline);
+  border-bottom: 1px solid var(--sl-color-hairline);
+  background: var(--ce-surface-1);
+}
+
+.ce-footer-ads__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+}
+
+@media (max-width: 56rem) {
+  .ce-footer-ads__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .ce-footer-ads__grid > :nth-child(3) { display: none; }
+}
+
+@media (max-width: 36rem) {
+  .ce-footer-ads__grid {
+    grid-template-columns: 1fr;
+  }
+  .ce-footer-ads__grid > :nth-child(2),
+  .ce-footer-ads__grid > :nth-child(3) { display: none; }
+}
+
+/* Real-ad container (EthicalAds / Carbon Ads inject into these) */
+.ce-footer-ads__slot {
+  min-height: 100px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-inline-end: 1px solid var(--sl-color-hairline);
+}
+.ce-footer-ads__grid > :last-child {
+  border-inline-end: 0;
+}
+@media (max-width: 36rem) {
+  .ce-footer-ads__slot {
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--sl-color-hairline);
+  }
+  .ce-footer-ads__grid > :last-child {
+    border-block-end: 0;
+  }
+}
+
+.ce-footer-ads__slot--image {
+  min-height: 120px;
+}
+
+/* Carbon Ads — single ad spans all 3 columns, centered */
+.ce-footer-ads__slot--span-3 {
+  grid-column: 1 / -1;
+  border-inline-end: 0;
+}
+
+.ce-footer-ads__slot--carbon #_carbonads_js,
+.ce-footer-ads__slot--carbon .carbonads {
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+/* Placeholder cards (shown when no PUBLIC_ADS_NETWORK is set). These are
+   developer-facing placeholders only — once a network is configured the
+   real ad iframes/scripts replace them entirely. The content here is
+   intentionally about "where ads will come from" — it is NOT a sponsor
+   message authored by us. */
+.ce-footer-ads__placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.5rem 0.8rem;
+  min-height: 110px;
+  border: 0;
+  background: transparent;
+  color: var(--sl-color-text);
+  text-align: left;
+}
+.ce-footer-ads__placeholder-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sl-color-text-accent);
+}
+.ce-footer-ads__placeholder-hint {
+  font-size: 0.78rem;
+  color: var(--sl-color-gray-3);
+  line-height: 1.45;
+}
+.ce-footer-ads__placeholder-hint code {
+  font-size: 0.72rem;
+  padding: 0 0.25rem;
+  border-radius: 3px;
+  background: var(--sl-color-gray-6, rgba(0, 0, 0, 0.06));
+}
+[data-theme='dark'] .ce-footer-ads__placeholder-hint code {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme='dark'] .ce-footer {
+  background:
+    radial-gradient(80% 60% at 100% 0%, rgba(125, 221, 248, 0.06), transparent 60%),
+    linear-gradient(180deg, var(--ce-surface-1), var(--ce-surface-0));
+}
+
+.ce-footer__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 2.4fr);
+  gap: 3rem;
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 0 1.5rem 2.25rem;
+}
+
+.ce-footer__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 22rem;
+}
+
+.ce-footer__home {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  text-decoration: none;
+  color: var(--sl-color-text);
+}
+
+.ce-footer__logo {
+  width: 2.4rem;
+  height: 2.4rem;
+}
+
+.ce-footer__wordmark {
+  font-family: var(--ce-font-display);
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+}
+
+.ce-footer__tagline {
+  margin: 0;
+  color: var(--sl-color-gray-3);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.ce-footer__socials {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.65rem;
+}
+
+/* Live GitHub status badges cluster, sits right after the GitHub icon. */
+.ce-footer__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.ce-footer__badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--ce-radius-sm);
+  text-decoration: none;
+  line-height: 0;
+  transition: transform var(--ce-tween), filter var(--ce-tween);
+}
+
+.ce-footer__badge img {
+  display: block;
+  height: 1.25rem;
+  width: auto;
+  border-radius: var(--ce-radius-xs);
+}
+
+.ce-footer__badge:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.ce-footer__badge:focus-visible {
+  outline: 2px solid var(--ce-brand-400);
+  outline-offset: 2px;
+  border-radius: var(--ce-radius-xs);
+}
+
+.ce-footer__social {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: var(--ce-radius-pill);
+  border: 1px solid var(--sl-color-hairline);
+  background: var(--ce-surface-0);
+  color: var(--sl-color-gray-3);
+  transition:
+    color var(--ce-tween),
+    border-color var(--ce-tween),
+    background-color var(--ce-tween);
+}
+
+.ce-footer__social:hover {
+  color: var(--ce-brand-600);
+  border-color: var(--ce-brand-400);
+  background: var(--ce-surface-2);
+}
+
+:root[data-theme='dark'] .ce-footer__social:hover {
+  color: var(--ce-brand-300);
+}
+
+.ce-footer__columns {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2rem;
+}
+
+.ce-footer__column-title {
+  margin: 0 0 0.85rem;
+  font-family: var(--ce-font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sl-color-gray-4);
+}
+
+.ce-footer__column-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ce-footer__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--sl-color-gray-2);
+  text-decoration: none;
+  font-size: 0.92rem;
+  transition: color var(--ce-tween);
+}
+
+.ce-footer__link:hover {
+  color: var(--ce-brand-600);
+}
+
+:root[data-theme='dark'] .ce-footer__link:hover {
+  color: var(--ce-brand-300);
+}
+
+.ce-footer__external {
+  color: var(--sl-color-gray-5);
+  flex-shrink: 0;
+}
+
+.ce-footer__link:hover .ce-footer__external {
+  color: var(--ce-brand-500);
+}
+
+.ce-footer__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 0;
+  border-top: 1px solid var(--sl-color-hairline);
+  color: var(--sl-color-gray-4);
+  font-size: 0.82rem;
+}
+
+.ce-footer__copy,
+.ce-footer__support {
+  margin: 0;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ce-footer__support-divider {
+  color: var(--sl-color-gray-5);
+}
+
+.ce-footer__support-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--sl-color-text-accent);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.ce-footer__support-link:hover,
+.ce-footer__support-link:focus-visible {
+  color: var(--ce-brand-500);
+  text-decoration: underline;
+}
+.ce-footer__support-icon {
+  /* The heart icon is a soft visual cue, not a CTA marker — keep it
+     proportional to the body text and inherit color. */
+  color: currentColor;
+  margin-top: 0.1rem;
+}
+
+/* Responsive: stack brand above columns when the footer's available width
+   gets tight, then collapse the column grid further on really narrow areas.
+   Container queries make this respond to the FOOTER width, not the viewport,
+   so the layout works correctly inside the narrow content panel of doc
+   pages (where the sidebar leaves only ~45rem for content). */
+@container ce-footer (max-width: 60rem) {
+  .ce-footer__inner {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  .ce-footer__columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+  .ce-footer__brand {
+    max-width: none;
+  }
+  /* Tighten the column spacing whenever the footer is narrow — covers both
+     mobile viewports and doc pages where the sidebar narrows the content
+     panel. The column list rows already have visible link padding, so the
+     extra gap is unnecessary; the title sits a bit closer to its links. */
+  .ce-footer__column-list {
+    gap: 0;
+  }
+  .ce-footer__column-title {
+    margin: 0 0 0.4rem;
+  }
+}
+
+@container ce-footer (max-width: 36rem) {
+  .ce-footer__columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Fallback for browsers without container-query support: behave as before
+   (viewport-based instead of container-based). */
+@supports not (container-type: inline-size) {
+  @media (max-width: 60rem) {
+    .ce-footer__inner {
+      grid-template-columns: 1fr;
+      gap: 2rem;
+    }
+    .ce-footer__columns {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1.5rem;
+    }
+    .ce-footer__column-list {
+      gap: 0;
+    }
+    .ce-footer__column-title {
+      margin: 0 0 0.5rem;
+    }
+  }
+  @media (max-width: 36rem) {
+    .ce-footer__columns {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+/* The Default Starlight footer keeps its existing pagination + edit-link
+   spacing; our site footer sits beneath it. */
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Right-side "On this page" TOC — pronounced active state
+   ─────────────────────────────────────────────────────────────────────────
+   Starlight's default makes the active heading just change colour, which is
+   easy to miss on a long TOC. We add:
+     • a 3px left-edge accent bar (sits at x=0 — same position at every
+       depth, so the eye can scan the bar straight down)
+     • a subtle tinted background (teal at ~12%)
+     • bolder font weight
+     • smooth transitions on color/background
+   The mobile TOC (Starlight's <details> dropdown) already shows a checkmark
+   on the active item — we leave that alone.
+*/
+starlight-toc a {
+  position: relative;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+starlight-toc a:hover,
+starlight-toc a:focus-visible {
+  color: var(--sl-color-text-accent);
+  background-color: var(--ce-tint-accent-soft);
+}
+
+starlight-toc a[aria-current='true'] {
+  color: var(--sl-color-text-accent);
+  background-color: var(--ce-tint-accent-strong);
+  font-weight: 600;
+}
+
+/* Solid left-edge accent bar — anchored to the TOC's left edge regardless
+   of heading depth, so the bar lines up vertically across nested items. */
+starlight-toc a[aria-current='true']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.125rem;
+  bottom: 0.125rem;
+  width: 3px;
+  background-color: var(--sl-color-text-accent);
+  border-radius: 0 2px 2px 0;
+}
+
+/* Add a touch of vertical breathing room so the accent bar reads as a
+   continuous rail across the active item, not a tight rectangle. */
+starlight-toc ul {
+  padding-block: 0.125rem;
+}
+starlight-toc li {
+  margin-block: 0.0625rem;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Left-sidebar click feedback ("pending" state)
+   ─────────────────────────────────────────────────────────────────────────
+   The site does full-page navigations, so a clicked sidebar link normally
+   only highlights AFTER the destination page renders. `site-ui.js` adds a
+   `.ce-nav-pending` class the instant a link is clicked, giving immediate
+   visual feedback during the load.
+
+   It's deliberately LIGHTER than the real active state:
+     • aria-current=page → solid 100% accent background, inverted text
+     • .ce-nav-pending   → ~28-36% accent tint, accent-coloured text
+   So "navigating there" and "you are here" stay visually distinct. The
+   pending class lives only on the outgoing page's DOM — the fresh page
+   load discards it, and the destination link gets the real active state.
+
+   `:not([aria-current='page'])` guard: if the pending mark ever lands on
+   the already-active link, the solid active style still wins. */
+#starlight__sidebar a.ce-nav-pending:not([aria-current='page']) {
+  background-color: var(--ce-tint-accent-pending);
+  color: var(--sl-color-text-accent);
+  font-weight: 600;
+  transition: background-color var(--ce-tween-fast);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Top navigation progress bar
+   ─────────────────────────────────────────────────────────────────────────
+   A 3px sliver pinned to the very top of the viewport. `site-ui.js` injects
+   the element once and adds `.is-loading` when an internal-link click starts
+   a navigation. The bar shoots up fast then crawls (cubic-bezier) so it
+   feels responsive without ever pretending to "finish".
+
+   This is a full-page-navigation site — the destination document is a fresh
+   page with the bar back at scaleX(0), so the bar simply vanishes when the
+   new page paints (YouTube/GitHub-style). No explicit "complete" step.
+
+   z-index 9999 keeps the sliver above the fixed header. */
+.ce-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 3px;
+  z-index: 9999;
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--ce-brand-300), var(--ce-brand-500));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ce-brand-400) 60%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.ce-progress.is-loading {
+  opacity: 1;
+  animation: ce-progress-grow 12s cubic-bezier(0.1, 0.72, 0.12, 1) forwards;
+}
+
+@keyframes ce-progress-grow {
+  0%   { transform: scaleX(0.02); }
+  100% { transform: scaleX(0.92); }
+}
+
+/* Reduced-motion — skip the growing animation, just show a static bar so
+   the "loading" signal still lands without movement. */
+@media (prefers-reduced-motion: reduce) {
+  .ce-progress.is-loading {
+    animation: none;
+    transform: scaleX(0.92);
+    transition: opacity 0.1s linear;
+  }
+}
+

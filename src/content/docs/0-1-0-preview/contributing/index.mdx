@@ -1,0 +1,113 @@
+---
+title: Contributing
+description: For developers extending CephalonEngine itself — engineering standards, module authoring, package lifecycle, release process, testing strategy.
+sidebar:
+  order: 0
+  label: Overview
+editUrl: false
+---
+
+import PathCards from '../../../../components/PathCards.astro';
+
+This section is for people who want to **make CephalonEngine better** — adding capabilities, contributing a new companion package, fixing bugs, improving docs. If you only want to build an app *with* CephalonEngine, you want **[Guide](/0-1-0-preview/guide/)** and **[Tutorials](/0-1-0-preview/tutorials/)**.
+
+<PathCards
+  paths={[
+    {
+      badge: 'Start here',
+      title: 'Set up the dev environment',
+      description: 'Clone, restore, build, test. Local package feed, scripts, and the AGENTS conventions.',
+      href: '/0-1-0-preview/contributing/getting-set-up/',
+      cta: 'Set up',
+    },
+    {
+      badge: 'Rules',
+      title: 'Engineering standards',
+      description: 'The non-negotiables — naming, async style, exception hygiene, test coverage, allocation budget.',
+      href: '/0-1-0-preview/contributing/engineering-standards/',
+      cta: 'Read the standards',
+    },
+    {
+      badge: 'Modules',
+      title: 'Module authoring',
+      description: 'How to write a CephalonEngine module that other apps can rely on.',
+      href: '/0-1-0-preview/contributing/module-authoring/',
+      cta: 'Author a module',
+    },
+    {
+      badge: 'Companions',
+      title: 'Observability provider authoring',
+      description: 'The shared telemetry contract, diagnostics conventions, and planning language for new provider companions.',
+      href: '/0-1-0-preview/contributing/observability-provider-authoring/',
+      cta: 'Author a provider',
+    },
+    {
+      badge: 'Packaging',
+      title: 'Package publishing',
+      description: 'How CephalonEngine packages get versioned, signed, and shipped.',
+      href: '/0-1-0-preview/contributing/package-publishing/',
+      cta: 'Publish a package',
+    },
+    {
+      badge: 'Lifecycle',
+      title: 'External package lifecycle',
+      description: 'How third-party-shipped companions stay aligned with the engine surface.',
+      href: '/0-1-0-preview/contributing/external-package-lifecycle/',
+      cta: 'Read the lifecycle',
+    },
+    {
+      badge: 'Quality',
+      title: 'Testing strategy',
+      description: 'Composition smoke tests, behavior specs, integration tests, performance benchmarks.',
+      href: '/0-1-0-preview/contributing/testing-strategy/',
+      cta: 'Adopt the strategy',
+    },
+    {
+      badge: 'Quality',
+      title: 'Benchmarking',
+      description: 'Cephalon.Benchmarks — BenchmarkDotNet suite, hot-path gates, regression discipline.',
+      href: '/0-1-0-preview/contributing/benchmarking/',
+      cta: 'Run benchmarks',
+    },
+    {
+      badge: 'Process',
+      title: 'Release process',
+      description: 'How a CephalonEngine version is cut, signed, and announced.',
+      href: '/0-1-0-preview/contributing/release-process/',
+      cta: 'Read the process',
+    },
+    {
+      badge: 'Process',
+      title: 'Pull-request process',
+      description: 'Branch shape, commit messages, review gates, when to ship vs. when to land later.',
+      href: '/0-1-0-preview/contributing/pull-request-process/',
+      cta: 'Read the process',
+    },
+    {
+      badge: 'Community',
+      title: 'Code of conduct',
+      description: 'Expected behaviour for everyone working on or with CephalonEngine.',
+      href: '/0-1-0-preview/contributing/code-of-conduct/',
+      cta: 'Read the CoC',
+    },
+  ]}
+/>
+
+## How CephalonEngine grows
+
+CephalonEngine has a small core and a wide catalogue. Contributions land in three lanes:
+
+1. **Engine + abstractions** — the smallest surface, most cautious cadence. Changes require a roadmap-level rationale.
+2. **Companion packages** — opt-in capabilities. Most contributions land here.
+3. **Tooling** — CLI, scaffolding, reference-docs.
+
+Every contribution carries a maturity label (`M0`–`M4`) and a graduation criterion. Many contributions ship as `M2` first and graduate to `M3`/`M4` as adoption demonstrates the path is broad enough.
+
+## Required reading before a PR
+
+- **[Engineering standards](/0-1-0-preview/contributing/engineering-standards/)** — the non-negotiables.
+- **[Testing strategy](/0-1-0-preview/contributing/testing-strategy/)** — what tests every PR must include.
+- **[Pull-request process](/0-1-0-preview/contributing/pull-request-process/)** — branch shape, review gates.
+- **[Code of conduct](/0-1-0-preview/contributing/code-of-conduct/)** — non-optional.
+
+Everything else is context that helps you frame the change.

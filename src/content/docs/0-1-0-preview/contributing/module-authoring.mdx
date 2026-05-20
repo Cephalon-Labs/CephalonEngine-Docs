@@ -1,0 +1,78 @@
+---
+title: Module authoring
+description: How to write a CephalonEngine module that other apps can rely on — descriptor, services, behaviors, lifecycle, manifest contributions.
+sidebar:
+  order: 3
+editUrl: false
+---
+
+This page documents the rules for **authoring a module that other apps depend on**. If you're writing modules inside your own app, the **[First-app tutorial](/0-1-0-preview/tutorials/first-app/)** is a better fit. This page is for module authors who ship NuGet packages.
+
+## The contract
+
+A module is a class that implements `IModule`. The simplest implementation:
+
+```csharp
+public sealed class FooModule : IModule
+{
+    public ModuleDescriptor Describe() => new("Acme.Foo", "1.0.0");
+}
+```
+
+Most module authors inherit from a transport-base instead (`RestBehaviorModuleBase`, `JsonRpcBehaviorModuleBase`, `GrpcBehaviorModuleBase`, `GraphQlBehaviorModuleBase`) because it removes boilerplate around behavior registration.
+
+## Rules
+
+### 1. Stable descriptor
+
+The descriptor name + version pair must be stable across patches. Renaming a module is a breaking change for callers.
+
+### 2. Capability declarations are claims
+
+If your module declares `Capability.Data`, it depends on a data provider being registered. The engine validates this at composition time.
+
+### 3. Don't perform I/O in `OnRegister`
+
+`OnRegister` runs before the host is fully wired. I/O should happen in `OnStart` (and even then, prefer lazy work).
+
+### 4. Use `RegisterServices`, not magic
+
+DI registrations go in `RegisterServices`. No reflection, no service-locator. Future tooling depends on this being inspectable.
+
+### 5. Configuration prefix matches the module name
+
+Read configuration from `Engine:<ModuleName>:*`. The convention is what lets the runtime present per-module configuration views.
+
+### 6. Audit-friendly behaviors
+
+Every public behavior gets a stable name. Audit decorators rely on it.
+
+### 7. Telemetry resource attributes
+
+Don't override the `cephalon.module.name` resource attribute. Add your own attributes with a non-conflicting prefix (`acme.foo.<something>`).
+
+### 8. Cross-module dependencies through capabilities, not types
+
+Don't `services.GetRequiredService<OtherModule>()`. Other modules might not be present. Depend on a capability contract instead.
+
+## Lifecycle reference
+
+| Hook | Runs | Use for |
+| --- | --- | --- |
+| `OnRegister` | Once, during composition. | DI registrations, capability declarations. No I/O. |
+| `OnStart` | Once, when the host starts. | Index warm-ups, cache preloads. Errors here are fatal. |
+| `OnStop` | Once, when the host stops. Reverse order. | Resource cleanup. Errors are logged but don't block shutdown. |
+| `OnFailure` | When a fatal failure escalates from elsewhere. | Optional. Useful for emergency draining. |
+
+## Packaging
+
+- Target `net10.0`.
+- Reference `Cephalon.Abstractions` with `PrivateAssets="all"` so consumers don't pin to a specific abstractions version.
+- Include the engine-blessed publisher metadata.
+- Sign the package if you want it accepted by tightened trust stores.
+
+## Distribution
+
+- Public modules: ship through NuGet.
+- Private modules: ship through your internal feed and reference normally.
+- Package-discovered modules: package the module assembly with a `cephalon-module.json` manifest at the package root. See **[Reference → Architecture](/0-1-0-preview/reference/architecture/)** (dedicated *Package discovery* page planned for `0.2.0-preview`).

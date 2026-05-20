@@ -1,0 +1,40 @@
+---
+title: From a modular monolith
+description: Lift an existing modular monolith (MediatR-based, Modular Architecture-style) onto CephalonEngine.
+sidebar:
+  order: 2
+editUrl: false
+---
+
+If your codebase already uses a "modular monolith" pattern (MediatR-style, or hand-rolled module classes), the lift to CephalonEngine is mostly a renaming exercise + adopting the manifest.
+
+## Mapping
+
+| Existing concept | CephalonEngine equivalent |
+| --- | --- |
+| `IModule` (hand-rolled) | `IModule` from `Cephalon.Abstractions.Modules` |
+| `IRequestHandler<T>` (MediatR) | `IRestBehavior` for HTTP, `IMessageHandler<T>` for events |
+| `IServiceCollection` extensions | `RegisterServices(IServiceCollection)` on the module |
+| `IPipelineBehavior<T>` | engine-blessed decorators in the behavior pipeline |
+| Module startup | `OnRegister` / `OnStart` lifecycle hooks |
+| Module config | `Engine:<ModuleName>:*` configuration section |
+
+## The diff that matters
+
+For each existing module:
+
+1. Inherit from `RestBehaviorModuleBase` (or the matching transport base).
+2. Implement `Describe()` to declare the descriptor.
+3. Move existing DI registrations into `RegisterServices(...)`.
+4. Convert MediatR handlers into behaviors / message handlers.
+5. Adopt the manifest — let the runtime tell you what's loaded.
+
+## Verification
+
+- The composition smoke tests pass with the same module set you had before.
+- `/engine/manifest` lists every module.
+- The OpenAPI shape is identical (or improves, because behaviors auto-document better than `MapGet` chains).
+
+## Status
+
+Full step-by-step lands in the next docs push. Until then, **[From plain ASP.NET Core](/0-1-0-preview/migration/from-aspnet-core/)** is the closest analogue.

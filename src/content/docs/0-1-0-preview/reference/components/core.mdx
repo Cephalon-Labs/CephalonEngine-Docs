@@ -1,0 +1,115 @@
+---
+title: Core
+description: Cephalon.Abstractions, Cephalon.Engine, the Cephalon.Behaviors family, and Cephalon.Ids.Sfid — the foundation every other package depends on.
+sidebar:
+  order: 1
+editUrl: false
+---
+
+The core packages provide the contracts (`Cephalon.Abstractions`), the composition runtime (`Cephalon.Engine`), the decorator framework (`Cephalon.Behaviors.*`), and the default identifier strategy (`Cephalon.Ids.Sfid`). **Every Cephalon app uses at least the first two.**
+
+## Packages
+
+Click any package name to jump to its **source-doc** (the canonical per-package detail synced from the engine repo).
+
+| Package | NuGet ID | Maturity | What it ships |
+| --- | --- | --- | --- |
+| **[Abstractions](/0-1-0-preview/source/components/abstractions/)** | `Cephalon.Abstractions` | `M3` | All public interfaces — `IModule`, `IBehavior`, `IUserContext`, `ITenantContext`, capability enums, manifest types. Zero runtime code. |
+| **[Engine](/0-1-0-preview/source/components/engine/)** | `Cephalon.Engine` | `M3` | The composition runtime — module discovery, capability negotiation, runtime catalog, manifest emission. |
+| **[Behaviors](/0-1-0-preview/source/components/behaviors/)** *(base)* | `Cephalon.Behaviors` | `M3` | The decorator base — `IBehavior<TIn, TOut>`, `BehaviorPipelineBuilder`, `With*` extension methods. |
+| **[Behaviors.Http](/0-1-0-preview/source/components/behaviors-http/)** | `Cephalon.Behaviors.Http` | `M3` | HTTP-flavoured decorators — `WithRequireScope`, `WithProblemDetails`, `WithIdempotency`, `WithRateLimit`. |
+| **[Behaviors.Messaging](/0-1-0-preview/source/components/behaviors-messaging/)** | `Cephalon.Behaviors.Messaging` | `M3` | Messaging-flavoured decorators — `WithRetry`, `WithCircuitBreaker`, `WithOutbox`, `WithInbox`. |
+| **[Behaviors.Patterns](/0-1-0-preview/source/components/behaviors-patterns/)** | `Cephalon.Behaviors.Patterns` | `M3` | Composite patterns — `WithSaga`, `WithProcessManager`, `WithBulkhead`. |
+| **[Behaviors.Sourcegen](/0-1-0-preview/source/components/behaviors-sourcegen/)** | `Cephalon.Behaviors.Sourcegen` | `M2` | Build-time source generator — emits typed registration glue for `[Behavior]`-tagged classes. |
+| **[Ids.Sfid](/0-1-0-preview/source/components/ids-sfid/)** | `Cephalon.Ids.Sfid` | `M3` | Sfid value type + EF Core converter + `IIdGenerator<Sfid>`. |
+
+## Install matrix
+
+| Scenario | Minimum packages |
+| --- | --- |
+| Anything Cephalon | `Cephalon.Abstractions` + `Cephalon.Engine` |
+| Behaviors in a module | + `Cephalon.Behaviors` (matching `*.Http` / `*.Messaging` flavour) |
+| Source-generated behavior registration | + `Cephalon.Behaviors.Sourcegen` |
+| Sfid id strategy (default) | + `Cephalon.Ids.Sfid` |
+
+## Key types
+
+### `Cephalon.Abstractions`
+
+```csharp
+public interface IModule
+{
+    ModuleDescriptor Describe();
+}
+
+public interface IBehavior<TIn, TOut>
+{
+    Task<TOut> HandleAsync(TIn input, CancellationToken ct);
+}
+
+public interface IUserContext
+{
+    string? UserId { get; }
+    string? TenantId { get; }
+    IReadOnlyList<string> Scopes { get; }
+    bool IsAnonymous { get; }
+}
+
+public enum Capability
+{
+    Data, Eventing, Identity, Tenancy, Observability,
+    Edge, Agentics, Retrieval, Audit, EventSourcing
+}
+```
+
+Full surface: **[API Reference → Cephalon.Abstractions](/0-1-0-preview/reference/api/cephalon-abstractions/)**.
+
+### `Cephalon.Engine`
+
+Entry points:
+
+```csharp
+services.AddCephalonEngine();                          // bare engine
+services.AddCephalonAspNetCore();                      // engine + ASP.NET Core host adapter
+services.AddCephalonWorker();                          // engine + worker host adapter
+
+builder.AddModulesFromAssemblies(typeof(Program).Assembly);
+var app = builder.Services.Build(webBuilder);
+```
+
+### `Cephalon.Behaviors.*`
+
+```csharp
+// Decorator chain — applied right-to-left
+builder.MapProfile<CreateOrderBehavior>(b => b
+    .WithLogging()
+    .WithRequireScope("orders:write")
+    .WithOutbox()
+    .WithRetry(maxAttempts: 3));
+```
+
+## Configuration
+
+| `Engine:*` key | Owned by | Purpose |
+| --- | --- | --- |
+| `Engine:Id` *(required)* | `Cephalon.Engine` | Unique identifier — emitted in every log, manifest, OTLP resource attribute. |
+| `Engine:Deployment` | `Cephalon.Engine` | Topology + deployment id + region. |
+| `Engine:Composition` | `Cephalon.Engine` | `Model: "Modular"` (currently only option). |
+| `Engine:FeatureOrganization` | `Cephalon.Engine` | `ModuleFirst` | `VerticalSlice` |
+| `Engine:Data:IdStrategy` | `Cephalon.Ids.Sfid` | `"Sfid"` (default), `"Guid"`, `"Long"`, `"Custom"` |
+
+## Dependencies
+
+```
+Cephalon.Engine            depends on  Cephalon.Abstractions
+Cephalon.Behaviors         depends on  Cephalon.Abstractions
+Cephalon.Behaviors.Http    depends on  Cephalon.Behaviors
+Cephalon.Behaviors.Sourcegen → analyzer (build-time only)
+Cephalon.Ids.Sfid          depends on  Cephalon.Abstractions + Sfid.Net (external)
+```
+
+## See also
+
+- **[Technology → Core](/0-1-0-preview/technology/core/)** — narrative description.
+- **[Guide → Concepts](/0-1-0-preview/guide/concepts/)** — what these primitives mean.
+- **[Reference → API](/0-1-0-preview/reference/api/)** — namespace tree.

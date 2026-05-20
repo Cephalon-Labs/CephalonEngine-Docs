@@ -1,0 +1,66 @@
+---
+title: 'Tutorial: Full observability stack'
+description: 'Stand up an OTLP collector + Grafana + Tempo + Loki stack with per-backend dependency-health dashboards and SLO templates.'
+sidebar:
+  order: 7
+editUrl: false
+---
+
+This tutorial extends the lightweight observability wiring from **[First-app step 6](/0-1-0-preview/tutorials/first-app/06-observability/)** into a full local stack: OTLP collector + Grafana + Tempo + Loki + Mimir, with dependency-health dashboards and SLO templates pre-loaded.
+
+## What you'll build
+
+- a docker-compose stack that runs Grafana, Tempo, Loki, Mimir, and the OTLP collector.
+- dashboards for engine startup, REST latency, dependency-health, eventing throughput, and DLQ depth.
+- recording rules for SLI/SLO budget tracking.
+- alerts for `/health` failures, dependency probe regressions, and slow traces.
+
+## Reference compose
+
+```yaml
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.112.0
+    volumes: [./otel-collector-config.yaml:/etc/otel-collector-config.yaml]
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    ports: ["4317:4317", "13133:13133"]
+
+  tempo:
+    image: grafana/tempo:2.6.0
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes: [./tempo.yaml:/etc/tempo.yaml]
+
+  loki:
+    image: grafana/loki:3.2.0
+
+  mimir:
+    image: grafana/mimir:2.14.0
+    command: ["-config.file=/etc/mimir.yaml"]
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    ports: ["3000:3000"]
+```
+
+## Provider-specific switches
+
+The CephalonEngine observability adapters cover Alibaba Cloud, AWS, Azure Monitor, DigitalOcean, GCP, Grafana Cloud, Huawei Cloud, Kubernetes, New Relic, OpenShift, Oracle Cloud, Serilog, and Tanzu. Switching is a config change:
+
+```jsonc
+{
+  "Observability": {
+    "Provider": "AzureMonitor",
+    "ConnectionString": "InstrumentationKey=..."
+  }
+}
+```
+
+## Status
+
+The full step-by-step lands in the next docs push. See **[Technology → Observability](/0-1-0-preview/technology/observability/)** for the package catalogue and per-provider notes.

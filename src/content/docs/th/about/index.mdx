@@ -1,0 +1,27 @@
+---
+title: เกี่ยวกับ
+description: CephalonEngine คืออะไร ใครพัฒนา จะไปทางไหน และจะติดตามได้อย่างไร
+sidebar:
+  order: 0
+  label: ภาพรวม
+editUrl: false
+---
+
+CephalonEngine คือเฟรมเวิร์ก .NET 10 แบบโมดูลาร์ สำหรับสร้างแอปพลิเคชันระดับโปรดักชันโดยไม่ต้องแลกเปลี่ยนความเข้มงวดกับความเร็ว เราเข้มงวดกับเอ็นจิน และเปิดกว้างกับทุกอย่างนอกจากนั้น
+
+## หนึ่งย่อหน้า
+
+CephalonEngine เป็นเฟรมเวิร์กโมดูลาร์สำหรับ .NET 10 ประกอบเอ็นจินขนาดเล็กที่เสถียรเข้ากับแคตตาล็อกแพ็กเกจเสริมที่เลือกใช้ได้กว้างขวาง — data adapter, eventing transport, observability provider, identity, multi-tenancy, agentics, retrieval, edge runtime ทุกแพ็กเกจมีระดับความพร้อมที่ชัดเจน ทุกส่วนสาธารณะมี typed contract ที่บันทึกอยู่ใน runtime manifest เอ็นจินเดียวกันบูตได้ทั้ง ASP.NET Core host, generic-host worker, หรือ embedded host ที่ทำเอง — ทีมเลือกรูปทรง ไม่ใช่เฟรมเวิร์ก
+
+## ใครพัฒนา
+
+CephalonEngine พัฒนาโดย Cephalon-Labs และชุมชน contributor ที่กำลังเติบโต repo อยู่ที่ [github.com/Cephalon-Labs/CephalonEngine](https://github.com/Cephalon-Labs/CephalonEngine) เว็บเอกสารเป็น open-source ที่ [github.com/Cephalon-Labs/CephalonEngine-Docs](https://github.com/Cephalon-Labs/CephalonEngine-Docs)
+
+## ทิศทาง
+
+ทิศทางระยะยาวอยู่ใน **[โรดแมป](/th/about/roadmap/)** และ **[long-range direction](/0-1-0-preview/source/long-range-direction/)** สั้น ๆ คือ
+
+- ดันเอ็นจินหลัก + AspNetCore host + Worker ให้ adoption-ready (M4)
+- ดัน data adapter ที่ใช้บ่อยที่สุดให้ adoption-ready
+- ดัน Wolverine eventing ให้ adoption-ready พร้อม adapter ตัวที่สองเพื่อความหลากหลาย
+- Ship `1.0.0` เมื่อ manifest schema, runtime contract, configuration shape นิ่งแล้ว

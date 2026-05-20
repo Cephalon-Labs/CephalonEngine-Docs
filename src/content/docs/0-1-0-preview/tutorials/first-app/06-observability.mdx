@@ -1,0 +1,146 @@
+---
+title: '6 · Observability'
+description: 'Wire OpenTelemetry, enrich logs with module-aware scopes, plug into an OTLP collector, and add dependency-health probes.'
+sidebar:
+  order: 6
+editUrl: false
+---
+
+By the end of this step you'll have logs, metrics, and traces flowing into a local OTLP collector, with dependency health for Postgres reflected on `/health`.
+
+## 6.1 Add the observability packages
+
+`Directory.Packages.props`:
+
+```xml
+<PackageVersion Include="Cephalon.Observability" Version="0.1.0-preview" />
+<PackageVersion Include="Cephalon.Observability.OpenTelemetry" Version="0.1.0-preview" />
+<PackageVersion Include="Cephalon.Observability.PostgresDependencies" Version="0.1.0-preview" />
+```
+
+Reference them from `Acme.Store.Host.csproj`:
+
+```xml
+<ItemGroup>
+  <PackageReference Include="Cephalon.Observability" />
+  <PackageReference Include="Cephalon.Observability.OpenTelemetry" />
+  <PackageReference Include="Cephalon.Observability.PostgresDependencies" />
+</ItemGroup>
+```
+
+## 6.2 Configure the host
+
+`Program.cs`:
+
+```csharp
+var app = builder.Services
+    .AddCephalonAspNetCore()
+    .AddObservability(options =>
+    {
+        options.UseOpenTelemetry(otel =>
+        {
+            otel.ExporterEndpoint = builder.Configuration["Observability:Endpoint"] ?? "http://localhost:4317";
+        });
+        options.AddPostgresDependency("Products");
+        options.AddPostgresDependency("Orders");
+    })
+    .AddModulesFromAssemblies(/* ... */)
+    .Build(builder);
+```
+
+The observability module:
+
+- wires `ILogger` to emit OTLP logs with resource attributes for the engine id, host id, and module-level scopes.
+- enables the `System.Diagnostics.Metrics` meter and OTLP exporter.
+- enables `ActivitySource` tracing across modules + EF Core + HttpClient.
+- registers the dependency-health probes for both Postgres connection strings.
+
+## 6.3 Stand up an OTLP collector
+
+The scaffold already gave you `otel-collector-config.yaml` and a `compose.yaml`. Bring it up:
+
+```powershell
+docker compose up -d otel-collector
+```
+
+This exposes:
+
+- `:4317` — OTLP gRPC for the host to push to.
+- `:13133` — health endpoint for the collector itself.
+
+For a full Grafana / Tempo / Loki stack, follow **[Observability stack tutorial](/0-1-0-preview/tutorials/observability-stack/)**.
+
+## 6.4 Verify telemetry
+
+Run the app and place an order. Then:
+
+```powershell
+curl http://localhost:5000/health
+```
+
+You should see a healthy response that includes the Postgres probes:
+
+```json
+{
+  "status": "Healthy",
+  "totalDuration": "00:00:00.087",
+  "results": {
+    "cephalon.dependency.postgres.Products": { "status": "Healthy", "duration": "00:00:00.034" },
+    "cephalon.dependency.postgres.Orders":   { "status": "Healthy", "duration": "00:00:00.041" }
+  }
+}
+```
+
+In your OTLP backend (or `docker logs otel-collector`) you should see:
+
+- structured logs with `cephalon.engine.id=acme-store`, `cephalon.module.name=Acme.Store.Modules.Orders`.
+- a `cephalon.engine.started` log on boot.
+- traces for `POST /orders` that span the publisher → process manager → DB write.
+
+## 6.5 Where the conventions come from
+
+Every Cephalon module emits telemetry with:
+
+| Attribute | Source |
+| --- | --- |
+| `cephalon.engine.id` | `Engine:Id` configuration |
+| `cephalon.engine.version` | the engine package version |
+| `cephalon.module.name` | the module's descriptor name |
+| `cephalon.module.version` | the module's descriptor version |
+| `cephalon.host.kind` | host adapter id (`aspnetcore`, `worker`, …) |
+| `cephalon.deployment.id` | `Engine:Deployment:Id` if set |
+
+You can pipe on these attributes to slice telemetry by module without touching code.
+
+## 6.6 Provider-specific quickstarts
+
+Once you have OTLP working locally, switching to a managed backend is a config change. The full provider list lives at **[Technology → Observability](/0-1-0-preview/technology/observability/)**. A taste:
+
+```jsonc
+// Grafana Cloud
+{
+  "Observability": {
+    "Endpoint": "https://otlp-gateway-prod-eu-west-2.grafana.net/otlp",
+    "Headers": "Authorization=Basic <BASE64>"
+  }
+}
+
+// Azure Monitor (via the AzureMonitor exporter companion)
+{
+  "Observability": {
+    "Provider": "AzureMonitor",
+    "ConnectionString": "InstrumentationKey=..."
+  }
+}
+```
+
+## What you should have now
+
+- [x] Logs, metrics, traces flowing to an OTLP collector.
+- [x] Dependency-health probes for both Postgres connections.
+- [x] Resource attributes that identify the engine, host, and module.
+- [x] Traces correlated across publisher → process manager → DB writes.
+
+## What to do next
+
+**[Step 7 → Tests](/0-1-0-preview/tutorials/first-app/07-tests/)**.

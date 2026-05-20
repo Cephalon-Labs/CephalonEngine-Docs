@@ -1,0 +1,564 @@
+---
+title: CLI reference
+description: Complete reference for the cephalon CLI — doctor, new, stage-packages, reference-docs. Every flag explained with type, default, use cases, and examples.
+sidebar:
+  order: 0
+editUrl: false
+---
+
+The `cephalon` CLI is the canonical entry point for everything that's not "build the app" — environment validation, scaffolding, package staging, and reference-doc generation.
+
+This page is the **authoritative flag reference**. For installation, see **[Guide → Installation](/0-1-0-preview/guide/installation/)**.
+
+## Common patterns
+
+Before drilling into specific commands, a few patterns apply across the whole CLI:
+
+- **`--prerelease` is not a CLI flag.** It only affects `dotnet tool install` when fetching the CLI itself. Once installed, the CLI works the same way for preview and stable engine versions.
+- **`--json` is supported by every read-style command** (`doctor`, future `list`, `info`). Pipe to `jq` for scripting and CI gating.
+- **Exit code `0` = success.** Any non-zero exit is a hard failure — useful for CI.
+- **No `cephalon` command writes to your engine source repo.** All writes go to the working directory or a generated app path.
+
+## `cephalon doctor`
+
+Verifies the first-run baseline: active SDK, installed runtimes, optional tooling, deployment-mode posture.
+
+### Syntax
+
+```text
+cephalon doctor [--json] [--profile <profile>] [--verbose] [--quiet]
+```
+
+### Flags
+
+| Flag | Type | Default | Description |
+| --- | --- | --- | --- |
+| `--json` | switch | off | Emit a structured JSON status payload instead of human-readable text. Pipe to `jq` for CI gating. |
+| `--profile <name>` | string | `default` | Run a named diagnostics profile (e.g. `container-build`, `air-gapped`, `ci`). Profiles select different check sets. |
+| `--verbose` / `-v` | switch | off | Print per-check details: detected paths, version strings, "why this matters" hints. |
+| `--quiet` / `-q` | switch | off | Suppress all output. Use only the exit code. Useful in CI smoke checks. |
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | All required checks `[ok]`. Optional `[warn]` lines may still appear; they don't affect exit. |
+| `1` | At least one required check failed. Stderr lists the failing check. |
+| `2` | Command-line parse error (unknown flag, malformed value). |
+
+### Examples
+
+**Standard run** — the most common usage:
+
+```powershell frame="terminal"
+cephalon doctor
+```
+
+**Verbose** — when one of the checks fails and you need details:
+
+```powershell frame="terminal"
+cephalon doctor --verbose
+```
+
+You'll see each check's resolved input, e.g.:
+
+```text frame="terminal"
+[ok]   dotnet --version is 10.0.100
+       SDK install root: C:\Program Files\dotnet
+       global.json applied: 10.0.100 (rollForward=latestFeature)
+```
+
+**CI gate** — fail the build if doctor isn't clean:
+
+```powershell frame="terminal"
+cephalon doctor --json | jq -e '.result == "ok"'
+```
+
+The `jq -e` flag returns non-zero exit when the predicate is false.
+
+**JSON shape** — for custom scripting:
+
+```jsonc
+{
+  "result": "ok",                              // "ok" | "warn" | "fail"
+  "profile": "default",
+  "engineVersion": "0.1.0-preview",
+  "checks": [
+    { "name": "dotnet-sdk",       "result": "ok",   "detail": "10.0.100" },
+    { "name": "netcoreapp-runtime","result": "ok",   "detail": "10.0.0"   },
+    { "name": "template-pack",    "result": "warn", "detail": "not registered" }
+  ],
+  "deploymentMode": {
+    "baseline": "net10.0",
+    "readinessLanes": {
+      "dotnet11": "assessment-only",
+      "trim":     "warn",
+      "aot":      "warn",
+      "singleFile": "warn"
+    }
+  }
+}
+```
+
+**Profile-specific** — different checks for different environments:
+
+```powershell frame="terminal"
+cephalon doctor --profile container-build
+cephalon doctor --profile air-gapped
+```
+
+(Profiles available in `0.1.0-preview`: `default`, `container-build`, `air-gapped`, `ci`. Adding new profiles is tracked in the [roadmap](/about/roadmap/).)
+
+### When to run
+
+| Situation | Recommended |
+| --- | --- |
+| New developer setup | Run once after installing .NET 10 + the CLI |
+| Every CI build | Add as the first step before `dotnet restore` |
+| Before scaffolding a new app | Always — fixing problems here is cheaper than debugging in a generated app |
+| After upgrading the SDK | Verifies the new SDK is picked up and all runtimes align |
+
+### Common errors
+
+| Error | Cause | Fix |
+| --- | --- | --- |
+| `[fail] dotnet --version is 9.0.x` | Active SDK is below 10 | Install [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0). If you have it, check `global.json` isn't pinning to an older version. |
+| `[fail] Microsoft.AspNetCore.App 10.x not installed` | Runtime missing despite SDK present | Reinstall the SDK bundle (includes both runtimes) or install the runtime separately. |
+| `[warn] Cephalon.TemplatePack not registered` | Optional check — doesn't affect anything | Ignore unless you want `dotnet new cephalon-app -n …` to work. |
+
+## `cephalon new`
+
+Scaffolds a CephalonEngine application. Produces a complete, runnable project tree with the host, a starter module, test project, deploy folders, and supporting files.
+
+### Syntax
+
+```text
+cephalon new <Name> [--output <path>]
+                     [--template <id>]
+                     [--composition <model>]
+                     [--topology <topology>]
+                     [--feature-organization <org>]
+                     [--transport <transport>]
+                     [--id-strategy <strategy>]
+                     [--force]
+                     [--dry-run]
+```
+
+### Required arguments
+
+| Argument | Type | Description |
+| --- | --- | --- |
+| `<Name>` | string | The application name. Used as the namespace, csproj prefix, default output folder, and default `Engine:Id`. Convention: `<Org>.<Product>` (e.g. `Acme.Store`). Must be a valid C# namespace; the CLI rejects names starting with digits or containing whitespace. |
+
+### Optional flags
+
+#### `--output <path>`
+
+| Type | Default |
+| --- | --- |
+| string (path) | `./<Name>` |
+
+The directory to write the generated project into. Created if it doesn't exist. **Fails if the directory is non-empty unless `--force` is set.**
+
+```powershell frame="terminal"
+cephalon new Acme.Store                                   # writes to ./Acme.Store
+cephalon new Acme.Store --output ./src/acme-store         # writes to ./src/acme-store
+cephalon new Acme.Store --output .                        # writes to current dir (must be empty)
+```
+
+#### `--template <id>`
+
+| Type | Default | Allowed values |
+| --- | --- | --- |
+| string | `cephalon-app` | `cephalon-app`, `cephalon-worker`, `cephalon-minimal` |
+
+Which scaffolding template to use:
+
+| Template | What you get |
+| --- | --- |
+| `cephalon-app` | **Default.** Full modular monolith with REST host, starter module, test project, all 7 deploy folders, Dockerfile, OTLP collector config. |
+| `cephalon-worker` | Worker host (no HTTP), starter background module, test project. |
+| `cephalon-minimal` | Just the host + composition smoke test. No starter module, no deploy folders. For users who want to start from a bare shell. |
+
+```powershell frame="terminal"
+cephalon new Acme.Worker --template cephalon-worker
+cephalon new Acme.Lab    --template cephalon-minimal
+```
+
+#### `--composition <model>`
+
+| Type | Default | Allowed values |
+| --- | --- | --- |
+| enum | `Modular` | `Modular` |
+
+How the app is assembled. Currently only `Modular` is supported; `Plugin-ready Modular` is planned for `0.2.0-preview`.
+
+```powershell frame="terminal"
+cephalon new Acme.Store --composition Modular
+```
+
+#### `--topology <topology>`
+
+| Type | Default | Allowed values |
+| --- | --- | --- |
+| enum | `SingleHost` | `SingleHost`, `Microservice`, `MicroserviceSuite`, `Worker` |
+
+The deployment topology the scaffold targets.
+
+| Value | Generates |
+| --- | --- |
+| `SingleHost` | One ASP.NET Core host loading modules from assemblies. Default modular monolith. |
+| `Microservice` | One service (likely part of a suite) with eventing pre-wired. Same module shape, fewer transports. |
+| `MicroserviceSuite` | A solution containing multiple services. **Not yet implemented in 0.1.0-preview** — falls back to `Microservice`. |
+| `Worker` | Generic-host worker (no HTTP). Useful for background processors. |
+
+```powershell frame="terminal"
+cephalon new Acme.Store          --topology SingleHost      # default
+cephalon new Acme.Orders.Service --topology Microservice
+cephalon new Acme.Indexer        --topology Worker
+```
+
+#### `--feature-organization <org>`
+
+| Type | Default | Allowed values |
+| --- | --- | --- |
+| enum | `ModuleFirst` | `ModuleFirst`, `VerticalSlice` |
+
+How code is laid out inside modules.
+
+| Value | Layout |
+| --- | --- |
+| `ModuleFirst` | Folders by concern: `Modules/Products/Behaviors/`, `Modules/Products/Data/`, `Modules/Products/Domain/`. The default — scales well as the codebase grows. |
+| `VerticalSlice` | Folders by feature: `Features/CreateProduct/Behavior.cs`, `Features/CreateProduct/Handler.cs`. Smaller cognitive overhead per feature, harder once features start sharing types. |
+
+```powershell frame="terminal"
+cephalon new Acme.Store --feature-organization ModuleFirst        # default
+cephalon new Acme.Store --feature-organization VerticalSlice
+```
+
+#### `--transport <transport>`
+
+| Type | Default | Allowed values | Repeatable |
+| --- | --- | --- | --- |
+| enum | `RestApi` | `RestApi`, `JsonRpc`, `Grpc`, `GraphQL`, `ServerSentEvents`, `WebSocket` | yes |
+
+Transports to enable on the host. Pass `--transport` multiple times for combined transports.
+
+```powershell frame="terminal"
+cephalon new Acme.Api --transport RestApi                          # default
+cephalon new Acme.Api --transport RestApi --transport Grpc
+cephalon new Acme.Api --transport RestApi --transport GraphQL --transport ServerSentEvents
+```
+
+What each transport adds:
+
+| Transport | Package referenced | Generated wiring |
+| --- | --- | --- |
+| `RestApi` | `Cephalon.AspNetCore` (always present) | OpenAPI + Scalar UI, behavior pipeline |
+| `JsonRpc` | `Cephalon.AspNetCore.JsonRpc` | JSON-RPC method router |
+| `Grpc` | `Cephalon.AspNetCore.Grpc` | gRPC service mapper |
+| `GraphQL` | `Cephalon.AspNetCore.GraphQL` | Federated schema host |
+| `ServerSentEvents` | built-in | SSE channel adapter |
+| `WebSocket` | built-in | WebSocket channel adapter |
+
+#### `--id-strategy <strategy>`
+
+| Type | Default | Allowed values |
+| --- | --- | --- |
+| enum | `Sfid` | `Sfid`, `Guid`, `Long` |
+
+Default identifier strategy for entities. Sets `Engine:Data:IdStrategy` in `appsettings.json` and the DbContext base class.
+
+| Value | When to choose |
+| --- | --- |
+| `Sfid` | **Default.** K-sortable, URL-safe, 26 chars. Best for most apps. |
+| `Guid` | Compatibility with non-.NET systems already using GUIDs. Less index-friendly than Sfid. |
+| `Long` | Legacy schemas that require numeric ids. Forces single-writer DB topology. |
+
+```powershell frame="terminal"
+cephalon new Acme.Store --id-strategy Sfid                # default
+cephalon new Acme.Store --id-strategy Guid
+cephalon new Acme.Legacy --id-strategy Long
+```
+
+#### `--force`
+
+| Type | Default |
+| --- | --- |
+| switch | off |
+
+Overwrite the output directory even if non-empty. **Dangerous** — files in the target are deleted. Always commit before using `--force`.
+
+```powershell frame="terminal"
+cephalon new Acme.Store --output ./existing --force
+```
+
+#### `--dry-run`
+
+| Type | Default |
+| --- | --- |
+| switch | off |
+
+Print the file tree that would be generated **without writing anything**. Useful for previewing the scaffold or generating documentation.
+
+```powershell frame="terminal"
+cephalon new Acme.Store --dry-run
+```
+
+Output:
+
+```text frame="terminal" title="dry-run"
+Would generate the following files under ./Acme.Store:
+  ./Acme.Store/Acme.Store.slnx
+  ./Acme.Store/Directory.Build.props
+  ./Acme.Store/Directory.Packages.props
+  ./Acme.Store/global.json
+  ./Acme.Store/NuGet.config
+  ./Acme.Store/Dockerfile
+  ./Acme.Store/compose.yaml
+  ./Acme.Store/otel-collector-config.yaml
+  ./Acme.Store/deploy/...
+  ./Acme.Store/src/Acme.Store.Host/Program.cs
+  ./Acme.Store/src/Acme.Store.Host/appsettings.json
+  ./Acme.Store/src/Acme.Store.Modules.Health/HealthModule.cs
+  ./Acme.Store/tests/Acme.Store.Host.Tests/...
+  ...64 files total
+```
+
+### Examples by use case
+
+**Modular monolith with REST + gRPC + EF Core data:**
+
+```powershell frame="terminal"
+cephalon new Acme.Store `
+  --topology SingleHost `
+  --transport RestApi `
+  --transport Grpc `
+  --id-strategy Sfid
+```
+
+**Worker service for background processing:**
+
+```powershell frame="terminal"
+cephalon new Acme.OrderProcessor `
+  --topology Worker `
+  --template cephalon-worker
+```
+
+**Microservice (REST-only, expected to receive events from a separate broker):**
+
+```powershell frame="terminal"
+cephalon new Acme.Catalog.Service `
+  --topology Microservice `
+  --transport RestApi
+```
+
+**GraphQL aggregator + SSE for realtime updates:**
+
+```powershell frame="terminal"
+cephalon new Acme.Gateway `
+  --transport GraphQL `
+  --transport ServerSentEvents
+```
+
+**Bare-bones starting point (no starter module, no deploy folders):**
+
+```powershell frame="terminal"
+cephalon new Acme.Lab --template cephalon-minimal
+```
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | App generated successfully. |
+| `1` | Generation failed — bad inputs, target directory non-empty without `--force`, write error. Stderr explains. |
+| `2` | Command-line parse error. |
+
+## `cephalon stage-packages`
+
+Copies locally-built `Cephalon.*` packages into a generated app's `.cephalon/packages/` folder so the app's NuGet restore picks them up before falling back to public feeds.
+
+**Use this when:** You're developing against an in-progress engine build and want the generated app to consume your local artifacts instead of the published versions.
+
+### Syntax
+
+```text
+cephalon stage-packages <generated-app-path>
+                          [--source <feed-path>]
+                          [--include <pattern>]
+                          [--clean]
+```
+
+### Arguments
+
+| Argument | Description |
+| --- | --- |
+| `<generated-app-path>` | Path to the app generated by `cephalon new` (the folder containing `.cephalon/`). |
+
+### Flags
+
+#### `--source <feed-path>`
+
+| Type | Default |
+| --- | --- |
+| path | `./artifacts/packages-release` (relative to the engine repo) |
+
+Source folder containing the `.nupkg` files to copy.
+
+```powershell frame="terminal"
+cephalon stage-packages ./Acme.Store
+cephalon stage-packages ./Acme.Store --source ./out/packages
+```
+
+#### `--include <pattern>`
+
+| Type | Default | Repeatable |
+| --- | --- | --- |
+| glob | `Cephalon.*` | yes |
+
+Glob pattern for packages to copy. Use to stage a subset (e.g. only the eventing packages while you iterate).
+
+```powershell frame="terminal"
+cephalon stage-packages ./Acme.Store --include "Cephalon.Eventing.*"
+cephalon stage-packages ./Acme.Store `
+  --include "Cephalon.Abstractions" `
+  --include "Cephalon.Engine" `
+  --include "Cephalon.AspNetCore"
+```
+
+#### `--clean`
+
+| Type | Default |
+| --- | --- |
+| switch | off |
+
+Remove existing `.cephalon/packages/*` before copying. Without this, old versions accumulate.
+
+```powershell frame="terminal"
+cephalon stage-packages ./Acme.Store --clean
+```
+
+### Examples
+
+**Standard repo-local development loop:**
+
+```powershell frame="terminal"
+# In the engine repo:
+pwsh ./scripts/publish-package-artifacts.ps1 -Configuration Release -SkipBuild
+
+# In the generated app:
+cephalon stage-packages ./Acme.Store --clean
+dotnet restore ./Acme.Store/Acme.Store.slnx
+dotnet run --project ./Acme.Store/src/Acme.Store.Host
+```
+
+**Stage only the packages you changed** (faster iteration):
+
+```powershell frame="terminal"
+cephalon stage-packages ./Acme.Store --include "Cephalon.Eventing.*"
+```
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Packages copied successfully. |
+| `1` | Source path not found, target app path invalid, or copy failed. |
+
+## `cephalon reference-docs`
+
+Generates XML-comment-driven reference Markdown for a project. Used by the engine's own docs pipeline; adopters can use it to generate API reference for module packages they publish.
+
+### Syntax
+
+```text
+cephalon reference-docs <project-path>
+                          [--out <path>]
+                          [--include-internal]
+                          [--namespace-layout <flat|nested>]
+```
+
+### Arguments
+
+| Argument | Description |
+| --- | --- |
+| `<project-path>` | Path to a `.csproj` or `.sln` to extract XML comments from. The project must be buildable (XML doc generation enabled). |
+
+### Flags
+
+#### `--out <path>`
+
+| Type | Default |
+| --- | --- |
+| path | `./docs/reference/` |
+
+Output directory for the generated Markdown files.
+
+```powershell frame="terminal"
+cephalon reference-docs ./src/Acme.Catalog/Acme.Catalog.csproj `
+  --out ./docs/api
+```
+
+#### `--include-internal`
+
+| Type | Default |
+| --- | --- |
+| switch | off |
+
+Include `internal` types in the output. By default only `public` types are documented.
+
+#### `--namespace-layout <flat|nested>`
+
+| Type | Default |
+| --- | --- |
+| enum | `nested` |
+
+How to organize the output:
+- `flat` — every type in one folder, filename = `<Namespace>.<Type>.md`.
+- `nested` — folders mirror the namespace tree.
+
+### Examples
+
+**Generate API docs for a published module:**
+
+```powershell frame="terminal"
+cephalon reference-docs ./src/Acme.Catalog/Acme.Catalog.csproj `
+  --out ./docs/reference/api `
+  --namespace-layout nested
+```
+
+### Limits
+
+- Requires `<GenerateDocumentationFile>true</GenerateDocumentationFile>` in the target `.csproj`. The CLI will error otherwise.
+- Internal types from referenced packages are never included regardless of `--include-internal`.
+- Output format is Markdown only (the engine's docs site is Markdown; HTML output isn't generated).
+
+## Global flags
+
+These apply to **every** `cephalon` command:
+
+| Flag | Description |
+| --- | --- |
+| `--version` | Print the CLI version and exit. Useful in CI logs. |
+| `--help` / `-h` | Print help for the current command. `cephalon --help` lists all commands; `cephalon new --help` lists `new`'s flags. |
+| `--no-color` | Disable ANSI color output. Useful for log capture / CI systems that don't render colors. |
+| `--telemetry off` | Disable CLI telemetry (anonymous usage data). |
+| `--log-level <level>` | One of `trace`, `debug`, `info`, `warn`, `error`. Default `info`. |
+
+## Exit code summary
+
+| Code | Meaning | Used by |
+| --- | --- | --- |
+| `0` | Success | All commands |
+| `1` | Operation failed (required check, generation, copy, etc.) | All commands |
+| `2` | Command-line parse error | All commands |
+| `64` | Bad usage (e.g. missing required argument) | `new`, `stage-packages`, `reference-docs` |
+| `73` | Cannot create output file (target locked or read-only) | `new`, `reference-docs` |
+
+## Where to go next
+
+- **[Installation](/0-1-0-preview/guide/installation/)** — install the CLI and configure feeds.
+- **[Quickstart](/0-1-0-preview/guide/quickstart/)** — run the CLI end-to-end on a new project.
+- **[Reference → Configuration](/0-1-0-preview/reference/configuration/)** — every `Engine:*` config key explained.
+- **[Tutorial → CI/CD pipeline](/0-1-0-preview/tutorials/ci-cd-pipeline/)** — use the CLI in CI gates.

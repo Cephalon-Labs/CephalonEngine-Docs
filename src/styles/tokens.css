@@ -1,0 +1,149 @@
+/*
+ * CephalonEngine Docs — Design Tokens
+ *
+ * Tokens are the only place colour, typography, and spacing values live.
+ * Everything downstream consumes these vars so we can rebrand or rebalance
+ * the entire site without touching component styles.
+ */
+
+:root {
+  /* Brand */
+  --ce-brand-50: #f0fbff;
+  --ce-brand-100: #dbf5ff;
+  --ce-brand-200: #b8efff;
+  --ce-brand-300: #7dddf8;
+  --ce-brand-400: #34b6dc;
+  --ce-brand-500: #0f8db0;
+  --ce-brand-600: #0c6078;
+  --ce-brand-700: #0a4557;
+  --ce-brand-800: #072f3a;
+  --ce-brand-900: #041a21;
+
+  --ce-accent-300: #f7c08b;
+  --ce-accent-400: #f29852;
+  --ce-accent-500: #e07432;
+
+  --ce-success: #16a34a;
+  --ce-warning: #d97706;
+  --ce-danger: #dc2626;
+
+  /* Surfaces */
+  --ce-surface-0: #ffffff;
+  --ce-surface-1: #f8fbfd;
+  --ce-surface-2: #eef5f9;
+  --ce-surface-3: #d9e7ee;
+  --ce-surface-ink: #061a22;
+  --ce-surface-ink-muted: #2d4754;
+
+  /*
+   * Type scale — IBM Plex Sans for Latin paired with IBM Plex Sans Thai for
+   * Thai. IBM designed the Thai variant explicitly to share the Latin family's
+   * x-height, weight axis and optical sizing, so the same `font-size` renders
+   * at visually consistent proportions across both scripts. The browser picks
+   * the matching font per character from the stack, and switching locale
+   * never shifts the layout. System fallbacks at the end keep the site
+   * legible if the webfonts fail to load.
+   */
+  --ce-font-display: 'IBM Plex Sans', 'IBM Plex Sans Thai', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans Thai', Tahoma, sans-serif;
+  --ce-font-sans: 'IBM Plex Sans', 'IBM Plex Sans Thai', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans Thai', Tahoma, sans-serif;
+  --ce-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+  /* Radii */
+  --ce-radius-xs: 0.375rem;
+  --ce-radius-sm: 0.5rem;
+  --ce-radius-md: 0.75rem;
+  --ce-radius-lg: 1rem;
+  --ce-radius-xl: 1.5rem;
+  --ce-radius-2xl: 2rem;
+  --ce-radius-pill: 999px;
+
+  /* Shadows */
+  --ce-shadow-soft: 0 1px 2px rgba(7, 47, 58, 0.04), 0 4px 18px -8px rgba(7, 47, 58, 0.12);
+  --ce-shadow-elev: 0 10px 30px -16px rgba(7, 47, 58, 0.28), 0 2px 4px rgba(7, 47, 58, 0.05);
+  --ce-shadow-hero: 0 30px 80px -40px rgba(15, 93, 115, 0.55), 0 8px 20px -16px rgba(15, 93, 115, 0.35);
+
+  /* Motion */
+  --ce-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ce-ease-in-out: cubic-bezier(0.83, 0, 0.17, 1);
+  --ce-duration-fast: 140ms;
+  --ce-duration: 220ms;
+  --ce-duration-slow: 420ms;
+
+  /* Pre-composed motion pairs — used in `transition:` property values
+     so per-component CSS only needs to list the properties to animate:
+       transition: background-color var(--ce-tween), color var(--ce-tween);
+     instead of:
+       transition: background-color var(--ce-duration) var(--ce-ease-out),
+                   color var(--ce-duration) var(--ce-ease-out); */
+  --ce-tween: var(--ce-duration) var(--ce-ease-out);
+  --ce-tween-fast: var(--ce-duration-fast) var(--ce-ease-out);
+  --ce-tween-slow: var(--ce-duration-slow) var(--ce-ease-out);
+
+  /* Pre-composed accent tints — color-mix combos used across hover/active
+     states. Defining once means the brand-tint level is consistent and
+     tunable in one place. */
+  --ce-tint-accent-soft: color-mix(in srgb, var(--sl-color-text-accent) 6%, transparent);
+  --ce-tint-accent-medium: color-mix(in srgb, var(--sl-color-text-accent) 8%, transparent);
+  --ce-tint-accent-strong: color-mix(in srgb, var(--sl-color-text-accent) 12%, transparent);
+  --ce-tint-accent-bg: color-mix(in srgb, var(--sl-color-text-accent) 3%, transparent);
+  /* Sidebar click-feedback — a mid-strength tint that reads as "navigating
+     to this page" without being as committed as the solid-accent active
+     state (`aria-current=page`, 100% accent). */
+  --ce-tint-accent-pending: color-mix(in srgb, var(--sl-color-text-accent) 28%, transparent);
+
+  /* Starlight overrides — light */
+  --sl-font: var(--ce-font-sans);
+  --sl-font-system-mono: var(--ce-font-mono);
+  --sl-color-accent-low: var(--ce-brand-100);
+  --sl-color-accent: var(--ce-brand-500);
+  --sl-color-accent-high: var(--ce-brand-700);
+  --sl-color-text-accent: var(--ce-brand-600);
+  --sl-color-bg: var(--ce-surface-0);
+  --sl-color-bg-nav: var(--ce-surface-1);
+  --sl-color-bg-sidebar: var(--ce-surface-1);
+  --sl-color-text: var(--ce-surface-ink);
+  --sl-color-text-invert: #ffffff;
+  --sl-color-hairline: rgba(15, 93, 115, 0.12);
+  --sl-color-gray-1: var(--ce-surface-ink);
+  --sl-color-gray-2: #20384a;
+  --sl-color-gray-3: #3d5466;
+  --sl-color-gray-4: #5d7281;
+  --sl-color-gray-5: #8898a4;
+  --sl-color-gray-6: #c7d4dc;
+  --sl-color-gray-7: #e5edf2;
+}
+
+:root[data-theme='dark'] {
+  --ce-surface-0: #061319;
+  --ce-surface-1: #0a1d25;
+  --ce-surface-2: #102a35;
+  --ce-surface-3: #163a48;
+  --ce-surface-ink: #e6f5fb;
+  --ce-surface-ink-muted: #99b6c4;
+
+  --sl-color-accent-low: #072f3a;
+  --sl-color-accent: var(--ce-brand-400);
+  --sl-color-accent-high: var(--ce-brand-200);
+  --sl-color-text-accent: var(--ce-brand-300);
+  --sl-color-bg: var(--ce-surface-0);
+  --sl-color-bg-nav: var(--ce-surface-1);
+  --sl-color-bg-sidebar: var(--ce-surface-1);
+  --sl-color-text: var(--ce-surface-ink);
+  --sl-color-text-invert: #03161d;
+  --sl-color-hairline: rgba(125, 221, 248, 0.16);
+  --sl-color-gray-1: var(--ce-surface-ink);
+  --sl-color-gray-2: #d3e7ee;
+  --sl-color-gray-3: #a8c3cf;
+  --sl-color-gray-4: #7d9aa6;
+  --sl-color-gray-5: #5f7c89;
+  --sl-color-gray-6: #2a4856;
+  --sl-color-gray-7: #16323f;
+
+  /* Dark-mode bump for accent tints — dark backgrounds need higher opacity
+     for the tint to register. Same TOKEN name so callers stay theme-agnostic. */
+  --ce-tint-accent-soft: color-mix(in srgb, var(--sl-color-text-accent) 10%, transparent);
+  --ce-tint-accent-medium: color-mix(in srgb, var(--sl-color-text-accent) 12%, transparent);
+  --ce-tint-accent-strong: color-mix(in srgb, var(--sl-color-text-accent) 18%, transparent);
+  --ce-tint-accent-bg: color-mix(in srgb, var(--sl-color-text-accent) 5%, transparent);
+  --ce-tint-accent-pending: color-mix(in srgb, var(--sl-color-text-accent) 36%, transparent);
+}

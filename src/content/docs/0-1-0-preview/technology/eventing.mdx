@@ -1,0 +1,531 @@
+---
+title: Eventing
+description: Cephalon.Eventing + Wolverine adapter — broker comparison, outbox/inbox patterns, scheduled delivery, DLQ replay, process managers, CDC capture.
+sidebar:
+  order: 4
+editUrl: false
+---
+
+The eventing capability turns a Cephalon app into an **event-driven system** — modules emit events into a broker, other modules (in this app or another service) consume them asynchronously. Eventing is what makes the "split into microservices later" promise real: the same module can publish events whether it's composed into a monolith or a standalone service.
+
+The current managed dispatch path is **[Wolverine](https://wolverinefx.io/)**; the abstractions in `Cephalon.Eventing` keep your modules transport-neutral so you can swap brokers without rewriting handlers.
+
+## Packages
+
+| Package | Maturity | What it brings |
+| --- | --- | --- |
+| **`Cephalon.Eventing`** | `M3` | Transport-neutral primitives: `IMessagePublisher`, `IMessageHandler<T>`, `[Event]` attribute, `MessageContext`, process-manager base. |
+| **`Cephalon.Eventing.Wolverine`** | `M3` | Managed dispatch via [Wolverine](https://wolverinefx.io/). Outbox, scheduled delivery, DLQ replay, partition affinity, process-manager state, broker topology. |
+
+## How to enable
+
+```jsonc title="appsettings.json" {4-12}
+{
+  "Engine": {
+    "Messaging": {
+      "Enabled": true,
+      "Provider": "Wolverine",
+      "Wolverine": {
+        "Transport": "RabbitMq",
+        "ConnectionString": "amqps://user:pass@rabbitmq.example/vhost",
+        "ScheduledDelivery": { "Enabled": true },
+        "DeadLetter": { "Enabled": true, "MaxAttempts": 5 }
+      }
+    }
+  }
+}
+```
+
+```csharp title="Program.cs" {3}
+builder.Services
+    .AddCephalonAspNetCore()
+    .AddEventing(options => options.UseWolverine())
+    .AddModulesFromAssemblies(/* ... */);
+```
+
+The eventing capability is **opt-in**. Modules that emit events declare `Capability.Eventing` in their descriptor — the engine fails composition if `Messaging:Enabled` isn't true.
+
+## Choosing a broker
+
+Wolverine supports multiple brokers; pick based on operational maturity in your environment.
+
+| Broker | Best for | Avoid if |
+| --- | --- | --- |
+| **In-memory** | Tests, single-process modular monolith | You need durability across restarts |
+| **RabbitMQ** | Most production workloads, classic queueing semantics | You need replay (RMQ doesn't natively replay) |
+| **Azure Service Bus** | Azure-native deploys, no broker to operate | You're not on Azure |
+| **Amazon SQS / SNS** | AWS-native deploys | You need ordered delivery across many messages (SQS FIFO has per-group ordering only) |
+| **Kafka** | High-throughput streaming, replayable event logs | You need point-to-point queues — Kafka is partition-keyed pub/sub |
+| **NATS JetStream** | Lightweight, K8s-friendly, persistent streams | Your operators aren't comfortable with NATS yet |
+| **Postgres** (LISTEN/NOTIFY) | Already running Postgres, want zero ops | Throughput > a few hundred msg/sec |
+
+### Switching brokers
+
+The only thing that changes is `Engine:Messaging:Wolverine:Transport` + the connection string. Module code (`[Event]`, `IMessagePublisher`, `IMessageHandler<T>`) is identical.
+
+```jsonc title="RabbitMQ"
+{ "Wolverine": { "Transport": "RabbitMq",  "ConnectionString": "amqps://…" } }
+```
+
+```jsonc title="Azure Service Bus"
+{ "Wolverine": { "Transport": "AzureServiceBus", "ConnectionString": "Endpoint=sb://…" } }
+```
+
+```jsonc title="Kafka"
+{ "Wolverine": { "Transport": "Kafka", "Bootstrap": "broker-1:9092,broker-2:9092" } }
+```
+
+## Defining events
+
+Use the `[Event]` attribute so the eventing layer knows the routing key:
+
+```csharp title="src/Acme.Store.Modules.Orders/Events/OrderPlaced.cs"
+using Cephalon.Eventing;
+
+[Event(name: "acme.store.order-placed", version: "1.0")]
+public sealed record OrderPlaced(
+    string OrderId,
+    string CustomerId,
+    decimal Total,
+    IReadOnlyList<OrderLine> Lines);
+
+public sealed record OrderLine(string ProductId, int Quantity, decimal UnitPrice);
+```
+
+### Versioning events
+
+When the schema changes:
+
+```csharp
+// v1 stays for backwards compatibility
+[Event(name: "acme.store.order-placed", version: "1.0")]
+public sealed record OrderPlacedV1(string OrderId, string CustomerId, decimal Total);
+
+// v2 adds the lines collection
+[Event(name: "acme.store.order-placed", version: "2.0")]
+public sealed record OrderPlaced(
+    string OrderId, string CustomerId, decimal Total, IReadOnlyList<OrderLine> Lines);
+```
+
+Consumers handle whichever version is on the wire. Wolverine routes by `name` + `version`.
+
+## Publishing events
+
+```csharp title="src/Acme.Store.Modules.Orders/Behaviors/PlaceOrderBehavior.cs"
+public sealed class PlaceOrderBehavior : IRestBehavior
+{
+    public RestRoute Route => RestRoute.Post("/orders");
+
+    public async Task<IResult> Handle(
+        PlaceOrderPayload p,
+        IOrderRepository orders,
+        IMessagePublisher publisher,
+        CancellationToken ct)
+    {
+        var order = new Order { /* … */ };
+        await orders.AddAsync(order, ct);
+
+        await publisher.PublishAsync(
+            new OrderPlaced(order.Id, order.CustomerId, order.Total, /* … */),
+            ct);
+
+        return Results.Created($"/orders/{order.Id}", order);
+    }
+}
+```
+
+### What happens under the hood
+
+1. `IMessagePublisher.PublishAsync` writes the event **into the outbox table** in the same DbContext transaction as the order.
+2. The DbContext `SaveChangesAsync()` commits — order row + outbox row land atomically.
+3. A Wolverine background loop drains the outbox and dispatches to the broker.
+4. Consumers receive the event; if a consumer fails, Wolverine retries per the broker's redelivery policy.
+
+This is the **transactional outbox pattern** — at-least-once delivery without dual-writes.
+
+## Consuming events
+
+```csharp title="src/Acme.Billing.Modules/InvoicingHandler.cs"
+public sealed class InvoicingHandler(
+    IInvoiceService invoices,
+    ILogger<InvoicingHandler> log) : IMessageHandler<OrderPlaced>
+{
+    public async Task HandleAsync(
+        OrderPlaced message,
+        MessageContext ctx,
+        CancellationToken ct)
+    {
+        log.LogInformation("Issuing invoice for order {OrderId}", message.OrderId);
+        await invoices.IssueAsync(message.OrderId, message.Total, ct);
+    }
+}
+```
+
+Register the handler in the module:
+
+```csharp
+public override void RegisterServices(IServiceCollection services)
+{
+    services.AddMessageHandler<OrderPlaced, InvoicingHandler>();
+}
+```
+
+### `MessageContext`
+
+Every handler receives a `MessageContext` with useful metadata:
+
+| Property | Meaning |
+| --- | --- |
+| `MessageId` | Globally unique id of this delivery. Use for idempotency keys. |
+| `CorrelationId` | Trace correlation id (carries OTLP trace context). |
+| `Attempt` | Delivery attempt number (1-based). |
+| `OriginalTimestamp` | When the producer published. |
+| `Headers` | Dictionary of arbitrary headers (e.g. tenant id). |
+
+## Patterns
+
+### Pattern 1: process manager / saga
+
+A long-running flow that reacts to events and emits new ones.
+
+```csharp title="OrderFulfillmentSaga.cs"
+[Saga(state: typeof(FulfillmentState))]
+public sealed class OrderFulfillmentSaga
+{
+    // Starts a new saga when OrderPlaced arrives
+    public static FulfillmentState Start(OrderPlaced @event) => new(@event.OrderId)
+    {
+        InvoiceIssued = false, PaymentReceived = false, Shipped = false,
+    };
+
+    // Continues an existing saga on InvoiceIssued
+    public void Handle(InvoiceIssued @event, FulfillmentState state, IMessagePublisher pub)
+    {
+        state.InvoiceIssued = true;
+        pub.PublishAsync(new ChargeCustomer(state.OrderId, state.Total));
+    }
+
+    public void Handle(PaymentReceived @event, FulfillmentState state, IMessagePublisher pub)
+    {
+        state.PaymentReceived = true;
+        if (state is { InvoiceIssued: true, PaymentReceived: true })
+            pub.PublishAsync(new ShipOrder(state.OrderId));
+    }
+
+    public void Handle(OrderShipped @event, FulfillmentState state)
+    {
+        state.Shipped = true;
+        // Saga complete → state can be archived
+    }
+}
+```
+
+State is persisted by Wolverine in your data store. The saga survives restarts.
+
+### Pattern 2: scheduled delivery (delay / retry-after)
+
+```csharp
+await publisher.PublishAsync(
+    new SendReminderEmail(userId),
+    deliverAt: DateTimeOffset.UtcNow.AddHours(24),
+    ct);
+```
+
+Wolverine persists the message and dispatches when the time arrives. Supported brokers:
+
+| Broker | Scheduled-delivery mechanism |
+| --- | --- |
+| RabbitMQ | Wolverine's own scheduler (DB-backed) |
+| Azure Service Bus | Native `ScheduledEnqueueTimeUtc` |
+| SQS | Native `DelaySeconds` (up to 15 min); Wolverine for longer |
+| Kafka | Wolverine's DB-backed scheduler (Kafka has no native delay) |
+| In-memory | Wolverine's in-process scheduler |
+
+### Pattern 3: dead-letter queue replay
+
+When a message fails `MaxAttempts` times, it goes to the DLQ. Replay via the admin behavior:
+
+```csharp
+// Built-in admin endpoint POST /engine/eventing/dlq/replay
+// Or programmatically:
+public sealed class DlqReplayCommand(IDeadLetterStore dlq, IMessagePublisher pub)
+{
+    public async Task ReplayAsync(string envelopeId, CancellationToken ct)
+    {
+        var envelope = await dlq.GetAsync(envelopeId, ct);
+        await pub.RepublishAsync(envelope, ct);
+        await dlq.RemoveAsync(envelopeId, ct);
+    }
+}
+```
+
+### Pattern 4: idempotent handler with the inbox table
+
+For at-least-once delivery (most brokers), handlers MUST be idempotent or use an inbox table.
+
+```csharp title="IdempotentHandler.cs"
+public sealed class InvoicingHandler(
+    IInvoiceService invoices,
+    IInboxStore inbox) : IMessageHandler<OrderPlaced>
+{
+    public async Task HandleAsync(OrderPlaced msg, MessageContext ctx, CancellationToken ct)
+    {
+        // Already processed this message? Skip.
+        if (await inbox.WasProcessedAsync(ctx.MessageId, ct)) return;
+
+        await invoices.IssueAsync(msg.OrderId, msg.Total, ct);
+        await inbox.MarkProcessedAsync(ctx.MessageId, ct);
+        // Both writes commit in the same EF transaction
+    }
+}
+```
+
+`IInboxStore` is provided by `Cephalon.Data.EntityFramework` (table `cephalon_eventing_inbox`).
+
+### Pattern 5: fan-out (one event, many handlers)
+
+Just register multiple handlers for the same event:
+
+```csharp
+services.AddMessageHandler<OrderPlaced, InvoicingHandler>();         // accounting team
+services.AddMessageHandler<OrderPlaced, ShipmentSchedulerHandler>(); // fulfillment team
+services.AddMessageHandler<OrderPlaced, AnalyticsIngestHandler>();   // data team
+```
+
+Each handler runs in its own scope. Failures are isolated.
+
+### Pattern 6: partition affinity (ordered processing per key)
+
+Some events must be processed in order *per entity* (e.g. all events for `OrderId=42` must be processed sequentially).
+
+```csharp
+[Event(name: "acme.store.order-status-changed", version: "1.0")]
+[PartitionKey(nameof(OrderId))]
+public sealed record OrderStatusChanged(string OrderId, string NewStatus);
+```
+
+Wolverine routes messages with the same `OrderId` to the same partition / consumer instance.
+
+### Pattern 7: CDC capture (change data capture)
+
+When your domain commits to a database, also emit events from the database changelog. Useful for legacy systems where you can't easily add event publishing.
+
+```csharp
+public sealed class ProductsCdcContributor : ICdcCaptureContributor
+{
+    public CdcSource Source => new(
+        name: "products-cdc",
+        connection: "Products",
+        slot:       "products_logical_replication");
+
+    public void Configure(ICdcCaptureBuilder b)
+    {
+        b.OnInsert<Product>(p => new ProductCreated(p.Id, p.Name, p.Sku));
+        b.OnUpdate<Product>(p => new ProductChanged(p.Id, p.Name, p.Sku));
+        b.OnDelete<Product>(p => new ProductRemoved(p.Id));
+    }
+}
+```
+
+The engine wires this to a Debezium / Postgres logical-replication consumer and dispatches via the same eventing pipeline. See **[Reference → Architecture → CDC capture](/0-1-0-preview/reference/architecture/runtime-contracts/#catalog-interfaces)**.
+
+## Topology recipes
+
+### Recipe: in-process events for a modular monolith
+
+For a monolith, in-memory transport is fast and zero-ops. Module A emits, Module B consumes — no broker.
+
+```jsonc
+{ "Engine": { "Messaging": { "Enabled": true, "Provider": "Wolverine",
+                              "Wolverine": { "Transport": "Local" } } } }
+```
+
+### Recipe: RabbitMQ classic queues
+
+```jsonc
+{
+  "Engine": {
+    "Messaging": {
+      "Enabled": true, "Provider": "Wolverine",
+      "Wolverine": {
+        "Transport": "RabbitMq",
+        "ConnectionString": "amqps://user:pass@rabbitmq:5671/",
+        "Exchanges": {
+          "acme-events": { "Type": "topic", "Durable": true }
+        }
+      }
+    }
+  }
+}
+```
+
+### Recipe: Kafka with per-tenant partitions
+
+```jsonc
+{
+  "Engine": {
+    "Messaging": {
+      "Enabled": true, "Provider": "Wolverine",
+      "Wolverine": {
+        "Transport": "Kafka",
+        "Bootstrap": "broker-1:9092,broker-2:9092",
+        "Topics": {
+          "acme-events": { "Partitions": 32, "ReplicationFactor": 3 }
+        }
+      }
+    }
+  }
+}
+```
+
+### Recipe: Azure Service Bus topics + subscriptions
+
+```jsonc
+{
+  "Engine": {
+    "Messaging": {
+      "Enabled": true, "Provider": "Wolverine",
+      "Wolverine": {
+        "Transport": "AzureServiceBus",
+        "ConnectionString": "Endpoint=sb://acme.servicebus.windows.net/;…",
+        "Topics": {
+          "acme-events": {
+            "Subscriptions": ["acme-billing", "acme-analytics"]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+## Observability
+
+Every published / consumed event auto-instruments with:
+
+- **Trace span** — `event.publish` / `event.consume`, with attributes for event name, version, attempt number.
+- **Metric** — `cephalon.eventing.messages.published`, `cephalon.eventing.messages.handled`, `cephalon.eventing.messages.failed`, `cephalon.eventing.dlq.depth`.
+- **Log** — structured logs with `cephalon.event.name`, `cephalon.event.id`, `cephalon.event.attempt`.
+
+In Grafana / Application Insights, you can dashboard:
+
+- **Throughput** — published / handled / failed per minute.
+- **Latency** — p50/p95/p99 publish-to-handle time (using trace spans).
+- **DLQ depth** — grows when handlers can't keep up.
+- **Per-handler error rate** — `cephalon.eventing.messages.failed{handler="InvoicingHandler"}`.
+
+## Limits & gotchas
+
+- **At-least-once delivery is the default.** Handlers MUST be idempotent or use the inbox pattern. Exactly-once is not provided — it's a hard distributed-systems problem.
+- **Wolverine outbox requires EF Core.** If you don't use EF, you need a custom outbox impl. Plain `Cephalon.Eventing` works but you lose the transactional guarantee.
+- **`[PartitionKey]` only works with brokers that support partitioning** (Kafka, Azure Service Bus sessions). RabbitMQ / SQS don't preserve per-key ordering across queues.
+- **Scheduled delivery > 15 minutes** uses Wolverine's DB-backed scheduler. Don't enable it on Postgres if you publish 10k+ scheduled msgs/sec — the polling becomes a bottleneck. Use Kafka or ASB at that volume.
+- **DLQ replay is manual by default.** Add an authentication scope (`WithRequireScope("ops:dlq")`) on the replay behavior so it's not exposed publicly.
+- **Saga state size** — keep saga state small (< 64 KB). Large states slow down persistence; persist domain detail in your DbContext, keep only orchestration state in the saga.
+- **Process managers don't support compensation natively.** If you need to "undo" steps in a long-running flow, model compensation as additional events (`OrderPlaced` → `CompensateOrderFulfillment`).
+
+## Tips & tricks
+
+Eventing patterns that pay off in production.
+
+### Event design
+
+- **Events are past-tense facts.** `OrderPlaced`, `InvoiceIssued`. Never `PlaceOrder` (that's a command, belongs in a request).
+- **Include the minimum identifying data + denormalised context.** Consumers shouldn't have to call back to the publisher's API for basic info. `OrderPlaced(orderId, customerId, total, items)` — not just `OrderPlaced(orderId)`.
+- **Don't put domain entities directly in events.** Use records that are stable wire types; entities evolve with persistence concerns.
+- **Version events from day 1.** Add `version: "1.0"` to every `[Event]` attribute, even when there's only one version. Saves the conversation 6 months later.
+
+### Idempotency
+
+- **Every handler must be idempotent.** At-least-once delivery is the norm; exactly-once is a myth. Either:
+  - The handler's effect is naturally idempotent (`SET status = 'paid'` for the same id twice is OK).
+  - The handler uses the inbox table (`IInboxStore`) for deduplication.
+- **`MessageContext.MessageId` is your dedup key.** Same id = same delivery = skip.
+
+### Outbox best practices
+
+- **Co-locate `publisher.PublishAsync` with the DbContext write.** That's the whole point — atomic transaction.
+- **Don't publish from a `using` scope outside the request.** The outbox needs an ambient `DbContext`; outside the request scope it falls back to direct broker publish (no atomic guarantee).
+- **Purge the outbox table aggressively.** Wolverine doesn't ship a built-in cleanup job — write your own `IHostedService` that deletes `processed_at < UTCNOW - 7 days`.
+
+### Saga design
+
+- **Keep saga state small.** < 1 KB ideally, < 64 KB hard ceiling. Persist domain entities in your DbContext; persist only orchestration state in the saga.
+- **Sagas should react, not query.** If you need to "look up the current state" to decide what to do next, the data should already be in the saga state (denormalised on the events that triggered the saga).
+- **Compensation as events, not as code.** Don't try to "undo" inside a saga's exception handler. Emit a `CompensateX` event and have a handler do the work — easier to test, easier to retry.
+
+### Naming
+
+| Thing | Convention | Example |
+| --- | --- | --- |
+| Event class | `<Past-tense fact>` (`record`) | `OrderPlaced`, `InvoiceIssued` |
+| Event `name` | `<reverse-dns>.<context>.<event>` (kebab) | `"acme.store.order-placed"` |
+| Handler class | `<Concern>Handler<EventType>` or `<Concern>On<Event>` | `InvoicingHandler`, `BillingOnOrderPlaced` |
+| Saga class | `<Process>Saga` | `OrderFulfillmentSaga` |
+| Process-manager state class | `<Process>State` | `FulfillmentState` |
+| DLQ envelope id format | UUID v7 / Sfid | Stable across replays |
+
+### Broker selection heuristics
+
+```text
+Need replayable event log (e.g. event sourcing)     → Kafka or NATS JetStream
+Need point-to-point queues with strong durability   → RabbitMQ or Azure Service Bus
+On AWS, want minimum ops                            → SQS + SNS
+On Azure, want minimum ops                          → Azure Service Bus
+On Kubernetes, want lightweight                     → NATS JetStream
+Postgres already in your stack, < 100 msg/sec       → Postgres LISTEN/NOTIFY (acceptable)
+For tests / monolith                                → In-memory (Wolverine "Local")
+```
+
+### Performance
+
+- **Batch processing**: `IMessageHandler<T>` for individual messages, `IBatchHandler<T>` for grouped processing. ~5–10× throughput for I/O-bound handlers.
+- **Partition by key for parallelism**: with `[PartitionKey]`, Wolverine processes the same partition serially but different partitions in parallel. Tune partition count to match consumer count.
+- **Bounded channels for backpressure**: if a handler is slow, Wolverine queues messages. Set `MaxConcurrency` per endpoint so a slow consumer doesn't starve the rest.
+- **OTLP trace context propagates automatically** through the eventing layer — your distributed traces span publisher → broker → consumer without effort.
+
+### Monitoring + alerting
+
+- **Alert on DLQ growth, not DLQ presence.** Some failures are expected; sustained growth means the handler is broken.
+- **Alert on `cephalon.eventing.messages.failed` rate > 1%** per handler. Below that is usually transient.
+- **Track outbox depth as a gauge metric** (`SELECT COUNT(*) FROM outbox WHERE processed_at IS NULL`). Sudden spike means the drainer is stuck.
+- **Trace correlation across services** — set `MessageContext.CorrelationId` from the originating request. Otherwise events look like they appeared from nowhere in traces.
+
+### Testing
+
+- **Use `MessageSpy<T>` for behavioural tests**: assert that a handler publishes the expected event.
+- **In-memory transport for tests**: fast, deterministic. No need for Testcontainers brokers in unit tests.
+- **Test the saga state-machine, not just one transition**. Replay the event sequence end-to-end.
+- **For integration tests**, use Testcontainers RabbitMQ / Kafka to catch broker-specific gotchas (header size limits, message size limits, ordering quirks).
+
+### Replay & recovery
+
+- **Don't auto-replay DLQ messages.** Always require human approval (a button in your admin UI, or a CLI command). Auto-replay can turn one bug into thousands of duplicate side-effects.
+- **Replay in batches.** If your DLQ has 10k messages, replay 100 at a time and monitor; don't unleash all 10k at once.
+- **Have a "stop the world" kill-switch.** A way to pause the publisher (set `Engine:Messaging:Enabled=false` and restart, or runtime-config the message bus to drop publishes) so you can investigate without making the pile worse.
+
+### Anti-patterns
+
+| Don't | Do |
+| --- | --- |
+| Big "EnterpriseEvent" with every possible field | Small, focused events per fact |
+| Synchronous request-reply over the broker | Use HTTP/gRPC for sync; events for async |
+| Trying to chain N handlers for N steps of a process | Use a saga — state-machine semantics, not handler chains |
+| Catching all exceptions in handlers + suppressing | Let it fail; Wolverine retries; the DLQ has a purpose |
+| Event content matches DB row 1:1 | Events represent **business facts**, not DB state |
+| Long-running work in a handler | Handler enqueues a job; a separate handler does the work |
+| Shared event types across services living in a "Shared.Events" project | Version them; consumers should tolerate v1 + v2 simultaneously |
+
+## Source-doc snapshots
+
+- [Cephalon.Eventing](/0-1-0-preview/source/components/eventing/)
+- [Cephalon.Eventing.Wolverine](/0-1-0-preview/source/components/eventing-wolverine/)
+- [Eventing behaviors](/0-1-0-preview/source/components/eventing-behaviors/)
+
+## Where to go next
+
+- **[Tutorial → First-app step 5: Eventing](/0-1-0-preview/tutorials/first-app/05-eventing/)** — end-to-end first eventing flow.
+- **[Tutorial → Event-driven pipeline](/0-1-0-preview/tutorials/event-driven/)** — the full surface (sagas, scheduled, DLQ, CDC).
+- **[Technology → Data](/0-1-0-preview/technology/data/)** — outbox/inbox tables in EF Core.
+- **[Reference → Architecture → CDC capture](/0-1-0-preview/reference/architecture/runtime-contracts/)** — change-data-capture contracts.
+- [Wolverine documentation](https://wolverinefx.io/) — upstream Wolverine reference (most options pass through unchanged).

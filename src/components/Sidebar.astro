@@ -1,0 +1,227 @@
+---
+/**
+ * Sidebar override — picks a slice of the configured sidebar tree based on
+ * the current URL so each section sees only its own menu.
+ *
+ *   Set 1 (versioned): Guide, Tutorials, Technology, Migration
+ *                      shown on /<versionId>/{guide|tutorials|technology|migration}/...
+ *
+ *   Set 2 (versioned): Reference's sub-groups (Architecture, Configuration,
+ *                      CLI, API Reference) promoted to top level
+ *                      shown on /<versionId>/reference/...
+ *
+ *   Set 3 (versioned): Contributing pages promoted to top level
+ *                      shown on /<versionId>/contributing/...
+ *
+ *   Set 4 (site-wide): About pages promoted to top level
+ *                      shown on /about/...
+ *
+ *   Source dump: shown on /<versionId>/source/...
+ */
+
+import Default from '@astrojs/starlight/components/Sidebar.astro';
+import {
+  detectSection,
+  detectVersion,
+  stripBase,
+  stripLocale,
+  versions,
+} from '../lib/version-routing';
+
+type SidebarEntry =
+  | {
+      type: 'link';
+      label: string;
+      href: string;
+      isCurrent?: boolean;
+      attrs?: Record<string, unknown>;
+      badge?: unknown;
+    }
+  | {
+      type: 'group';
+      label: string;
+      entries: SidebarEntry[];
+      collapsed?: boolean;
+      badge?: unknown;
+    };
+
+const route = Astro.locals.starlightRoute;
+const fullSidebar = route.sidebar as SidebarEntry[];
+
+const { path: stripped } = stripLocale(stripBase(Astro.url.pathname));
+const activeVersion = detectVersion(stripped);
+const activeSection = detectSection(stripped, activeVersion);
+
+function isGroup(
+  entry: SidebarEntry
+): entry is Extract<SidebarEntry, { type: 'group' }> {
+  return entry.type === 'group';
+}
+
+/** Find a top-level group by its configured label. */
+function findRoot(label: string): Extract<SidebarEntry, { type: 'group' }> | undefined {
+  const match = fullSidebar.find((entry) => isGroup(entry) && entry.label === label);
+  return match && isGroup(match) ? match : undefined;
+}
+
+/**
+ * Find the version-scoped wrapper inside the configured sidebar.
+ *
+ * astro.config.mjs builds one top-level group per version, with label
+ * `<versionLabel> · v` (e.g. "0.1.0-preview · v"). Inside it sits the full
+ * per-version doc tree.
+ */
+function findVersionGroup(versionId: string): Extract<SidebarEntry, { type: 'group' }> | undefined {
+  // Match by version label suffix.
+  const version = versions.find((v) => v.id === versionId);
+  if (!version) return undefined;
+  const match = fullSidebar.find(
+    (entry) => isGroup(entry) && entry.label.startsWith(version.label)
+  );
+  return match && isGroup(match) ? match : undefined;
+}
+
+function findInVersion(
+  versionId: string,
+  label: string
+): Extract<SidebarEntry, { type: 'group' }> | undefined {
+  const versionGroup = findVersionGroup(versionId);
+  if (!versionGroup) return undefined;
+  const match = versionGroup.entries.find((entry) => isGroup(entry) && entry.label === label);
+  return match && isGroup(match) ? match : undefined;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   API-reference tree pruning
+   ──────────────────────────────────────────────────────────────────────────
+   The DocFX-generated API reference is ~1,600 entries (367 namespaces +
+   1,266 types). Starlight renders the WHOLE configured tree into every
+   page's HTML — collapsed `<details>` still ship all their `<li>` children.
+   That repeated tree is what bloats each API page to ~600 KB.
+
+   Instead we render only the *path to the current page*: ancestor groups
+   stay expanded with their children; every off-path namespace collapses to
+   a single link to its Overview page. ~1,600 entries → ~50-100 per page.
+   Other namespaces are one click away — the destination re-renders the
+   tree around itself. Pure SSR: no JS, no a11y regression, real <a> links.
+   ────────────────────────────────────────────────────────────────────── */
+
+const currentPath = Astro.url.pathname.replace(/\/+$/, '');
+
+/** First link anywhere in a subtree — for DocFX groups this is the
+    namespace's "Overview" page. */
+function findFirstLink(
+  entry: SidebarEntry
+): Extract<SidebarEntry, { type: 'link' }> | null {
+  if (entry.type === 'link') return entry;
+  for (const child of entry.entries) {
+    const found = findFirstLink(child);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Is this link the current page? Trusts Starlight's `isCurrent`, with an
+    href comparison as a fallback. */
+function isCurrentLink(entry: SidebarEntry): boolean {
+  if (entry.type !== 'link') return false;
+  if (entry.isCurrent) return true;
+  return entry.href.replace(/\/+$/, '') === currentPath;
+}
+
+/** Does the current page live anywhere inside this entry's subtree? */
+function containsCurrent(entry: SidebarEntry): boolean {
+  if (entry.type === 'link') return isCurrentLink(entry);
+  return entry.entries.some(containsCurrent);
+}
+
+/** Recursively prune one API-tree entry (see the block comment above). */
+function pruneApiEntry(entry: SidebarEntry): SidebarEntry {
+  if (entry.type === 'link') return entry;
+  if (containsCurrent(entry)) {
+    // On the path to the current page — keep expanded, recurse children.
+    return { ...entry, collapsed: false, entries: entry.entries.map(pruneApiEntry) };
+  }
+  // Off-path — collapse the whole group to a single link to its Overview,
+  // re-using the Overview link's shape with the group's label.
+  const overview = findFirstLink(entry);
+  if (overview) {
+    return { ...overview, label: entry.label, isCurrent: false };
+  }
+  // No link inside at all (shouldn't happen for DocFX output) — keep the
+  // group shell but drop the dead subtree.
+  return { ...entry, collapsed: true, entries: [] };
+}
+
+let filteredSidebar: SidebarEntry[] = fullSidebar;
+
+if (activeVersion) {
+  switch (activeSection) {
+    case 'reference': {
+      const group = findInVersion(activeVersion.id, 'Reference');
+      filteredSidebar = group
+        ? group.entries.map((entry) => {
+            // Prune ONLY the giant API Reference subtree — the other
+            // reference groups (Architecture, Configuration, Components,
+            // CLI) are small and stay as-is.
+            if (isGroup(entry) && entry.label === 'API Reference') {
+              const pruned: SidebarEntry = {
+                ...entry,
+                entries: entry.entries.map(pruneApiEntry),
+              };
+              // Expand the API Reference group itself when the reader is
+              // somewhere inside it.
+              if (containsCurrent(entry)) pruned.collapsed = false;
+              return pruned;
+            }
+            return entry;
+          })
+        : [];
+      break;
+    }
+    case 'contributing': {
+      const group = findInVersion(activeVersion.id, 'Contributing');
+      filteredSidebar = group ? group.entries : [];
+      break;
+    }
+    case 'source': {
+      const group = findInVersion(activeVersion.id, 'Engine source docs');
+      filteredSidebar = group ? group.entries : [];
+      break;
+    }
+    case 'guide':
+    case 'tutorials':
+    case 'technology':
+    case 'migration':
+    default: {
+      // Set 1: only Guide / Tutorials / Technology / Migration inside the
+      // active version.
+      const versionGroup = findVersionGroup(activeVersion.id);
+      const allowed = new Set(['Guide', 'Tutorials', 'Technology', 'Migration']);
+      filteredSidebar = versionGroup
+        ? versionGroup.entries.filter((entry) => isGroup(entry) && allowed.has(entry.label))
+        : [];
+      break;
+    }
+  }
+} else {
+  // Outside any version: probably on /about/* or the homepage.
+  if (activeSection === 'about') {
+    const group = findRoot('About');
+    filteredSidebar = group ? group.entries : [];
+  } else {
+    // Default fallback when no version + no section (e.g. 404) — show empty
+    // so the homepage / splash pages don't get a stale Set 1 listing.
+    filteredSidebar = [];
+  }
+}
+
+// Cast back to Starlight's stricter SidebarEntry type. Our local
+// `SidebarEntry` discriminated union doesn't include the SidebarAutoLink
+// variant (with required `autogenerate`) — but at runtime we only return
+// already-rendered links/groups, never raw `autogenerate` requests, so the
+// assignment is sound even though the types don't trivially overlap.
+route.sidebar = filteredSidebar as typeof route.sidebar;
+---
+
+<Default><slot /></Default>

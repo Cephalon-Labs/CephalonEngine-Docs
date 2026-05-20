@@ -1,0 +1,99 @@
+---
+/**
+ * Footer ads — 3 slots in a horizontal grid above the footer.
+ *
+ * Activated via env vars (see src/lib/ads-config.ts). Falls back to
+ * placeholder cards when no network is configured so the layout is
+ * obvious during development.
+ *
+ * Hidden in:
+ *   • print  — handled by src/styles/print.css.
+ *   • narrow viewports — grid collapses to 2 then 1 column via CSS.
+ */
+
+import { adsConfig, adsAreLive } from '../lib/ads-config';
+
+const { lang } = Astro.locals.starlightRoute ?? { lang: 'en' };
+const isThai = lang === 'th';
+
+const isEthicalAds = adsConfig.network === 'ethicaladunit' && adsAreLive;
+const isCarbonAds = adsConfig.network === 'carbon' && adsAreLive;
+const showPlaceholder = !adsAreLive;
+
+const labels = isThai
+  ? { ariaLabel: 'พื้นที่โฆษณา' }
+  : { ariaLabel: 'Advertisements' };
+---
+
+<aside class="ce-footer-ads" aria-label={labels.ariaLabel}>
+  <div class="ce-footer-ads__grid">
+    {
+      isEthicalAds && (
+        <>
+          <div
+            class="ce-footer-ads__slot ce-footer-ads__slot--image"
+            data-ea-publisher={adsConfig.ethicalAds.publisher}
+            data-ea-type="image"
+            data-ea-keywords={adsConfig.ethicalAds.keywords}
+          />
+          <div
+            class="ce-footer-ads__slot ce-footer-ads__slot--text"
+            data-ea-publisher={adsConfig.ethicalAds.publisher}
+            data-ea-type="text"
+            data-ea-keywords={adsConfig.ethicalAds.keywords}
+          />
+          <div
+            class="ce-footer-ads__slot ce-footer-ads__slot--text"
+            data-ea-publisher={adsConfig.ethicalAds.publisher}
+            data-ea-type="text"
+            data-ea-style="fixedfooter"
+            data-ea-keywords={adsConfig.ethicalAds.keywords}
+          />
+        </>
+      )
+    }
+
+    {
+      isCarbonAds && (
+        <div class="ce-footer-ads__slot ce-footer-ads__slot--carbon ce-footer-ads__slot--span-3">
+          <script
+            is:inline
+            async
+            type="text/javascript"
+            src={`//cdn.carbonads.com/carbon.js?serve=${adsConfig.carbonAds.serve}&placement=${adsConfig.carbonAds.placement}`}
+            id="_carbonads_js"
+          />
+        </div>
+      )
+    }
+
+    {
+      showPlaceholder && (
+        <>
+          <div class="ce-footer-ads__placeholder">
+            <span class="ce-footer-ads__placeholder-tag">Ad slot 1</span>
+            <span class="ce-footer-ads__placeholder-hint">
+              Served by the configured ads provider. Register at an ad network and set
+              <code>PUBLIC_ADS_NETWORK</code> + the provider's publisher ID.
+            </span>
+          </div>
+          <div class="ce-footer-ads__placeholder">
+            <span class="ce-footer-ads__placeholder-tag">Ad slot 2</span>
+            <span class="ce-footer-ads__placeholder-hint">
+              Ads are delivered by the network — content is not authored here.
+            </span>
+          </div>
+          <div class="ce-footer-ads__placeholder">
+            <span class="ce-footer-ads__placeholder-tag">Ad slot 3</span>
+            <span class="ce-footer-ads__placeholder-hint">
+              See <code>src/lib/ads-config.ts</code> for the supported networks (EthicalAds, Carbon Ads).
+            </span>
+          </div>
+        </>
+      )
+    }
+  </div>
+</aside>
+
+{/* EthicalAds runtime — loaded once per page when the network is active. */}
+{isEthicalAds && <script async is:inline src="https://media.ethicalads.io/media/client/ethicalads.min.js" />}

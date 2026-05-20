@@ -1,0 +1,136 @@
+---
+title: 'Tutorial: Build your first app'
+description: 'An 8-part tutorial that takes you from cephalon new to a deployed, observable, testable modular monolith with EF Core and REST.'
+sidebar:
+  order: 0
+  label: 'Build your first app'
+editUrl: false
+---
+
+import PathCards from '../../../../../components/PathCards.astro';
+
+This is the canonical "Day 1 to Day 30" tutorial. We build **Acme.Store** — a small e-commerce backend — together. By the end you'll have:
+
+- a modular monolith with **Orders**, **Products**, and **Health** modules.
+- REST endpoints exposed via behaviors, documented via OpenAPI/Scalar.
+- EF Core wired through `Cephalon.Data.EntityFramework`.
+- structured logs, metrics, and traces flowing to an OTLP collector.
+- composition smoke tests + per-feature behavior tests.
+- a container image that boots in any of the seven supported deploy targets.
+
+Total time: **3–4 hours** if you read carefully, **6–8 hours** if you also experiment.
+
+## The 8 steps
+
+<PathCards
+  paths={[
+    {
+      badge: 'Step 1',
+      title: 'Scaffold and run',
+      description: 'cephalon new, run the host, hit /engine/manifest, understand the generated layout.',
+      href: '/0-1-0-preview/tutorials/first-app/01-setup/',
+      cta: 'Start step 1',
+    },
+    {
+      badge: 'Step 2',
+      title: 'Add a domain module',
+      description: 'Create the Products module: descriptor, services, REST behaviors, OpenAPI surface.',
+      href: '/0-1-0-preview/tutorials/first-app/02-add-module/',
+      cta: 'Open step 2',
+    },
+    {
+      badge: 'Step 3',
+      title: 'Wire EF Core',
+      description: 'Plug in Cephalon.Data.EntityFramework, define the read/write DbContexts, run migrations.',
+      href: '/0-1-0-preview/tutorials/first-app/03-add-data/',
+      cta: 'Open step 3',
+    },
+    {
+      badge: 'Step 4',
+      title: 'REST API + Scalar',
+      description: 'Build a full CRUD REST surface with OpenAPI customization and Scalar as the docs UI.',
+      href: '/0-1-0-preview/tutorials/first-app/04-rest-api/',
+      cta: 'Open step 4',
+    },
+    {
+      badge: 'Step 5',
+      title: 'Eventing',
+      description: 'Add the Orders module, integrate Wolverine, send and consume domain events with the outbox pattern.',
+      href: '/0-1-0-preview/tutorials/first-app/05-eventing/',
+      cta: 'Open step 5',
+    },
+    {
+      badge: 'Step 6',
+      title: 'Observability',
+      description: 'Wire OpenTelemetry, enrich logs, add dependency-health probes, plug into a local OTLP collector.',
+      href: '/0-1-0-preview/tutorials/first-app/06-observability/',
+      cta: 'Open step 6',
+    },
+    {
+      badge: 'Step 7',
+      title: 'Tests',
+      description: 'Composition smoke tests, behavior specifications, integration tests against Postgres containers.',
+      href: '/0-1-0-preview/tutorials/first-app/07-tests/',
+      cta: 'Open step 7',
+    },
+    {
+      badge: 'Step 8',
+      title: 'Deploy',
+      description: 'Build the container image, deploy with the included Azure Container Apps script, validate end-to-end.',
+      href: '/0-1-0-preview/tutorials/first-app/08-deploy/',
+      cta: 'Open step 8',
+    },
+  ]}
+/>
+
+## Before you start
+
+Make sure you've completed the **[Quickstart](/0-1-0-preview/guide/quickstart/)**. You should have:
+
+- `dotnet --version` showing `10.x`.
+- `cephalon doctor` reporting clean.
+- A code editor (Visual Studio 2026, Rider 2026.1+, or VS Code with C# Dev Kit).
+- A free local Postgres (we'll use `docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16`).
+- Roughly **2 GB** of free disk for packages and container images.
+
+If you're on a connection-limited or air-gapped network, follow **[Installation → CLI → Air-gapped install](/0-1-0-preview/guide/installation/cli/#air-gapped-install)** first.
+
+## Final shape
+
+By the end of the tutorial, your `Acme.Store` directory will look like this:
+
+```text
+Acme.Store/
+├── src/
+│   ├── Acme.Store.Host/
+│   │   ├── Program.cs
+│   │   ├── appsettings.json
+│   │   ├── appsettings.Development.json
+│   │   ├── Configurations/
+│   │   └── Acme.Store.Host.csproj
+│   ├── Acme.Store.Modules.Health/
+│   ├── Acme.Store.Modules.Products/
+│   │   ├── ProductsModule.cs
+│   │   ├── Behaviors/
+│   │   │   ├── CreateProductBehavior.cs
+│   │   │   ├── ListProductsBehavior.cs
+│   │   │   ├── GetProductBehavior.cs
+│   │   │   ├── UpdateProductBehavior.cs
+│   │   │   └── DeleteProductBehavior.cs
+│   │   ├── Data/
+│   │   │   ├── ProductsDbContext.cs
+│   │   │   └── Migrations/
+│   │   └── Domain/
+│   └── Acme.Store.Modules.Orders/
+│       ├── OrdersModule.cs
+│       ├── Behaviors/
+│       ├── Events/
+│       └── ProcessManagers/
+├── tests/
+│   └── Acme.Store.Host.Tests/
+│       ├── Architecture/CompositionSmokeTests.cs
+│       └── Features/
+└── deploy/
+```
+
+Ready? **[Step 1 → Scaffold and run](/0-1-0-preview/tutorials/first-app/01-setup/)**.

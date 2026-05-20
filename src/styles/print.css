@@ -1,0 +1,215 @@
+/*
+ * CephalonEngine Docs — Print stylesheet
+ *
+ * Used by both "Print" and "Save as PDF" in the browser. Strips chrome,
+ * widens the content column, and keeps code blocks readable on paper.
+ */
+
+@media print {
+  :root {
+    --sl-color-bg: #ffffff;
+    --sl-color-text: #04141b;
+    --sl-color-hairline: #ccd6dc;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #04141b !important;
+    font-size: 11pt;
+    line-height: 1.55;
+  }
+
+  /* Hide all chrome */
+  header[data-component="header"],
+  .sl-mobile-menu-toggle,
+  starlight-menu-button,
+  starlight-theme-select,
+  starlight-lang-select,
+  .sidebar,
+  .right-sidebar,
+  .page-actions,
+  nav.pagination-links,
+  .meta,
+  footer,
+  .sl-sidebar,
+  .sl-flex.print:hidden,
+  .ce-hero__copy,
+  .ce-hero__preview,
+  .ce-hero__halo,
+  .ce-hero__grid,
+  details > summary,
+  .sl-sidebar-state,
+  .content-panel + .right-sidebar-panel,
+  .menu-toggle,
+  [data-component="sidebar"],
+  [data-component="theme-select"],
+  [data-component="lang-select"],
+  [data-component="page-meta"],
+  [data-component="page-actions"],
+  .ce-footer-ads {
+    display: none !important;
+  }
+
+  /* Take over the page */
+  .content-panel,
+  main,
+  .sl-container,
+  .main-frame {
+    display: block !important;
+    width: 100% !important;
+    max-width: 7in !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+  }
+
+  .sl-markdown-content {
+    max-width: 6.5in;
+  }
+
+  /* Headings — break-after rules */
+  h1, h2, h3 {
+    page-break-after: avoid;
+    break-after: avoid;
+    color: var(--ce-brand-700) !important;
+  }
+
+  h1 { font-size: 22pt; }
+  h2 { font-size: 16pt; margin-top: 24pt; border-top: 1pt solid #d9e2e7; padding-top: 8pt; }
+  h3 { font-size: 13pt; margin-top: 14pt; }
+  h4 { font-size: 11.5pt; }
+
+  /* Don't split code blocks */
+  pre, .ce-showcase__panel, table, figure {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  pre {
+    background: #f5f8fa !important;
+    color: #04141b !important;
+    border: 1pt solid #d9e2e7 !important;
+    border-radius: 4pt !important;
+    padding: 8pt 10pt !important;
+    font-size: 9pt !important;
+    line-height: 1.4 !important;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  pre code,
+  code {
+    color: #04141b !important;
+    background: transparent !important;
+  }
+
+  :not(pre) > code {
+    background: #eef2f5 !important;
+    border: 1pt solid #d9e2e7 !important;
+    padding: 0 3pt !important;
+    border-radius: 2pt !important;
+    font-size: 9.5pt !important;
+  }
+
+  /* Links — expand URLs */
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 8pt;
+    color: #4d6776;
+  }
+  a[href^="#"]::after,
+  a[href^="./"]::after,
+  a[href^="../"]::after,
+  a[href^="/"]::after {
+    content: "";
+  }
+
+  /* Marketing components on splash pages — keep but flatten */
+  .ce-hero {
+    background: none !important;
+    border: 1pt solid #d9e2e7 !important;
+    padding: 18pt !important;
+    box-shadow: none !important;
+    display: block !important;
+  }
+
+  .ce-hero__title {
+    color: var(--ce-brand-700) !important;
+    background: none !important;
+    -webkit-text-fill-color: var(--ce-brand-700) !important;
+    font-size: 26pt !important;
+  }
+
+  .ce-hero__tagline {
+    color: #1d3845 !important;
+    font-size: 12pt !important;
+  }
+
+  .ce-hero__actions, .ce-hero__install, .ce-hero__meta {
+    display: none !important;
+  }
+
+  .ce-feature, .ce-path, .ce-stats {
+    background: none !important;
+    border: 1pt solid #d9e2e7 !important;
+    box-shadow: none !important;
+  }
+
+  .ce-stat__value {
+    color: var(--ce-brand-700) !important;
+    background: none !important;
+    -webkit-text-fill-color: var(--ce-brand-700) !important;
+  }
+
+  /* Tables */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 10pt;
+  }
+
+  th, td {
+    border: 1pt solid #d9e2e7;
+    padding: 4pt 6pt;
+  }
+
+  th {
+    background: #f5f8fa !important;
+  }
+
+  /* Print URL header on first page */
+  @page {
+    margin: 0.6in 0.75in;
+  }
+
+  /* Footer with page numbers */
+  @page {
+    @bottom-right {
+      content: counter(page) " / " counter(pages);
+      font-size: 9pt;
+      color: #4d6776;
+    }
+    @bottom-left {
+      content: "CephalonEngine Docs";
+      font-size: 9pt;
+      color: #4d6776;
+    }
+  }
+}
+
+/* "Print this page" trigger on splash pages */
+.ce-print-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--ce-radius-pill);
+  border: 1px solid var(--sl-color-hairline);
+  background: var(--ce-surface-1);
+  color: var(--sl-color-text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.ce-print-trigger:hover {
+  border-color: var(--ce-brand-400);
+}

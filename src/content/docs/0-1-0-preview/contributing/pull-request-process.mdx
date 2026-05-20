@@ -1,0 +1,45 @@
+---
+title: Pull-request process
+description: Branch shape, commit messages, review gates, when to ship vs. when to land later.
+sidebar:
+  order: 10
+editUrl: false
+---
+
+## Branching
+
+- Topic branches off `main`. Short names: `eventing-dlq-replay`, `data-postgres-streaming`.
+- Don't fork the repo unless you're outside the org.
+- Rebase rather than merge to keep history linear.
+
+## Commits
+
+- Imperative subject line, ≤ 72 chars.
+- Body describes the **why** when non-obvious.
+- One logical change per commit. If you can't summarise the commit in one line, split it.
+
+## PR template
+
+The repo's PR template asks for:
+
+- Scope summary.
+- Maturity-label impact (do any packages graduate?).
+- Test coverage notes.
+- Benchmark notes (if applicable).
+- Docs notes.
+
+## Review gates
+
+- All required checks green: build, test, lint, format.
+- One reviewer (two for engine-surface changes).
+- Author resolves all `request-changes`.
+- Squash-merge unless the commit history is intentional.
+
+## Shipping vs. landing later
+
+The default mode for CephalonEngine is **autonomous continuous shipping** — pick a slice, ship it, merge it, repeat. If a change is risky or cross-cutting, an issue is raised first.
+
+## Branch lifetime
+
+- Topic branches live no longer than a sprint.
+- Stale branches are pruned weekly.

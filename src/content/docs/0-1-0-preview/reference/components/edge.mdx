@@ -1,0 +1,59 @@
+---
+title: Edge
+description: Cephalon.Edge + Traefik + Kubernetes Gateway adapters.
+sidebar:
+  order: 9
+editUrl: false
+---
+
+`Cephalon.Edge` ships edge-eligible behavior placement + signed bundle delivery. Adapter packages reconcile config against your gateway (Traefik or Kubernetes Gateway API).
+
+## Packages
+
+Click any package name to jump to its **source-doc**.
+
+| Package | NuGet ID | Maturity | Capability |
+| --- | --- | --- | --- |
+| **[Edge](/0-1-0-preview/source/components/edge/)** *(base)* | `Cephalon.Edge` | `M2` | `Capability.Edge` |
+| **[Traefik](/0-1-0-preview/source/components/edge-traefik/)** | `Cephalon.Edge.Traefik` | `M2` | `Capability.Edge` |
+| **[Kubernetes Gateway](/0-1-0-preview/source/components/edge-kubernetes-gateway/)** | `Cephalon.Edge.KubernetesGateway` | `M2` | `Capability.Edge` |
+
+## Install matrix
+
+| Scenario | Packages |
+| --- | --- |
+| Edge-tagged behaviors with Traefik (file provider) | `Cephalon.Edge` + `Cephalon.Edge.Traefik` |
+| Edge-tagged behaviors on Kubernetes Gateway API | `Cephalon.Edge` + `Cephalon.Edge.KubernetesGateway` |
+| Dev (edge disabled) | `Cephalon.Edge` alone — `Engine:Edge:Enabled=false`, behaviors run at origin |
+
+## Configuration shape
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Edge": {
+      "Enabled": true,
+      "Adapter": "Traefik",                       // Traefik | KubernetesGateway | None
+      "ManifestPath": "/var/lib/cephalon/routing-manifest.json",
+      "Bundle": {
+        "SignWith": "/etc/cephalon/edge-key.pem",
+        "Compression": "br"
+      }
+    }
+  }
+}
+```
+
+Full schema + 6 scenarios: **[Technology → Edge](/0-1-0-preview/technology/edge/)**.
+
+## Key behavior attribute
+
+```csharp
+[EdgeEligible(Cache = "5m", VaryBy = "tenant")]
+public sealed class GetProductBehavior : IRestBehavior<Sfid, ProductDto> { /* ... */ }
+```
+
+## See also
+
+- **[Technology → Edge](/0-1-0-preview/technology/edge/)** — narrative + 6 scenarios + edge-eligibility rules.
+- **[Tutorial → Edge-native](/0-1-0-preview/tutorials/edge-native/)** — walkthrough.

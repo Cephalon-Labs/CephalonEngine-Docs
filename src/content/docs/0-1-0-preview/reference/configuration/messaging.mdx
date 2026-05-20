@@ -1,0 +1,436 @@
+---
+title: 'Engine:Messaging'
+description: Configure the eventing capability — Wolverine adapter, broker transports (RabbitMQ, Azure Service Bus, Kafka, NATS, SQS, in-memory), DLQ, scheduled delivery, retry policy.
+sidebar:
+  order: 5
+editUrl: false
+---
+
+`Engine:Messaging` configures the eventing capability — which broker carries events, retry / DLQ policy, scheduled delivery, partition affinity. **Only consumed when `Engine:Messaging:Enabled=true`** and at least one module declares `Capability.Eventing` (or registers an `IMessageHandler<T>`).
+
+## Full schema
+
+```jsonc title="appsettings.json"
+{
+  "Engine": {
+    "Messaging": {
+      "Enabled": true,
+      "Provider": "Wolverine",                      // currently only "Wolverine"
+      "Wolverine": {
+        "Transport": "RabbitMq",                    // "Local"|"RabbitMq"|"AzureServiceBus"|"Kafka"|"Sqs"|"NatsJetStream"|"Postgres"
+        "ConnectionString": "amqps://user:pass@rabbitmq.example/vhost",
+        "Concurrency": 10,                          // max parallel handlers per endpoint
+        "ScheduledDelivery": {
+          "Enabled": true,                          // allow PublishAsync(deliverAt: …)
+          "Provider": "Database"                    // "Native" | "Database"
+        },
+        "DeadLetter": {
+          "Enabled": true,
+          "MaxAttempts": 5,                         // retries before sending to DLQ
+          "RetryDelays": ["00:00:01", "00:00:05", "00:00:30", "00:05:00", "00:30:00"]
+        },
+        "Routing": {
+          "ConventionsEnabled": true,               // event name → exchange / topic mapping
+          "Routes": {                               // explicit overrides
+            "acme.store.order-placed": "orders.events"
+          }
+        },
+        "Exchanges": {                              // RabbitMQ-specific
+          "acme-events": { "Type": "topic", "Durable": true }
+        },
+        "Topics": {                                 // Kafka / ASB-specific
+          "acme-events": { "Partitions": 32, "ReplicationFactor": 3 }
+        },
+        "Bootstrap": "broker-1:9092,broker-2:9092"  // Kafka
+      }
+    }
+  }
+}
+```
+
+## Each option in detail
+
+### `Enabled`
+
+| Type | Default |
+| --- | --- |
+| boolean | `false` |
+
+Master switch. When `false`:
+- Modules declaring `Capability.Eventing` fail composition.
+- `IMessagePublisher` is not registered.
+- `IMessageHandler<T>` types are not invoked.
+
+### `Provider`
+
+| Type | Default | Allowed values |
+| --- | --- | --- |
+| enum string | `"Wolverine"` | `"Wolverine"` |
+
+The dispatch implementation. Currently only [Wolverine](https://wolverinefx.io/) is shipped. Additional providers are tracked in the [roadmap](/about/roadmap/).
+
+### `Wolverine.Transport`
+
+| Type | Default | Allowed values |
+| --- | --- | --- |
+| enum string | `"Local"` | `"Local"`, `"RabbitMq"`, `"AzureServiceBus"`, `"Kafka"`, `"Sqs"`, `"NatsJetStream"`, `"Postgres"` |
+
+Which broker carries the events.
+
+| Value | Use case | Notes |
+| --- | --- | --- |
+| `"Local"` | In-memory, same-process. Tests, monolith. | Zero ops; no persistence across restarts. |
+| `"RabbitMq"` | Classic queueing. | Most common production choice. |
+| `"AzureServiceBus"` | Azure-native. | Best on Azure; serverless-pay-per-message available. |
+| `"Kafka"` | Streaming, replayable log. | High throughput; partition-keyed pub/sub. |
+| `"Sqs"` | AWS-native point-to-point. | Pairs with SNS for fan-out. |
+| `"NatsJetStream"` | Lightweight, K8s-friendly. | Streaming + KV + lightweight broker. |
+| `"Postgres"` | LISTEN/NOTIFY-based. | Zero ops if Postgres already in stack. Low throughput ceiling. |
+
+**Examples:**
+
+```jsonc
+{ "Wolverine": { "Transport": "Local" } }                              // tests
+{ "Wolverine": { "Transport": "RabbitMq",        "ConnectionString": "amqps://…" } }
+{ "Wolverine": { "Transport": "AzureServiceBus", "ConnectionString": "Endpoint=sb://…" } }
+{ "Wolverine": { "Transport": "Kafka",           "Bootstrap": "broker-1:9092,broker-2:9092" } }
+{ "Wolverine": { "Transport": "Sqs",             "ConnectionString": "AccessKeyId=…;SecretAccessKey=…;Region=us-east-1" } }
+{ "Wolverine": { "Transport": "NatsJetStream",   "ConnectionString": "nats://…:4222" } }
+{ "Wolverine": { "Transport": "Postgres",        "ConnectionString": "Host=…" } }
+```
+
+### `Wolverine.ConnectionString`
+
+| Type | Default |
+| --- | --- |
+| string | none |
+
+Broker connection string. Format varies by transport — see the table above. Use `ConnectionStrings:<Name>` if you want to share with EF Core or another component:
+
+```jsonc
+{
+  "Engine": {
+    "Messaging": {
+      "Wolverine": { "ConnectionStringName": "Broker" }
+    }
+  },
+  "ConnectionStrings": {
+    "Broker": "amqps://user:pass@rabbitmq.example/vhost"
+  }
+}
+```
+
+### `Wolverine.Concurrency`
+
+| Type | Default |
+| --- | --- |
+| integer | `10` |
+
+Max parallel handlers running per endpoint. Trade-off:
+
+- **Higher** = better throughput, more memory and DB connection pressure.
+- **Lower** = more backpressure, predictable resource use.
+
+**Guideline:**
+- I/O-bound handlers (DB + HTTP): 20–50.
+- CPU-bound handlers: ~ `Environment.ProcessorCount`.
+- Mixed: start at 10, profile, adjust.
+
+### `Wolverine.ScheduledDelivery`
+
+#### `ScheduledDelivery.Enabled`
+
+| Type | Default |
+| --- | --- |
+| boolean | `true` |
+
+Allow `PublishAsync(deliverAt: ...)` to schedule messages in the future.
+
+#### `ScheduledDelivery.Provider`
+
+| Type | Default | Allowed values |
+| --- | --- | --- |
+| enum string | `"Native"` if broker supports it, else `"Database"` | `"Native"`, `"Database"` |
+
+Where scheduled messages are stored until their delivery time.
+
+| Value | Backed by |
+| --- | --- |
+| `"Native"` | Broker-native scheduling. Azure Service Bus (`ScheduledEnqueueTimeUtc`), SQS (`DelaySeconds` up to 15min). |
+| `"Database"` | Wolverine writes scheduled messages to a DB table, polls and dispatches when due. Works for any broker. |
+
+**Limits:**
+- `"Native"` for **SQS** caps at 15 minutes — anything longer requires `"Database"`.
+- `"Native"` for **RabbitMQ** isn't supported; falls back to `"Database"` automatically.
+
+### `Wolverine.DeadLetter`
+
+#### `DeadLetter.Enabled`
+
+| Type | Default |
+| --- | --- |
+| boolean | `true` |
+
+Send failed messages to a DLQ after exhausting retries. Set `false` to drop messages on failure (not recommended).
+
+#### `DeadLetter.MaxAttempts`
+
+| Type | Default |
+| --- | --- |
+| integer | `5` |
+
+Number of delivery attempts before the message is sent to the DLQ. **Includes the first attempt** — `MaxAttempts: 5` = 1 initial + 4 retries.
+
+**Guideline:**
+- Transient errors (network blips): 5 attempts.
+- Likely-bug errors (NRE, deserialization): 1–2 attempts. Failing fast surfaces bugs.
+
+#### `DeadLetter.RetryDelays`
+
+| Type | Default |
+| --- | --- |
+| array of TimeSpan strings | `["00:00:01", "00:00:05", "00:00:30", "00:05:00", "00:30:00"]` |
+
+Backoff schedule. Index `[0]` is between attempts 1 and 2, `[1]` between 2 and 3, etc.
+
+**Pattern: exponential backoff:**
+
+```jsonc
+{ "RetryDelays": ["00:00:01", "00:00:05", "00:00:25", "00:02:05", "00:10:25"] }
+```
+
+**Pattern: fixed interval (simpler operationally):**
+
+```jsonc
+{ "RetryDelays": ["00:00:05", "00:00:05", "00:00:05", "00:00:05"] }
+```
+
+### `Wolverine.Routing`
+
+#### `Routing.ConventionsEnabled`
+
+| Type | Default |
+| --- | --- |
+| boolean | `true` |
+
+Auto-route events to broker queues based on `[Event(name: "…")]` attribute names. Disable to require explicit routing for every event (more code, more control).
+
+#### `Routing.Routes`
+
+| Type | Default |
+| --- | --- |
+| object | `{}` |
+
+Per-event explicit routing overrides. Useful for legacy queue names that don't match the engine's naming convention.
+
+```jsonc
+{
+  "Routing": {
+    "Routes": {
+      "acme.store.order-placed": "legacy-orders-queue",
+      "acme.store.invoice-issued": "billing.events.invoices"
+    }
+  }
+}
+```
+
+### `Wolverine.Exchanges` (RabbitMQ-only)
+
+Declare exchanges the host should create at startup.
+
+```jsonc
+{
+  "Exchanges": {
+    "acme-events": { "Type": "topic", "Durable": true, "AutoDelete": false },
+    "acme-commands": { "Type": "direct", "Durable": true }
+  }
+}
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `Type` | `"topic"` | `"topic"` / `"direct"` / `"fanout"` / `"headers"` |
+| `Durable` | `true` | Survives broker restart |
+| `AutoDelete` | `false` | Delete when last queue unbinds |
+
+### `Wolverine.Topics` (Kafka / ASB)
+
+Topic configuration.
+
+```jsonc
+{
+  "Topics": {
+    "acme-events": { "Partitions": 32, "ReplicationFactor": 3, "RetentionMs": 604800000 }
+  }
+}
+```
+
+| Option | Description |
+| --- | --- |
+| `Partitions` | Kafka partition count. Higher = more parallelism. Pick `> max(consumer-instances)`. |
+| `ReplicationFactor` | Kafka replication. `3` is standard for prod. |
+| `RetentionMs` | Kafka retention in ms. Default `604800000` (7 days). |
+
+### `Wolverine.Bootstrap` (Kafka-only)
+
+| Type | Default |
+| --- | --- |
+| string | none |
+
+Comma-separated Kafka broker list: `"broker-1:9092,broker-2:9092,broker-3:9092"`. At least 2 for HA.
+
+## Common scenarios
+
+### Scenario 1: in-memory for tests + monolith
+
+```jsonc
+{
+  "Engine": {
+    "Messaging": {
+      "Enabled": true,
+      "Provider": "Wolverine",
+      "Wolverine": { "Transport": "Local" }
+    }
+  }
+}
+```
+
+### Scenario 2: RabbitMQ with topic exchanges
+
+```jsonc
+{
+  "Engine": {
+    "Messaging": {
+      "Enabled": true,
+      "Provider": "Wolverine",
+      "Wolverine": {
+        "Transport": "RabbitMq",
+        "ConnectionString": "amqps://user:pass@rabbitmq:5671/",
+        "Concurrency": 20,
+        "Exchanges": {
+          "acme-events": { "Type": "topic", "Durable": true }
+        },
+        "DeadLetter": {
+          "Enabled": true,
+          "MaxAttempts": 5,
+          "RetryDelays": ["00:00:01", "00:00:05", "00:00:30", "00:05:00", "00:30:00"]
+        }
+      }
+    }
+  }
+}
+```
+
+### Scenario 3: Kafka with per-tenant partition affinity
+
+```jsonc
+{
+  "Engine": {
+    "Messaging": {
+      "Enabled": true,
+      "Provider": "Wolverine",
+      "Wolverine": {
+        "Transport": "Kafka",
+        "Bootstrap": "broker-1:9092,broker-2:9092,broker-3:9092",
+        "Concurrency": 32,
+        "Topics": {
+          "acme-events": {
+            "Partitions": 32,
+            "ReplicationFactor": 3,
+            "RetentionMs": 604800000
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Combined with `[PartitionKey(nameof(TenantId))]` on event types, this guarantees per-tenant ordered processing.
+
+### Scenario 4: Azure Service Bus with native scheduled delivery
+
+```jsonc
+{
+  "Engine": {
+    "Messaging": {
+      "Enabled": true,
+      "Provider": "Wolverine",
+      "Wolverine": {
+        "Transport": "AzureServiceBus",
+        "ConnectionString": "Endpoint=sb://acme.servicebus.windows.net/;…",
+        "ScheduledDelivery": {
+          "Enabled": true,
+          "Provider": "Native"
+        }
+      }
+    }
+  }
+}
+```
+
+### Scenario 5: SQS with FIFO queues for ordered messaging
+
+```jsonc
+{
+  "Engine": {
+    "Messaging": {
+      "Enabled": true,
+      "Provider": "Wolverine",
+      "Wolverine": {
+        "Transport": "Sqs",
+        "ConnectionString": "AccessKeyId=…;SecretAccessKey=…;Region=us-east-1",
+        "QueueSuffix": ".fifo"
+      }
+    }
+  }
+}
+```
+
+### Scenario 6: NATS JetStream for K8s deployments
+
+```jsonc
+{
+  "Engine": {
+    "Messaging": {
+      "Enabled": true,
+      "Provider": "Wolverine",
+      "Wolverine": {
+        "Transport": "NatsJetStream",
+        "ConnectionString": "nats://nats.default.svc.cluster.local:4222",
+        "Concurrency": 20
+      }
+    }
+  }
+}
+```
+
+## Environment-variable equivalents
+
+```text
+Engine__Messaging__Enabled=true
+Engine__Messaging__Provider=Wolverine
+Engine__Messaging__Wolverine__Transport=RabbitMq
+Engine__Messaging__Wolverine__ConnectionString=amqps://…
+Engine__Messaging__Wolverine__Concurrency=20
+Engine__Messaging__Wolverine__DeadLetter__MaxAttempts=5
+Engine__Messaging__Wolverine__DeadLetter__RetryDelays__0=00:00:01
+Engine__Messaging__Wolverine__DeadLetter__RetryDelays__1=00:00:05
+```
+
+## Limits & gotchas
+
+- **Switching `Transport` requires a restart.** Capability registration is one-shot. You can't "live-migrate" from RabbitMQ to Kafka.
+- **The DLQ is per-endpoint, not global.** Tools that replay should iterate per endpoint.
+- **`Concurrency` is per-process, not per-cluster.** With 10 replicas and `Concurrency: 20`, you have 200 concurrent handlers — make sure your DB pool size matches.
+- **Kafka `Partitions` cannot decrease**, only increase. Plan partition count carefully.
+- **Postgres transport has a throughput ceiling** (~ a few hundred msg/sec). Don't run high-volume eventing on it.
+- **`RetryDelays` are not applied to scheduled-delivery messages** — those go straight to the consumer at the scheduled time. If they fail there, normal retry policy applies.
+- **`AllowFromUntrustedClient` doesn't apply here** — that's a tenancy concept. Eventing trusts whatever the broker delivers.
+
+## See also
+
+- **[Technology → Eventing](/0-1-0-preview/technology/eventing/)** — patterns, broker comparison, sagas, DLQ replay recipes.
+- **[Tutorial → Event-driven pipeline](/0-1-0-preview/tutorials/event-driven/)** — full eventing surface walkthrough.
+- **[Tutorial → First-app step 5: Eventing](/0-1-0-preview/tutorials/first-app/05-eventing/)** — first eventing flow.
+- [Wolverine documentation](https://wolverinefx.io/) — upstream reference (most options pass through).

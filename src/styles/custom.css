@@ -287,14 +287,14 @@ h1, h2, h3, h4, h5, h6,
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
-  background: var(--ce-brand-400);
-  box-shadow: 0 0 0 4px rgba(52, 182, 220, 0.2);
+  background: var(--ce-brand-500);
+  box-shadow: 0 0 0 4px rgba(87, 124, 83, 0.2);
   animation: ce-pulse 2.4s var(--ce-ease-in-out) infinite;
 }
 
 @keyframes ce-pulse {
-  0%, 100% { box-shadow: 0 0 0 4px rgba(52, 182, 220, 0.2); }
-  50% { box-shadow: 0 0 0 10px rgba(52, 182, 220, 0); }
+  0%, 100% { box-shadow: 0 0 0 4px rgba(87, 124, 83, 0.2); }
+  50% { box-shadow: 0 0 0 10px rgba(87, 130, 83, 0); }
 }
 
 .ce-hero__title {

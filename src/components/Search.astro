@@ -152,6 +152,34 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 			openBtn.disabled = false;
 			closeBtn.addEventListener('click', closeModal);
 
+			/*
+			 * ── CephalonEngine fix ──────────────────────────────────────────
+			 * Reveal the ⌘/Ctrl shortcut hint here too — not only from the
+			 * `<script is:inline>` above. That inline script runs while the
+			 * HTML is parsed, so on a cold load it reveals the `<kbd>` (shipped
+			 * with an inline `display:none`) before first paint. But it never
+			 * re-runs under <ClientRouter />: after a client-side navigation
+			 * the freshly-swapped search button keeps its `<kbd>` hidden.
+			 *
+			 * A hidden hint makes the search button ~1 `<kbd>` (~50px) narrower
+			 * than on a cold load. The header is a content-sized CSS grid, so a
+			 * narrower search column widens the site-title column — which makes
+			 * `layoutHeaderNav()` fit a different number of links before vs
+			 * after navigating. Re-revealing it in this constructor (which DOES
+			 * re-run for every swapped-in <site-search>) keeps the button — and
+			 * therefore the priority-nav split — identical on every page.
+			 * ────────────────────────────────────────────────────────────────
+			 */
+			const shortcut = openBtn.querySelector('kbd');
+			if (shortcut instanceof HTMLElement) {
+				const platformKey = shortcut.querySelector('kbd');
+				if (platformKey && /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+					platformKey.textContent = '⌘';
+					openBtn.setAttribute('aria-keyshortcuts', 'Meta+K');
+				}
+				shortcut.style.display = '';
+			}
+
 			dialog.addEventListener('close', () => {
 				document.body.toggleAttribute('data-search-modal-open', false);
 				window.removeEventListener('click', onClick);
@@ -260,7 +288,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 				font-size: var(--sl-text-sm);
 				width: 100%;
 				/* min-width: 250px; */
-				margin-left: 2rem;
+				/* margin-left: 2rem; */
 			}
 			button[data-open-modal]:hover {
 				border-color: var(--sl-color-gray-2);

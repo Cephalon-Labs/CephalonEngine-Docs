@@ -8,20 +8,20 @@
 
 :root {
   /* Brand */
-  --ce-brand-50: #f0fbff;
-  --ce-brand-100: #dbf5ff;
-  --ce-brand-200: #b8efff;
-  --ce-brand-300: #7dddf8;
-  --ce-brand-400: #34b6dc;
-  --ce-brand-500: #0f8db0;
-  --ce-brand-600: #0c6078;
-  --ce-brand-700: #0a4557;
-  --ce-brand-800: #072f3a;
-  --ce-brand-900: #041a21;
+  --ce-brand-50: #f2f8ff;
+  --ce-brand-100: #dfedff;
+  --ce-brand-200: #c2ddfb;
+  --ce-brand-300: #93c4ef;
+  --ce-brand-400: #5aa3db;
+  --ce-brand-500: #1f7cb8;
+  --ce-brand-600: #155d96;
+  --ce-brand-700: #11477a;
+  --ce-brand-800: #123559;
+  --ce-brand-900: #11253f;
 
-  --ce-accent-300: #f7c08b;
-  --ce-accent-400: #f29852;
-  --ce-accent-500: #e07432;
+  --ce-accent-300: #f7d6b1;
+  --ce-accent-400: #e7a36e;
+  --ce-accent-500: #c9783f;
 
   --ce-success: #16a34a;
   --ce-warning: #d97706;
@@ -29,11 +29,11 @@
 
   /* Surfaces */
   --ce-surface-0: #ffffff;
-  --ce-surface-1: #f8fbfd;
-  --ce-surface-2: #eef5f9;
-  --ce-surface-3: #d9e7ee;
-  --ce-surface-ink: #061a22;
-  --ce-surface-ink-muted: #2d4754;
+  --ce-surface-1: #f6f8fc;
+  --ce-surface-2: #eaf0f6;
+  --ce-surface-3: #d6e2ef;
+  --ce-surface-ink: #111f33;
+  --ce-surface-ink-muted: #354963;
 
   /*
    * Type scale — IBM Plex Sans for Latin paired with IBM Plex Sans Thai for
@@ -44,8 +44,8 @@
    * never shifts the layout. System fallbacks at the end keep the site
    * legible if the webfonts fail to load.
    */
-  --ce-font-display: 'IBM Plex Sans', 'IBM Plex Sans Thai', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans Thai', Tahoma, sans-serif;
-  --ce-font-sans: 'IBM Plex Sans', 'IBM Plex Sans Thai', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans Thai', Tahoma, sans-serif;
+  --ce-font-display: 'Space Grotesk', 'Noto Sans Thai', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+  --ce-font-sans: 'Plus Jakarta Sans', 'Noto Sans Thai', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
   --ce-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 
   /* Radii */
@@ -58,9 +58,9 @@
   --ce-radius-pill: 999px;
 
   /* Shadows */
-  --ce-shadow-soft: 0 1px 2px rgba(7, 47, 58, 0.04), 0 4px 18px -8px rgba(7, 47, 58, 0.12);
-  --ce-shadow-elev: 0 10px 30px -16px rgba(7, 47, 58, 0.28), 0 2px 4px rgba(7, 47, 58, 0.05);
-  --ce-shadow-hero: 0 30px 80px -40px rgba(15, 93, 115, 0.55), 0 8px 20px -16px rgba(15, 93, 115, 0.35);
+  --ce-shadow-soft: 0 1px 2px rgba(17, 31, 51, 0.05), 0 6px 24px -14px rgba(17, 31, 51, 0.2);
+  --ce-shadow-elev: 0 16px 42px -28px rgba(17, 31, 51, 0.42), 0 2px 6px rgba(17, 31, 51, 0.08);
+  --ce-shadow-hero: 0 40px 110px -60px rgba(17, 71, 122, 0.5), 0 12px 28px -18px rgba(17, 71, 122, 0.3);
 
   /* Motion */
   --ce-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -114,14 +114,14 @@
 }
 
 :root[data-theme='dark'] {
-  --ce-surface-0: #061319;
-  --ce-surface-1: #0a1d25;
-  --ce-surface-2: #102a35;
-  --ce-surface-3: #163a48;
-  --ce-surface-ink: #e6f5fb;
-  --ce-surface-ink-muted: #99b6c4;
+  --ce-surface-0: #0b1422;
+  --ce-surface-1: #101d31;
+  --ce-surface-2: #182a43;
+  --ce-surface-3: #223a5a;
+  --ce-surface-ink: #e9f1fd;
+  --ce-surface-ink-muted: #9eb1ca;
 
-  --sl-color-accent-low: #072f3a;
+  --sl-color-accent-low: #123559;
   --sl-color-accent: var(--ce-brand-400);
   --sl-color-accent-high: var(--ce-brand-200);
   --sl-color-text-accent: var(--ce-brand-300);
@@ -129,15 +129,15 @@
   --sl-color-bg-nav: var(--ce-surface-1);
   --sl-color-bg-sidebar: var(--ce-surface-1);
   --sl-color-text: var(--ce-surface-ink);
-  --sl-color-text-invert: #03161d;
-  --sl-color-hairline: rgba(125, 221, 248, 0.16);
+  --sl-color-text-invert: #081322;
+  --sl-color-hairline: rgba(147, 196, 239, 0.22);
   --sl-color-gray-1: var(--ce-surface-ink);
-  --sl-color-gray-2: #d3e7ee;
-  --sl-color-gray-3: #a8c3cf;
-  --sl-color-gray-4: #7d9aa6;
-  --sl-color-gray-5: #5f7c89;
-  --sl-color-gray-6: #2a4856;
-  --sl-color-gray-7: #16323f;
+  --sl-color-gray-2: #d4e2f4;
+  --sl-color-gray-3: #b3c5dd;
+  --sl-color-gray-4: #8aa2bf;
+  --sl-color-gray-5: #637d9d;
+  --sl-color-gray-6: #2b4569;
+  --sl-color-gray-7: #1a2f4a;
 
   /* Dark-mode bump for accent tints — dark backgrounds need higher opacity
      for the tint to register. Same TOKEN name so callers stay theme-agnostic. */

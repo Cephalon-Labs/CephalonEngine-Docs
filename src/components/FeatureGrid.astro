@@ -15,12 +15,15 @@ export interface Props {
 }
 
 const { features, columns = 3 } = Astro.props;
+const isIconName = (icon: string) => icon.includes(':');
 ---
 
 <section class="ce-features" data-columns={columns}>
   {features.map((feature) => (
     <a class={`ce-feature${feature.href ? ' ce-feature--linked' : ''}`} href={withBase(feature.href ?? '#')}>
-      <span class="ce-feature__icon" aria-hidden="true">{feature.icon}</span>
+      <span class="ce-feature__icon" aria-hidden="true">
+        {isIconName(feature.icon) ? <Icon name={feature.icon} size={20} /> : feature.icon}
+      </span>
       <h3 class="ce-feature__title">{feature.title}</h3>
       <p class="ce-feature__description">{feature.description}</p>
       {feature.href && (

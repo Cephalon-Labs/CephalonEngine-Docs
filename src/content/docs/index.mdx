@@ -21,92 +21,106 @@ import CodeShowcase from '../../components/CodeShowcase.astro';
 
 <HomeHero
   eyebrow="Cephalon Engine .NET"
-  title="One engine. Every shape of .NET app."
-  tagline="Compose modular monoliths, microservices, event-driven services, and edge runtimes from the same engine. Built on .NET 10, designed for teams who want production rigor without giving up speed."
+  title="One engine. Every serious .NET workload."
+  tagline="Ship modular monoliths, microservices, event-driven services, and edge workloads from one composition model. Built on .NET 10 for teams that care about reliability, velocity, and long-term maintainability."
   primaryCtaText="Get started in 5 minutes"
   primaryCtaHref="/0-1-0-preview/guide/quickstart/"
-  secondaryCtaText="Read the architecture"
+  secondaryCtaText="Explore architecture"
   secondaryCtaHref="/0-1-0-preview/guide/concepts/"
   installCommand="dotnet tool install -g Cephalon.Cli --prerelease"
 />
 
-<StatStrip
-  stats={[
-    { value: '.NET 10', label: 'LTS baseline' },
-    { value: '40+', label: 'Companion packages' },
-    { value: '7', label: 'Host shapes supported' },
-    { value: 'M0–M4', label: 'Explicit maturity labels' },
-  ]}
-/>
+<div class="ce-reveal">
+  <StatStrip
+    stats={[
+      { value: '.NET 10', label: 'LTS baseline' },
+      { value: '40+', label: 'Companion packages' },
+      { value: '7', label: 'Host shapes supported' },
+      { value: 'M0–M4', label: 'Explicit maturity labels' },
+    ]}
+  />
+</div>
+
+<div class="ce-trust-strip ce-reveal ce-reveal--2" aria-label="Platform focus areas">
+  <span class="ce-trust-strip__item">Deterministic composition</span>
+  <span class="ce-trust-strip__item">Operational safety rails</span>
+  <span class="ce-trust-strip__item">Versioned contracts</span>
+  <span class="ce-trust-strip__item">Scale without rewrites</span>
+  <span class="ce-trust-strip__item">Policy-driven defaults</span>
+  <span class="ce-trust-strip__item">Cloud-ready telemetry</span>
+</div>
 
 <span class="ce-section-kicker">Why Cephalon Engine</span>
-<h2 class="ce-section-title">A framework that grows with the codebase</h2>
+<h2 class="ce-section-title">Engineered for teams that outgrow starter templates</h2>
 <p class="ce-lead">
-  Cephalon is built around a small, stable engine surface and a wide catalog of optional companion packages. Start with a single host on a laptop, scale to a fleet of microservices, and never rebuild the foundation.
+  Cephalon keeps the core intentionally small, then layers capability through optional companion packages. Start with one host, evolve into multiple workloads, and keep a single architectural language from prototype to production.
 </p>
 
+<div class="ce-reveal ce-reveal--2">
 <FeatureGrid
   features={[
     {
-      icon: '🧩',
+      icon: 'bi:boxes',
       title: 'Module-first composition',
       description: 'Modules declare capabilities, services, lifecycle hooks, and transport surfaces. The engine resolves them deterministically with a typed manifest.',
       href: '/0-1-0-preview/guide/concepts/#module',
     },
     {
-      icon: '🏗️',
+      icon: 'bi:building-gear',
       title: 'Multiple app models',
       description: 'Pick a composition style, deployment topology, feature organization, and transport per app. No rewrite when shapes change.',
       href: '/0-1-0-preview/guide/concepts/#app-model',
     },
     {
-      icon: '🚦',
+      icon: 'bi:signpost-split',
       title: 'Honest maturity labels',
       description: 'Every package ships with an M0–M4 label so adopters know exactly what is taxonomy-only, narrow, or adoption-ready.',
       href: '/0-1-0-preview/reference/architecture/maturity/',
     },
     {
-      icon: '📡',
+      icon: 'bi:diagram-3',
       title: 'Transport adapters built-in',
-      description: 'REST, JSON-RPC, gRPC, GraphQL, SSE, and WebSocket — each module decides what to expose, the engine maps it consistently.',
+      description: 'REST, JSON-RPC, gRPC, GraphQL, SSE, and WebSocket. Each module chooses what to expose and the engine maps everything consistently.',
       href: '/0-1-0-preview/technology/hosts/',
     },
     {
-      icon: '🔭',
+      icon: 'bi:activity',
       title: 'OpenTelemetry-native observability',
       description: 'Logs, metrics, traces, and dependency-health probes ship as first-party companion packages with provider adapters for every major cloud.',
       href: '/0-1-0-preview/technology/observability/',
     },
     {
-      icon: '🏛️',
+      icon: 'bi:database-gear',
       title: 'Data, identity, multi-tenancy',
-      description: 'Optional companion packages for EF Core, identity, multi-tenancy governance, audit, and Sfid identifiers — runtime-neutral by default.',
+      description: 'Optional companion packages for EF Core, identity, multi-tenancy governance, audit, and Sfid identifiers with runtime-neutral defaults.',
       href: '/0-1-0-preview/technology/data/',
     },
     {
-      icon: '🎯',
+      icon: 'bi:send-check',
       title: 'Eventing first-class',
       description: 'Wolverine adapter is the current managed dispatch path. Brokers, scheduled delivery, DLQ replay, and process managers are first-party.',
       href: '/0-1-0-preview/technology/eventing/',
     },
     {
-      icon: '🚀',
+      icon: 'bi:cloud-arrow-up',
       title: 'Deploy anywhere',
       description: 'Generated apps ship with Windows Service, IIS, Azure App Service, Azure Container Apps, Kubernetes, Linux systemd, and Docker scripts on day one.',
       href: '/0-1-0-preview/guide/deployment/',
     },
     {
-      icon: '🧪',
+      icon: 'bi:clipboard2-pulse',
       title: 'Test scaffolding included',
       description: 'Generated test projects come with composition smoke tests and per-feature behavior specifications so teams skip the boilerplate.',
       href: '/0-1-0-preview/tutorials/testing-strategy/',
     },
   ]}
 />
+</div>
 
 <span class="ce-section-kicker">Quick paths</span>
 <h2 class="ce-section-title">Pick a path that matches the day-one decision</h2>
 
+<div class="ce-reveal ce-reveal--3">
 <PathCards
   paths={[
     {
@@ -153,10 +167,12 @@ import CodeShowcase from '../../components/CodeShowcase.astro';
     },
   ]}
 />
+</div>
 
+<div class="ce-reveal ce-reveal--3">
 <CodeShowcase
   title="Composition that fits on one screen"
-  description="A Cephalon host is just a builder, a set of modules, and a runtime. The same engine wires REST, gRPC, GraphQL, eventing, observability, and data — driven by configuration, not by sprawling Program.cs files."
+  description="A Cephalon host is just a builder, a set of modules, and a runtime. The same engine wires REST, gRPC, GraphQL, eventing, observability, and data, driven by configuration instead of sprawling Program.cs files."
   tabs={[
     {
       label: 'ASP.NET Core host',
@@ -236,6 +252,7 @@ public sealed class OrdersModule : RestBehaviorModuleBase
     },
   ]}
 />
+</div>
 
 <span class="ce-section-kicker">Built for production from day one</span>
 <h2 class="ce-section-title">A complete platform, not a starter kit</h2>
@@ -244,25 +261,25 @@ public sealed class OrdersModule : RestBehaviorModuleBase
   columns={2}
   features={[
     {
-      icon: '🗄️',
+      icon: 'bi:stack',
       title: 'Data the way you want it',
       description: 'Runtime-neutral data abstractions with optional EF Core, MongoDB, Cassandra, Postgres, SQL Server, Oracle, Redis, MySQL, Elasticsearch, ClickHouse, Neo4j, NATS, Qdrant adapters.',
       href: '/0-1-0-preview/technology/data/',
     },
     {
-      icon: '🔐',
+      icon: 'bi:shield-lock',
       title: 'Identity & multi-tenancy ready',
       description: 'Host-agnostic identity and authorization, ASP.NET Core adapters, tenant resolution, ambient tenant context, durable membership/invitation governance, declared domain ownership, and approval/remediation workflows.',
       href: '/0-1-0-preview/technology/identity/',
     },
     {
-      icon: '☁️',
+      icon: 'bi:cloud-check',
       title: 'Cloud-native observability',
       description: 'OTLP exporters and managed defaults for Alibaba Cloud, AWS, Azure Monitor, DigitalOcean, GCP, Grafana Cloud, Huawei Cloud, Kubernetes, New Relic, OpenShift, Oracle Cloud, Serilog, and Tanzu.',
       href: '/0-1-0-preview/technology/observability/',
     },
     {
-      icon: '🛡️',
+      icon: 'bi:shield-check',
       title: 'Operational hardening built-in',
       description: 'Runtime failure policy, dependency-health probes across 18 backends, generated runbooks, container image publishing, BenchmarkDotNet hot-path coverage, and conformance matrices.',
       href: '/0-1-0-preview/guide/operations/',
@@ -277,19 +294,19 @@ public sealed class OrdersModule : RestBehaviorModuleBase
   columns={3}
   features={[
     {
-      icon: '📜',
+      icon: 'bi:file-earmark-text',
       title: 'Explicit contracts',
       description: 'Every public surface ships with a runtime contract entry, conformance matrix row, and maturity label. No silent breaks.',
       href: '/0-1-0-preview/reference/architecture/',
     },
     {
-      icon: '🧭',
+      icon: 'bi:compass',
       title: 'Stable shipping floor',
       description: '.NET 10 LTS is the shipping baseline. The .NET 11 readiness lane is tracked publicly with assessment-only status.',
       href: '/0-1-0-preview/migration/dotnet-versions/',
     },
     {
-      icon: '🔭',
+      icon: 'bi:collection',
       title: 'Multi-version docs',
       description: 'Every released version ships its own snapshot — guides, components, and API reference. Switch versions from the header.',
       href: '/0-1-0-preview/reference/api/',
@@ -304,12 +321,36 @@ public sealed class OrdersModule : RestBehaviorModuleBase
   </div>
 </div>
 
-## Start where you are
+<span class="ce-section-kicker">Start where you are</span>
+<h2 class="ce-section-title">Choose your next move</h2>
 
-- <a href="/0-1-0-preview/guide/quickstart/">**Quickstart**</a> — install the CLI, run `cephalon doctor`, scaffold an app, deploy.
-- <a href="/0-1-0-preview/tutorials/">**Tutorials**</a> — end-to-end builds covering monolith, microservices, multi-tenant SaaS, and more.
-- <a href="/0-1-0-preview/technology/">**Technology**</a> — browse the full companion-package catalog by domain.
-- <a href="/0-1-0-preview/migration/">**Migration**</a> — playbooks for moving onto CephalonEngine or upgrading between versions.
-- <a href="/0-1-0-preview/reference/">**Reference**</a> — runtime contracts, configuration schema, CLI surface, and versioned API reference.
-- <a href="/0-1-0-preview/contributing/">**Contributing**</a> — engineering standards, package lifecycle, release process, module-authoring rules.
-- <a href="/about/">**About**</a> — roadmap, release notes, governance, FAQ, and license.
+<div class="ce-start-grid ce-reveal ce-reveal--4">
+  <a class="ce-start-link" href="/0-1-0-preview/guide/quickstart/">
+    <strong>Quickstart</strong>
+    <span>Install the CLI, run <code>cephalon doctor</code>, scaffold an app, and deploy.</span>
+  </a>
+  <a class="ce-start-link" href="/0-1-0-preview/tutorials/">
+    <strong>Tutorials</strong>
+    <span>Build end-to-end examples for monolith, microservices, and multi-tenant SaaS.</span>
+  </a>
+  <a class="ce-start-link" href="/0-1-0-preview/technology/">
+    <strong>Technology</strong>
+    <span>Browse the companion package catalog by domain, runtime, and deployment concern.</span>
+  </a>
+  <a class="ce-start-link" href="/0-1-0-preview/migration/">
+    <strong>Migration</strong>
+    <span>Follow structured playbooks for onboarding and version-to-version upgrades.</span>
+  </a>
+  <a class="ce-start-link" href="/0-1-0-preview/reference/">
+    <strong>Reference</strong>
+    <span>Inspect runtime contracts, configuration schema, CLI surfaces, and API docs.</span>
+  </a>
+  <a class="ce-start-link" href="/0-1-0-preview/contributing/">
+    <strong>Contributing</strong>
+    <span>Adopt engineering standards, package lifecycle rules, and release process details.</span>
+  </a>
+  <a class="ce-start-link" href="/about/">
+    <strong>About</strong>
+    <span>Track roadmap, release notes, governance details, FAQ, and project license.</span>
+  </a>
+</div>

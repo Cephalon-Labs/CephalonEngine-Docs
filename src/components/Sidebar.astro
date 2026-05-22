@@ -3,20 +3,14 @@
  * Sidebar override — picks a slice of the configured sidebar tree based on
  * the current URL so each section sees only its own menu.
  *
- *   Set 1 (versioned): Guide, Tutorials, Technology, Migration
- *                      shown on /<versionId>/{guide|tutorials|technology|migration}/...
+ *   Each versioned section gets its OWN focused sidebar — 1:1 with the
+ *   header nav — shown on /<versionId>/<section>/...:
+ *     - Guide, Tutorials, Technology, Migration, Contributing, Source:
+ *       that section's pages promoted to top level.
+ *     - Reference: its sub-groups (Architecture, Configuration, Components,
+ *       CLI, API Reference) promoted to top level.
  *
- *   Set 2 (versioned): Reference's sub-groups (Architecture, Configuration,
- *                      CLI, API Reference) promoted to top level
- *                      shown on /<versionId>/reference/...
- *
- *   Set 3 (versioned): Contributing pages promoted to top level
- *                      shown on /<versionId>/contributing/...
- *
- *   Set 4 (site-wide): About pages promoted to top level
- *                      shown on /about/...
- *
- *   Source dump: shown on /<versionId>/source/...
+ *   About: site-wide (not versioned), shown on /about/...
  */
 
 import Default from '@astrojs/starlight/components/Sidebar.astro';
@@ -192,15 +186,23 @@ if (activeVersion) {
     case 'guide':
     case 'tutorials':
     case 'technology':
-    case 'migration':
+    case 'migration': {
+      // Each section gets its OWN focused sidebar (1:1 with the header nav)
+      // instead of the four sharing one combined tree — mirrors how the
+      // `contributing` / `source` cases above already work.
+      const groupLabel = {
+        guide: 'Guide',
+        tutorials: 'Tutorials',
+        technology: 'Technology',
+        migration: 'Migration',
+      }[activeSection];
+      const group = findInVersion(activeVersion.id, groupLabel);
+      filteredSidebar = group ? group.entries : [];
+      break;
+    }
     default: {
-      // Set 1: only Guide / Tutorials / Technology / Migration inside the
-      // active version.
-      const versionGroup = findVersionGroup(activeVersion.id);
-      const allowed = new Set(['Guide', 'Tutorials', 'Technology', 'Migration']);
-      filteredSidebar = versionGroup
-        ? versionGroup.entries.filter((entry) => isGroup(entry) && allowed.has(entry.label))
-        : [];
+      // Versioned URL with no recognised section — show an empty sidebar.
+      filteredSidebar = [];
       break;
     }
   }

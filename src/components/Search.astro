@@ -42,8 +42,8 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 		aria-keyshortcuts="Control+K"
 	>
 		<Icon name="magnifier" />
-		<span class="sl-hidden md:sl-block" aria-hidden="true">{Astro.locals.t('search.label')}</span>
-		<kbd class="sl-hidden md:sl-flex" style="display: none;">
+		<span aria-hidden="true">{Astro.locals.t('search.label')}</span>
+		<kbd style="display: none;">
 			<kbd>{Astro.locals.t('search.ctrlKey')}</kbd><kbd>K</kbd>
 		</kbd>
 	</button>
@@ -235,9 +235,21 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 			cursor: pointer;
 			height: 2.5rem;
 			font-size: var(--sl-text-xl);
+			margin: 0 auto;
 		}
 
-		@media (min-width: 50rem) {
+		/* Icon mode (default, ≤ 910px) — just the magnifier; hide the
+		   "Search" label and the keyboard-shortcut hint. The button stays
+		   accessible via its `aria-label`. */
+		button[data-open-modal] > span,
+		button[data-open-modal] > kbd {
+			display: none;
+		}
+
+		/* Box mode — the full Search box. Below 911px the header is crowded
+		   (6-item nav + 250px-min box), so at ≤ 910px the search collapses
+		   to the bare magnifier icon (the icon-mode rule above). */
+		@media (min-width: 940px) {
 			button[data-open-modal] {
 				border: 1px solid var(--sl-color-gray-5);
 				border-radius: 0.5rem;
@@ -247,7 +259,8 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 				color: var(--sl-color-gray-2);
 				font-size: var(--sl-text-sm);
 				width: 100%;
-				max-width: 22rem;
+				/* min-width: 250px; */
+				margin-left: 2rem;
 			}
 			button[data-open-modal]:hover {
 				border-color: var(--sl-color-gray-2);
@@ -257,6 +270,10 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 			button[data-open-modal] > :last-child {
 				margin-inline-start: auto;
 			}
+
+			/* Box mode reveals the "Search" label + shortcut hint. */
+			button[data-open-modal] > span { display: block; }
+			button[data-open-modal] > kbd { display: flex; }
 		}
 
 		button > kbd {

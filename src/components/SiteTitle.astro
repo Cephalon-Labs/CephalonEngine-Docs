@@ -27,11 +27,15 @@ interface NavLink {
   isVersioned: boolean;
 }
 
+// Header nav. Labels + targets mirror the footer's link columns so the
+// header and footer stay consistent. `isVersioned` items resolve into the
+// active version; About is site-wide.
 const links: NavLink[] = [
-  { label: 'Get start', thLabel: 'เริ่มต้น', innerPath: 'guide/quickstart', isVersioned: true },
-  { label: 'Tutorial', thLabel: 'บทเรียน', innerPath: 'tutorials', isVersioned: true },
-  { label: 'Contribute', thLabel: 'ร่วมพัฒนา', innerPath: 'contributing', isVersioned: true },
-  { label: 'API Reference', thLabel: 'API Reference', innerPath: 'reference/api', isVersioned: true },
+  { label: 'Get started', thLabel: 'เริ่มต้น', innerPath: 'guide/quickstart', isVersioned: true },
+  { label: 'Tutorials', thLabel: 'บทเรียน', innerPath: 'tutorials', isVersioned: true },
+  { label: 'Technology', thLabel: 'Technology', innerPath: 'technology', isVersioned: true },
+  { label: 'Reference', thLabel: 'Reference', innerPath: 'reference', isVersioned: true },
+  { label: 'Contributing', thLabel: 'ร่วมพัฒนา', innerPath: 'contributing', isVersioned: true },
   { label: 'About', thLabel: 'เกี่ยวกับ', innerPath: 'about', isVersioned: false },
 ];
 
@@ -47,6 +51,14 @@ function isActive(link: NavLink): boolean {
 }
 
 const menuLabel = locale === 'th' ? 'เมนู' : 'Menu';
+
+// Mobile collapsed-nav trigger label — the active section's name when the
+// reader is inside one, otherwise the generic "Menu". Desktop keeps the
+// caret-only icon (`.ce-header-menu__current` is hidden there via CSS).
+const activeLink = links.find((link) => isActive(link));
+const triggerLabel = activeLink
+  ? (locale === 'th' ? activeLink.thLabel : activeLink.label)
+  : menuLabel;
 ---
 
 <div class="ce-site-title">
@@ -61,27 +73,35 @@ const menuLabel = locale === 'th' ? 'เมนู' : 'Menu';
         {locale === 'th' ? link.thLabel : link.label}
       </a>
     ))}
-  </nav>
 
-  <details class="ce-header-menu" aria-label={menuLabel}>
-    <summary class="ce-header-menu__trigger" aria-haspopup="menu">
-      <span class="ce-header-menu__label">{menuLabel}</span>
-      <Icon name="bi:chevron-down" class="ce-header-menu__chevron" size={12} aria-hidden="true" />
-    </summary>
-    <ul class="ce-header-menu__panel" role="menu">
-      {links.map((link) => (
-        <li role="presentation">
-          <a
-            role="menuitem"
-            href={buildHref(link)}
-            class={`ce-header-menu__option${isActive(link) ? ' is-active' : ''}`}
-          >
-            {locale === 'th' ? link.thLabel : link.label}
-          </a>
-        </li>
-      ))}
-    </ul>
-  </details>
+    {/* Priority-nav overflow dropdown. Kept as the LAST child of the nav so
+        it sits right after the last visible link. site-ui.js's
+        `layoutHeaderNav()` measures the header and moves links that don't
+        fit into this caret's panel; the caret shows only when something
+        overflowed. Below 50rem the whole nav collapses in here. */}
+    <details class="ce-header-menu" aria-label={menuLabel}>
+      {/* Trigger. Desktop: caret only (the overflow caret) — the label span
+          is hidden via CSS. Mobile: the label shows the active section's
+          name, or "Menu" when no nav item is active. */}
+      <summary class="ce-header-menu__trigger" aria-haspopup="menu" aria-label={triggerLabel}>
+        <span class="ce-header-menu__current">{triggerLabel}</span>
+        <Icon name="bi:chevron-down" class="ce-header-menu__chevron" size={16} aria-hidden="true" />
+      </summary>
+      <ul class="ce-header-menu__panel" role="menu">
+        {links.map((link) => (
+          <li role="presentation">
+            <a
+              role="menuitem"
+              href={buildHref(link)}
+              class={`ce-header-menu__option${isActive(link) ? ' is-active' : ''}`}
+            >
+              {locale === 'th' ? link.thLabel : link.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </details>
+  </nav>
 </div>
 
 {/* Mobile menu dropdown JS lives in /public/scripts/site-ui.js — see Head.astro */}

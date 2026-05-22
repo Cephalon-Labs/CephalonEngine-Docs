@@ -42,7 +42,8 @@
     const panel = details.querySelector('.ce-header-menu__panel');
     const trigger = details.querySelector('.ce-header-menu__trigger');
     if (!panel || !trigger) return;
-    void trigger.offsetHeight; // flush layout so getBoundingClientRect is fresh
+    // `getBoundingClientRect()` already flushes pending layout itself, so the
+    // reads below are fresh without an extra, reflow-causing `offsetHeight`.
     const rect = trigger.getBoundingClientRect();
     const panelWidth = panel.offsetWidth || 224;
     const triggerCenter = rect.left + rect.width / 2;
@@ -53,6 +54,88 @@
   }
   window.addEventListener('resize', repositionOpenMenu);
   window.addEventListener('scroll', repositionOpenMenu, { passive: true });
+
+  /* ---- Header priority navigation ---------------------------------------
+   * The header nav shows as many links inline as fit; links that overflow
+   * are moved into the caret dropdown (`.ce-header-menu`, the last child of
+   * `.ce-header-nav`). The caret shows only when something overflowed; below
+   * 50rem the whole nav collapses into the (centred) caret.
+   *
+   * Recomputed on resize, on `astro:page-load`, and once webfonts settle
+   * (fallback-font link widths differ from the final ones). Re-queries the
+   * DOM each call, so it works for whatever page ClientRouter rendered. */
+  function layoutHeaderNav() {
+    const nav = document.querySelector('.ce-header-nav');
+    const menu = nav && nav.querySelector('.ce-header-menu');
+    if (!nav || !menu) return;
+    const links = [...nav.querySelectorAll('.ce-header-nav__link')];
+    const panelItems = [...menu.querySelectorAll('.ce-header-menu__panel > li')];
+    if (links.length === 0) return;
+
+    // Reset to a fully-measurable state — every link + the caret visible.
+    links.forEach((a) => { a.style.display = ''; });
+    menu.style.display = 'inline-flex';
+
+    let inlineCount;
+    if (window.matchMedia('(max-width: 50rem)').matches) {
+      inlineCount = 0; // mobile — the whole nav lives in the caret
+    } else {
+      const siteTitle = nav.parentElement;
+      const logo = nav.previousElementSibling;
+      const navGap = parseFloat(getComputedStyle(siteTitle).columnGap) || 0;
+      const linkGap = parseFloat(getComputedStyle(nav).columnGap) || 0;
+      const caretW = menu.offsetWidth;
+      const widths = links.map((a) => a.offsetWidth);
+      // Space the nav may use: the title row, minus the logo, one gap, and a
+      // few px of rounding safety.
+      const budget =
+        siteTitle.clientWidth - (logo ? logo.offsetWidth : 0) - navGap - 4;
+      const allInline =
+        widths.reduce((sum, w) => sum + w, 0) + linkGap * (links.length - 1);
+      if (allInline <= budget) {
+        inlineCount = links.length; // everything fits — no caret needed
+      } else {
+        // Fit as many as possible, reserving room for the caret + its gap.
+        let used = 0;
+        inlineCount = 0;
+        for (let i = 0; i < links.length; i++) {
+          used += widths[i] + (i > 0 ? linkGap : 0);
+          if (used + linkGap + caretW > budget) break;
+          inlineCount++;
+        }
+      }
+    }
+
+    // Apply — first `inlineCount` links stay inline, the rest move into the
+    // caret panel (every link appears in exactly one place).
+    links.forEach((a, i) => {
+      a.style.display = i < inlineCount ? '' : 'none';
+    });
+    panelItems.forEach((li, i) => {
+      li.style.display = i < inlineCount ? 'none' : '';
+    });
+    if (inlineCount < links.length) {
+      menu.style.display = 'inline-flex';
+    } else {
+      menu.style.display = 'none';
+      menu.removeAttribute('open');
+    }
+  }
+
+  // rAF-debounced so a resize drag recomputes the nav at most once per frame.
+  let headerNavRaf = 0;
+  function scheduleHeaderNav() {
+    if (headerNavRaf) return;
+    headerNavRaf = requestAnimationFrame(() => {
+      headerNavRaf = 0;
+      layoutHeaderNav();
+    });
+  }
+  window.addEventListener('resize', scheduleHeaderNav);
+  // The webfont swap changes link widths — re-measure once fonts have loaded.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(layoutHeaderNav);
+  }
 
   /* ---- Dropdown close-on-outside + Escape (menu + version switcher) ------
    * Delegated on `document`, so they cover whatever dropdowns the current
@@ -168,8 +251,12 @@
       bar.setAttribute('aria-hidden', 'true');
       document.body.appendChild(bar);
     }
-    void bar.offsetWidth; // reflow so the CSS animation restarts cleanly
-    bar.classList.add('is-loading');
+    // Flip to the loading state on the NEXT frame instead of forcing a
+    // synchronous reflow here (`void bar.offsetWidth`): the browser commits
+    // the bar's just-appended initial state on the current frame, so the CSS
+    // animation still starts cleanly — without the forced layout that reading
+    // a geometric property right after `appendChild` triggers.
+    requestAnimationFrame(() => bar.classList.add('is-loading'));
   };
   document.addEventListener('astro:before-preparation', () => {
     clearTimeout(progressTimer);
@@ -241,6 +328,9 @@
         });
       });
     });
+
+    /* ---- Header priority navigation — lay the nav out for this page. */
+    layoutHeaderNav();
   }
 
   // Fires on the initial load AND after every ClientRouter navigation.

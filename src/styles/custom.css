@@ -114,7 +114,8 @@ h1, h2, h3, h4, h5, h6,
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
   gap: 2.5rem;
   padding: 3.5rem 2.5rem;
-  border-radius: var(--ce-radius-2xl);
+  border-bottom-left-radius: var(--ce-radius-2xl);
+  border-bottom-right-radius: var(--ce-radius-2xl);
   background:
     radial-gradient(120% 80% at 0% 0%, rgba(52, 182, 220, 0.18), transparent 60%),
     radial-gradient(80% 60% at 100% 100%, rgba(125, 221, 248, 0.12), transparent 55%),
@@ -152,7 +153,9 @@ h1, h2, h3, h4, h5, h6,
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
-  border-radius: var(--ce-radius-2xl);
+  /* border-radius: var(--ce-radius-2xl); */
+  border-bottom-left-radius: var(--ce-radius-2xl);
+  border-bottom-right-radius: var(--ce-radius-2xl);
   opacity: 0.22;
   mix-blend-mode: multiply;
 }
@@ -469,6 +472,7 @@ h1, h2, h3, h4, h5, h6,
   border: 1px solid var(--ce-preview-border);
   overflow: hidden;
   transform: rotate(0.2deg);
+  opacity: 0.85;
 }
 
 :root[data-theme='dark'] .ce-hero__preview-window {
@@ -1127,7 +1131,10 @@ h1, h2, h3, h4, h5, h6,
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.4rem 0.7rem 0.4rem 0.85rem;
+  /* Desktop: caret only (the priority-nav overflow caret) — compact,
+     symmetric padding. Mobile (≤50rem) also shows the label span; the
+     50rem block widens the padding to suit the text. */
+  padding: 0.4rem 0.5rem;
   border-radius: var(--ce-radius-pill);
   border: 1px solid var(--sl-color-hairline);
   background: var(--ce-surface-1);
@@ -1141,6 +1148,7 @@ h1, h2, h3, h4, h5, h6,
   transition:
     border-color var(--ce-tween),
     background-color var(--ce-tween);
+  margin-left: 0.85rem;
 }
 
 .ce-header-menu__trigger::-webkit-details-marker { display: none; }
@@ -1163,6 +1171,13 @@ h1, h2, h3, h4, h5, h6,
 
 .ce-header-menu[open] .ce-header-menu__chevron {
   transform: rotate(180deg);
+}
+
+/* The trigger's text label. Hidden on desktop — the trigger there is the
+   icon-only priority-nav overflow caret. Shown at ≤50rem, where the whole
+   nav collapses into the trigger and the label names the active section. */
+.ce-header-menu__current {
+  display: none;
 }
 
 /* `position: fixed` so the panel escapes Starlight's `.title-wrapper`
@@ -1209,43 +1224,53 @@ h1, h2, h3, h4, h5, h6,
   color: var(--ce-brand-300);
 }
 
-/* Breakpoint switch — three modes:
-   • ≥ 72rem (wide desktop)      : inline nav links visible, menu hidden
-   • 50-72rem (tablet/narrow)    : menu flows after logo (before Search)
-   • ≤ 50rem (true mobile)       : menu absolutely centred in the header
+/* Header nav — priority navigation.
+   The inline links show as many as fit; links that overflow are moved into
+   the caret dropdown (`.ce-header-menu`, the last child of `.ce-header-nav`)
+   by `layoutHeaderNav()` in /public/scripts/site-ui.js — measured on load,
+   on resize, and once webfonts settle. The caret appears only when a link
+   overflowed. Below 50rem the whole nav collapses into the caret (50rem
+   block below). There is no width media-query for the desktop/tablet
+   range — the split is computed, not guessed.
 
-   The 72rem threshold matches Starlight's nav layout break. The 50rem
-   threshold is the point where Starlight collapses Search to a popover
-   icon and the header gets crowded — at that width we re-centre the
-   menu between the logo and the icon row so it doesn't squeeze them. */
+   Starlight clips `.title-wrapper` (`overflow: clip`) for long page titles;
+   open it so the caret pill is never clipped at the header edge. The
+   dropdown panel itself is `position: fixed` and JS-positioned. */
+.title-wrapper { overflow: visible; }
 
-@media (max-width: 72rem) {
-  .ce-header-nav { display: none; }
-  .ce-header-menu { display: inline-block; }
-
-  /* The title-wrapper normally has `overflow: clip` for long page titles.
-     Open it so the dropdown panel below the trigger isn't clipped at the
-     header bottom edge. */
-  .title-wrapper { overflow: visible; }
-}
-
-/* True mobile — re-centre the Menu so it sits between the logo and the
-   right-side icons (Search + hamburger). We use `position: absolute;
-   inset: 0; margin: auto` instead of `transform: translate(-50%, -50%)`
-   because a transformed element becomes a containing block for fixed-
-   position descendants, which would re-anchor the dropdown panel and
-   break its viewport-clamping JS positioning. */
+/* True mobile — the whole nav collapses into the caret (`layoutHeaderNav`
+   moves every link into the dropdown at this width). To centre the caret in
+   the gap between the logo and the Search icon, three boxes have to stretch
+   across the row:
+     1. `.title-wrapper` — Starlight's header is plain `display: flex` below
+        50rem (its grid layout starts only at ≥50rem) and `.title-wrapper`
+        has no `flex-grow`, so it shrinks to its content and would pin the
+        caret right next to the logo. `flex-grow: 1` makes it fill the row
+        up to the Search box.
+     2. `.ce-site-title` — already `flex: 1 1 auto` (base rule); fills the
+        now-wide `.title-wrapper`.
+     3. `.ce-header-nav` — `flex: 1 1 auto` fills the space after the logo,
+        then `justify-content: center` centres the caret within it.
+   `.ce-site-title`'s gap is zeroed so the nav box starts flush with the
+   logo. Flow layout (no `position: absolute`) leaves the fixed dropdown
+   panel's JS positioning untouched. */
 @media (max-width: 50rem) {
-  .title-wrapper { overflow: visible; }
-
-  .ce-header-menu {
-    position: absolute;
-    inset: 0;
-    margin: auto;
-    width: fit-content;
-    height: fit-content;
-    z-index: 5;
+  .title-wrapper { flex-grow: 1; }
+  .ce-site-title { gap: 0; }
+  .ce-header-nav {
+    flex: 1 1 auto;
+    justify-content: center;
   }
+
+  /* Pre-JS fallback for this width — show the caret, hide the links.
+     `layoutHeaderNav` does the same once it runs (its inline styles win). */
+  .ce-header-nav__link { display: none; }
+  .ce-header-menu { display: inline-flex; }
+
+  /* The collapsed nav reads as a labelled control here — show the active
+     section name (or "Menu"); widen the trigger padding for the text. */
+  .ce-header-menu__current { display: inline; }
+  .ce-header-menu__trigger { padding: 0.4rem 0.75rem; }
 }
 
 /* ---------- Version switcher ---------- */
@@ -2035,9 +2060,25 @@ h1, h2, h3, h4, h5, h6,
   }
 }
 
-@container ce-footer (max-width: 36rem) {
+@container ce-footer (max-width: 52rem) {
+  /* Phones: keep TWO link columns (design request) instead of collapsing to
+     one. `minmax(0, …)` lets long labels wrap inside the column; the tighter
+     gap fits two columns on a narrow viewport. */
   .ce-footer__columns {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.25rem 0.9rem;
+    white-space: nowrap;
+  }
+}
+
+
+@container ce-footer (max-width: 36rem) {
+  /* Phones: keep TWO link columns (design request) instead of collapsing to
+     one. `minmax(0, …)` lets long labels wrap inside the column; the tighter
+     gap fits two columns on a narrow viewport. */
+  .ce-footer__columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem 1rem;
   }
 }
 
@@ -2062,7 +2103,8 @@ h1, h2, h3, h4, h5, h6,
   }
   @media (max-width: 36rem) {
     .ce-footer__columns {
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1.25rem 1rem;
     }
   }
 }

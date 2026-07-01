@@ -1,4 +1,4 @@
-One engine. Every shape of serious .NET workloads.
+One engine, Every shape of serious .NET workloads.
 
 - Deterministic composition
 - Operational safety rails

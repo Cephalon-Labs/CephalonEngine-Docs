@@ -1101,10 +1101,14 @@ h1, h2, h3, h4, h5, h6,
    keeps its size and the nav can take the rest of the row. */
 .ce-site-title > a {
   flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
 }
 
 .ce-site-title > a img {
-  height: 2rem;
+  height: 3.5rem;
+  margin: 0;
+  padding: 0;
   width: auto;
 }
 
